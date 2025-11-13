@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // or "mysql", "sqlite", etc.
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication and profile
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String   // Store hashed password
+  firstname String?
+  lastname  String?
+  role      String   @default("user") // "user", "admin"
+  
+  // Profile information
+  phone       String?
+  address     String?
+  city        String?
+  country     String?
+  postalCode  String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  purchases Purchase[]
+  
+  @@map("users")
+}
+
+// Purchase model for Smart Hive orders
+model Purchase {
+  id        Int      @id @default(autoincrement())
+  
+  // User reference
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Order details
+  masterHives Int      @default(0)
+  normalHives Int      @default(0)
+  totalAmount Float
+  
+  // Customer information (snapshot at purchase time)
+  fullName   String
+  email      String
+  phone      String
+  address    String
+  city       String
+  country    String
+  postalCode String
+  
+  // Payment information (store minimal data for security)
+  cardLastFour String?  // Last 4 digits only
+  paymentMethod String? @default("card")
+  
+  // Status tracking
+  status           String   @default("pending") // "pending", "approved", "rejected", "cancelled"
+  accessGranted    Boolean  @default(false)
+  accessGrantedAt  DateTime?
+  
+  // Container assignments
+  assignedContainers String[] // Array of container IDs
+  
+  // Timestamps
+  purchaseDate DateTime @default(now())
+  approvedAt   DateTime?
+  updatedAt    DateTime @updatedAt
+  
+  // Notes from admin
+  adminNotes String?
+  
+  @@map("purchases")
+  @@index([userId])
+  @@index([status])
+  @@index([email])
+}
+
+// Optional: Session model for JWT token blacklist/management
+model Session {
+  id        String   @id @default(cuid())
+  userId    Int
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@map("sessions")
+  @@index([userId])
+  @@index([token])
+}
+
+// Container model to track available containers with location data
+model Container {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  
+  // Location data
+  latitude    Float?
+  longitude   Float?
+  address     String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("containers")
+}
+
+// NEW: ApiaryLocation model for storing GPS coordinates of apiaries
+model ApiaryLocation {
+  id          Int      @id @default(autoincrement())
+  containerId String   @unique // References container name
+  latitude    Float
+  longitude   Float
+  address     String?  // Optional human-readable address
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("apiary_locations")
+  @@index([containerId])
+}
