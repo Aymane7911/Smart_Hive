@@ -14,9 +14,12 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    // Infer the type from the query result
+    type ApiaryLocation = typeof locations[number];
+
     // Convert array to object keyed by containerId for easier lookup
     const locationsMap: Record<string, any> = {};
-    locations.forEach((location) => {
+    locations.forEach((location: ApiaryLocation) => {
       locationsMap[location.containerId] = {
         containerId: location.containerId,
         lat: location.latitude,
