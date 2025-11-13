@@ -494,16 +494,32 @@ const [containerError, setContainerError] = useState<string | null>(null);
 }, [selectedContainer, router]);
 
 
-  useEffect(() => {
+ useEffect(() => {
   isMountedRef.current = true;
   
-  // Check authentication immediately on mount
+  // Check authentication ONLY ONCE on mount
   fetchUserAccessAndContainers();
   
   return () => {
     isMountedRef.current = false;
   };
-}, [fetchUserAccessAndContainers]);
+}, []);
+
+// Handle URL parameters for direct container selection
+useEffect(() => {
+  if (typeof window === 'undefined' || availableContainers.length === 0) return;
+  
+  const params = new URLSearchParams(window.location.search);
+  const containerParam = params.get('container');
+  
+  if (containerParam && availableContainers.includes(containerParam)) {
+    console.log('📍 Setting container from URL:', containerParam);
+    setSelectedContainer(containerParam);
+  } else if (!selectedContainer && availableContainers.length > 0) {
+    // If no valid parameter, set first available container
+    setSelectedContainer(availableContainers[0]);
+  }
+}, [availableContainers]);
 
 
 
@@ -746,7 +762,7 @@ const [containerError, setContainerError] = useState<string | null>(null);
         }
       }, 1000);
     }
-  }, [isRefreshing, fetchLatestData, fetchHistoricalData, fetchUserAccessAndContainers]);
+  }, [isRefreshing, fetchLatestData, fetchHistoricalData]);
 
   useEffect(() => {
   // Wait for both containers and selection to be ready
@@ -773,35 +789,22 @@ const [containerError, setContainerError] = useState<string | null>(null);
   
   fetchData();
   
+  // Auto-refresh data every 5 MINUTES (300000ms) - NOT on every render
   const interval = setInterval(() => {
     if (isMountedRef.current && document.visibilityState === 'visible') {
+      console.log('🔄 Auto-refreshing sensor data...');
       fetchLatestData();
       fetchHistoricalData();
     }
-  }, 300000);
+  }, 300000); // 5 minutes
 
   return () => {
     clearInterval(interval);
   };
-}, [selectedContainer, fetchLatestData, fetchHistoricalData, containerLoading]);
+}, [selectedContainer]);
 
 
-useEffect(() => {
-  // Don't auto-refresh if user doesn't have access yet
-  if (!hasAccess) return;
-  
-  // Auto-refresh access every 30 seconds to check for admin changes
-  const accessCheckInterval = setInterval(() => {
-    if (isMountedRef.current && document.visibilityState === 'visible') {
-      console.log('🔄 Auto-checking for access updates...');
-      fetchUserAccessAndContainers();
-    }
-  }, 30000); // Check every 30 seconds
 
-  return () => {
-    clearInterval(accessCheckInterval);
-  };
-}, [hasAccess, fetchUserAccessAndContainers]);
   
 
   if (loading) {
@@ -1261,6 +1264,11 @@ if (!hasAccess && !authChecking && containerError) {
               >
                 <Menu className="h-5 w-5 text-gray-700" />
               </button>
+              <button
+  onClick={() => router.push('/welcome')}
+  className="mr-4 flex items-center gap-2 px-4 py-2 bg-white/80 rounded-xl border border-blue-200/50 shadow-sm hover:shadow-md transition-all text-sm font-medium text-gray-700 hover:text-blue-600"
+>
+</button>
               <div className="flex items-center">
                 <div className="mr-3 bg-gradient-to-br from-blue-500 to-indigo-500 p-2.5 rounded-xl shadow-lg">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
