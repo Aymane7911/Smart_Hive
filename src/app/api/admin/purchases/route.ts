@@ -1,6 +1,6 @@
 // app/api/admin/purchases/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Purchase, User } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
@@ -11,6 +11,11 @@ interface JWTPayload {
   email: string;
   role: string;
 }
+
+// Type for purchase with user relation
+type PurchaseWithUser = Purchase & {
+  user: Pick<User, 'id' | 'email' | 'firstname' | 'lastname' | 'role' | 'phone' | 'createdAt'>;
+};
 
 // Verify admin token
 function verifyAdminToken(token: string): JWTPayload | null {
@@ -68,7 +73,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: purchases.map((p) => ({
+      data: purchases.map((p: PurchaseWithUser) => ({
         ...p,
         id: Number(p.id)
       })),
