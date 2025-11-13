@@ -9,14 +9,18 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@azure/storage-blob": "^12.29.1",
     "@prisma/client": "^6.19.0",
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.2.3",
     "jsonwebtoken": "^9.0.2",
+    "leaflet": "^1.9.4",
     "lucide-react": "^0.553.0",
     "next": "16.0.1",
     "nodemailer": "^7.0.10",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "react-leaflet": "^5.0.0",
     "recharts": "^3.4.1"
   },
   "devDependencies": {
