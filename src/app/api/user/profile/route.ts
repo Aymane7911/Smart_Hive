@@ -88,6 +88,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Infer the purchase type from the query result
+    type UserPurchase = typeof user.purchases[number];
+
     return NextResponse.json({
       success: true,
       user: {
@@ -104,7 +107,7 @@ export async function GET(request: NextRequest) {
         createdAt: user.createdAt,
         updatedAt: user.updatedAt
       },
-      purchases: user.purchases.map((p) => ({
+      purchases: user.purchases.map((p: UserPurchase) => ({
         ...p,
         id: p.id.toString(),
         createdAt: p.purchaseDate
