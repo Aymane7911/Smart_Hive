@@ -405,7 +405,7 @@ const [containerError, setContainerError] = useState<string | null>(null);
       setAuthError('No Smart Hive purchase found. Please purchase a plan first.');
       setHasAccess(false);
       setTimeout(() => {
-        router.push('/payment');
+        router.push('/login');
       }, 2000);
       return;
     }
