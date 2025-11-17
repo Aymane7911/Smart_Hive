@@ -7,6 +7,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AzureBlobService } from '../../../../../lib/azure';
 import { csvUtils, csvParser } from '../../../../../lib/csvParser';
 import { normalizeSensorDataArray, detectCSVFormat } from '../../../../../lib/fieldMapping';
+import { PrismaClient } from '@prisma/client';
+import jwt from 'jsonwebtoken';
+import { fetchCalibrations, applyCalibrationToDataset } from '../../../../../lib/calibrationUtils';
+
+const prisma = new PrismaClient();
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // Environment-based logging
 const LOG_LEVEL = process.env.LOG_LEVEL || 'production';
@@ -32,6 +38,21 @@ export async function GET(request: NextRequest) {
         data: [],
         timestamp: new Date().toISOString()
       }, { status: 400 });
+    }
+
+    // ✅ STEP 1: Get user ID from token (for calibration lookup)
+    const token = request.cookies.get('user-token')?.value || 
+                  request.cookies.get('auth-token')?.value;
+    
+    let userId: number | null = null;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        userId = decoded.userId || decoded.id;
+        console.log('🔐 User authenticated:', userId);
+      } catch (error) {
+        console.warn('⚠️ Invalid token for calibration lookup');
+      }
     }
     
     // Initialize Azure service and fetch blobs
@@ -88,13 +109,13 @@ export async function GET(request: NextRequest) {
         // Parse CSV
         const parsedResult = await csvUtils.parseAzureCSV(csvContent);
         
-        // 🔍 DEBUG: Log CSV columns to see what timestamp field exists
+        // Debug: Log CSV columns
         if (parsedResult.data.length > 0 && isVerbose) {
           console.log('🔍 CSV Columns:', Object.keys(parsedResult.data[0]));
           console.log('🔍 First row sample:', parsedResult.data[0]);
         }
         
-        // 🔥 DETECT CSV FORMAT (only on first blob)
+        // Detect CSV format (only on first blob)
         if (!detectedFormat && parsedResult.data.length > 0) {
           const formatInfo = detectCSVFormat(parsedResult.data);
           detectedFormat = formatInfo.format;
@@ -104,104 +125,108 @@ export async function GET(request: NextRequest) {
         // Extract metadata
         const metadata = csvParser.extractMetadata(parsedResult);
         
-        // ✅ FIX: Don't require timestamp, let CSV provide it
+        // Transform data
         const transformedData = csvParser.transformForDashboard(parsedResult, {
           dateFields: ['timestamp', 'time', 'lastModified', 'datetime', 'DateTime', 'Date', 'Time'],
           numericFields: [
             'value', 'temperature', 'pressure', 'humidity',
-            // Temperature fields - old format
             'temp_internal', 'temp_external', 'temperature_internal', 'temperature_external',
             'tempInternal', 'tempExternal', 'inte_temp', 'exte_temp',
-            // Temperature fields - new format
             'int_temp', 'ext_temp',
-            // Humidity fields - old format
             'hum_internal', 'hum_external', 'humidity_internal', 'humidity_external',
             'humInternal', 'humExternal', 'inte_hum', 'exte_hum',
-            // Humidity fields - new format
             'int_hum', 'ext_hum',
-            // Other sensor fields
             'weight', 'Weight', 'weight_kg',
             'battery', 'Battery', 'battery_level',
             'lat', 'latitude', 'lon', 'longitude'
           ],
-          requiredFields: [], // ✅ FIX: Remove 'timestamp' from required fields
+          requiredFields: [],
           defaultValues: {
             containerId: containerId
-            // ✅ FIX: Don't set timestamp here - it overwrites CSV timestamps
           }
         });
         
-        // Helper function at the top of the file (before the GET function)
-const ensureISOString = (timestamp: string | Date | undefined | null): string => {
-  if (!timestamp) return new Date().toISOString();
-  if (typeof timestamp === 'string') return timestamp;
-  return new Date(timestamp).toISOString();
-};
+        // Helper function to ensure ISO string
+        const ensureISOString = (timestamp: string | Date | undefined | null): string => {
+          if (!timestamp) return new Date().toISOString();
+          if (typeof timestamp === 'string') return timestamp;
+          return new Date(timestamp).toISOString();
+        };
 
-// Then in your code:
-const dataWithTimestamps = transformedData.map((row, rowIndex) => {
-  // 🔥 EXPANDED: Check MORE possible timestamp field names
-  const csvTimestamp = row.timestamp || 
-                      row.Timestamp || 
-                      row.datetime || 
-                      row.DateTime || 
-                      row.time || 
-                      row.Time || 
-                      row.Date ||
-                      row.date ||
-                      row.created_at ||
-                      row.createdAt ||
-                      row.recorded_at ||
-                      row.recordedAt ||
-                      row.measured_at ||
-                      row.measuredAt;
-  
-  // 🔥 DEBUG: Log first row to see what fields exist
-  if (rowIndex === 0) {
-    console.log('🔍 Container:', containerId);
-    console.log('🔍 ALL CSV FIELDS:', Object.keys(row));
-    console.log('🔍 CSV timestamp value found:', csvTimestamp);
-    console.log('🔍 Blob lastModified:', blob.lastModified);
-  }
-  
-  let finalTimestamp: string;
-  
-  if (csvTimestamp) {
-    const parsedDate = new Date(csvTimestamp);
-    if (!isNaN(parsedDate.getTime())) {
-      finalTimestamp = parsedDate.toISOString();
-      if (rowIndex === 0) {
-        console.log('✅ Using CSV timestamp:', finalTimestamp);
-      }
-    } else {
-      finalTimestamp = ensureISOString(blob.lastModified);
-      console.warn(`⚠️ Invalid CSV timestamp "${csvTimestamp}", using blob timestamp`);
-    }
-  } else {
-    finalTimestamp = ensureISOString(blob.lastModified);
-    if (rowIndex === 0) {
-      console.warn('⚠️ No CSV timestamp field found! Using blob.lastModified as fallback');
-    }
-  }
-  
-  return {
-    ...row,
-    timestamp: finalTimestamp,
-    _metadata: {
-      lastModified: ensureISOString(blob.lastModified),
-      blobName: blob.name,
-      containerId: containerId,
-      hasOriginalTimestamp: !!csvTimestamp,
-      detectedTimestampField: csvTimestamp ? 'from CSV' : 'from blob'
-    }
-  };
-});
+        // Add timestamps to data
+        const dataWithTimestamps = transformedData.map((row, rowIndex) => {
+          const csvTimestamp = row.timestamp || 
+                              row.Timestamp || 
+                              row.datetime || 
+                              row.DateTime || 
+                              row.time || 
+                              row.Time || 
+                              row.Date ||
+                              row.date ||
+                              row.created_at ||
+                              row.createdAt ||
+                              row.recorded_at ||
+                              row.recordedAt ||
+                              row.measured_at ||
+                              row.measuredAt;
+          
+          if (rowIndex === 0) {
+            console.log('🔍 Container:', containerId);
+            console.log('🔍 ALL CSV FIELDS:', Object.keys(row));
+            console.log('🔍 CSV timestamp value found:', csvTimestamp);
+            console.log('🔍 Blob lastModified:', blob.lastModified);
+          }
+          
+          let finalTimestamp: string;
+          
+          if (csvTimestamp) {
+            const parsedDate = new Date(csvTimestamp);
+            if (!isNaN(parsedDate.getTime())) {
+              finalTimestamp = parsedDate.toISOString();
+              if (rowIndex === 0) {
+                console.log('✅ Using CSV timestamp:', finalTimestamp);
+              }
+            } else {
+              finalTimestamp = ensureISOString(blob.lastModified);
+              console.warn(`⚠️ Invalid CSV timestamp "${csvTimestamp}", using blob timestamp`);
+            }
+          } else {
+            finalTimestamp = ensureISOString(blob.lastModified);
+            if (rowIndex === 0) {
+              console.warn('⚠️ No CSV timestamp field found! Using blob.lastModified as fallback');
+            }
+          }
+          
+          return {
+            ...row,
+            timestamp: finalTimestamp,
+            _metadata: {
+              lastModified: ensureISOString(blob.lastModified),
+              blobName: blob.name,
+              containerId: containerId,
+              hasOriginalTimestamp: !!csvTimestamp,
+              detectedTimestampField: csvTimestamp ? 'from CSV' : 'from blob'
+            }
+          };
+        });
         
-        // 🔥 NORMALIZE DATA TO ENSURE CONSISTENT FIELD NAMES
+        // Normalize data to ensure consistent field names
         const normalizedData = normalizeSensorDataArray(dataWithTimestamps);
         
         // Sanitize data
-        const sanitizedData = csvParser.sanitizeData(normalizedData);
+        let sanitizedData = csvParser.sanitizeData(normalizedData);
+
+        // ✅ STEP 2: Apply calibrations if user is authenticated
+        if (userId && containerId) {
+          const calibrations = await fetchCalibrations(userId, containerId, prisma);
+          
+          if (calibrations.size > 0) {
+            console.log(`🔧 Applying ${calibrations.size} calibration(s) to latest data`);
+            sanitizedData = applyCalibrationToDataset(sanitizedData, calibrations);
+          } else {
+            console.log('ℹ️ No calibrations found for this user/container');
+          }
+        }
         
         // Log timestamp sources summary
         const timestampSources = sanitizedData.reduce((acc, row) => {
@@ -226,7 +251,8 @@ const dataWithTimestamps = transformedData.map((row, rowIndex) => {
             ...metadata,
             normalized: true,
             detectedFormat: detectedFormat,
-            timestampSources: timestampSources
+            timestampSources: timestampSources,
+            calibrated: sanitizedData.some(r => r._calibrated) // ✅ Track if calibrated
           },
           data: sanitizedData,
           recordCount: sanitizedData.length
@@ -235,7 +261,7 @@ const dataWithTimestamps = transformedData.map((row, rowIndex) => {
         latestData.push(blobResult);
         
         if (isVerbose) {
-          console.log(`✓ Processed ${blob.name}: ${blobResult.recordCount} records (normalized)`);
+          console.log(`✓ Processed ${blob.name}: ${blobResult.recordCount} records (normalized${blobResult.csvMetadata.calibrated ? ' & calibrated' : ''})`);
           console.log(`   Sample record:`, sanitizedData[0]);
         }
         
@@ -260,11 +286,12 @@ const dataWithTimestamps = transformedData.map((row, rowIndex) => {
         latestBlobTimestamp: latestBlobs[0]?.lastModified,
         oldestBlobTimestamp: latestBlobs[latestBlobs.length - 1]?.lastModified,
         csvFormat: detectedFormat,
-        normalized: true
+        normalized: true,
+        calibrated: latestData.some(item => item.csvMetadata.calibrated) // ✅ Overall calibration status
       }
     };
     
-    console.log(`✅ Completed: ${latestData.length} blob(s), ${responseData.summary.totalRecords} records (Format: ${detectedFormat})`);
+    console.log(`✅ Completed: ${latestData.length} blob(s), ${responseData.summary.totalRecords} records (Format: ${detectedFormat}, Calibrated: ${responseData.summary.calibrated})`);
     
     return NextResponse.json(responseData);
     

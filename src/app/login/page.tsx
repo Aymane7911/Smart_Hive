@@ -60,9 +60,7 @@ function LoginForm() {
     return true;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleSubmit = async () => {
     if (!validateForm()) {
       return;
     }
@@ -94,12 +92,8 @@ function LoginForm() {
         if (result.user.role === 'admin') {
           router.push('/admin/access-management');
         } else {
-          // Check if user has approved purchases
-          if (result.user.hasApprovedPurchase) {
-            router.push('/smart-hive');
-          } else {
-            router.push('/pending-approval');
-          }
+          // Regular users go to welcome page first
+          router.push('/welcome');
         }
       } else {
         setError(result.error || 'Login failed. Please check your credentials.');
@@ -114,12 +108,12 @@ function LoginForm() {
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      handleSubmit(e as any);
+      handleSubmit();
     }
   };
 
   return (
-    <>
+    <div>
       {/* Success Message */}
       {successMessage && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6 flex items-start gap-3">
@@ -136,7 +130,7 @@ function LoginForm() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-6">
         {/* Email Field */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -211,7 +205,7 @@ function LoginForm() {
 
         {/* Login Button */}
         <button
-          type="submit"
+          onClick={handleSubmit}
           disabled={loading}
           className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 px-4 rounded-lg hover:from-green-600 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all font-semibold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -239,7 +233,7 @@ function LoginForm() {
             'Sign In'
           )}
         </button>
-      </form>
+      </div>
 
       {/* Divider */}
       <div className="relative my-6">
@@ -260,7 +254,7 @@ function LoginForm() {
           Create an Account & Purchase
         </a>
       </div>
-    </>
+    </div>
   );
 }
 

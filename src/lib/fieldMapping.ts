@@ -4,66 +4,7 @@
  * Supports both old and new Azure Storage CSV formats
  */
 
-export interface SensorData {
-  // Core identification
-  id?: string | number;
-  timestamp?: string;
-  time?: string;
-  
-  // Temperature fields (multiple possible names)
-  temp_internal?: number | string;
-  Internal_temp?: number | string;
-  temperature_internal?: number | string;
-  tempInternal?: number | string;
-  inte_temp?: number | string;
-  int_temp?: number | string;  // NEW FORMAT
-  
-  temp_external?: number | string;
-  external_temp?: number | string;
-  temperature_external?: number | string;
-  tempExternal?: number | string;
-  exte_temp?: number | string;
-  ext_temp?: number | string;  // NEW FORMAT
-  
-  // Humidity fields (multiple possible names)
-  hum_internal?: number | string;
-  Internal_hum?: number | string;
-  humidity_internal?: number | string;
-  humInternal?: number | string;
-  inte_hum?: number | string;
-  int_hum?: number | string;  // NEW FORMAT
-  
-  hum_external?: number | string;
-  external_hum?: number | string;
-  humidity_external?: number | string;
-  humExternal?: number | string;
-  exte_hum?: number | string;
-  ext_hum?: number | string;  // NEW FORMAT
-  
-  // Weight fields
-  weight?: number | string;
-  Weight?: number | string;
-  weight_kg?: number | string;
-  
-  // Battery fields
-  battery?: number | string;
-  Battery?: number | string;
-  battery_level?: number | string;
-  
-  // Location fields
-  lat?: number | string;
-  latitude?: number | string;
-  lon?: number | string;
-  longitude?: number | string;
-  
-  // Metadata
-  _metadata?: {
-    lastModified?: string;
-    [key: string]: any;
-  };
-  
-  [key: string]: any;
-}
+import { SensorData } from './types'; // ✅ Use the main SensorData type
 
 /**
  * Helper to safely convert to number
@@ -192,28 +133,82 @@ export const getTimestamp = (item: any): string => {
 };
 
 /**
+ * Get hive identification from various field names
+ */
+const getHiveId = (item: any): number => {
+  // Try multiple possible field names
+  const id = item.id || item.hiveNumber || item.hive_number || item.sensor_id || item.device_id;
+  
+  // Convert to number
+  if (typeof id === 'number') return id;
+  if (typeof id === 'string') {
+    const parsed = parseInt(id, 10);
+    return isNaN(parsed) ? 1 : parsed; // Default to 1 if invalid
+  }
+  
+  return 1; // Default hive ID
+};
+
+/**
+ * Get location data from various field names
+ */
+const getLocation = (item: any): { lat?: number; lon?: number } => {
+  const lat = toNumber(item.lat || item.latitude || item.Latitude);
+  const lon = toNumber(item.lon || item.longitude || item.Longitude);
+  
+  return {
+    lat: lat !== null ? lat : undefined,
+    lon: lon !== null ? lon : undefined
+  };
+};
+
+/**
  * Normalize sensor data to ensure consistent field names
  * This transforms the new format into the format expected by charts
  */
 export const normalizeSensorData = (item: any): SensorData => {
+  const location = getLocation(item);
+  const tempInternal = getTemperature(item, 'internal');
+  const tempExternal = getTemperature(item, 'external');
+  const humInternal = getHumidity(item, 'internal');
+  const humExternal = getHumidity(item, 'external');
+  const weight = getWeight(item);
+  const battery = getBattery(item);
+  
   const normalized: SensorData = {
-    ...item,
+    id: getHiveId(item), // ✅ Ensure id is always a number
+    hiveNumber: item.hiveNumber || item.hive_number,
+    hiveName: item.hiveName || item.hive_name,
+    isMaster: item.isMaster || item.is_master || false,
+    
     // Ensure timestamp field exists (critical fix for new format)
     timestamp: getTimestamp(item),
     
     // Normalize temperature fields
-    temp_internal: getTemperature(item, 'internal'),
-    temp_external: getTemperature(item, 'external'),
+    temp_internal: tempInternal !== null ? tempInternal : undefined,
+    temp_external: tempExternal !== null ? tempExternal : undefined,
     
     // Normalize humidity fields
-    hum_internal: getHumidity(item, 'internal'),
-    hum_external: getHumidity(item, 'external'),
+    hum_internal: humInternal !== null ? humInternal : undefined,
+    hum_external: humExternal !== null ? humExternal : undefined,
     
     // Normalize weight field
-    weight: getWeight(item),
+    weight: weight !== null ? weight : undefined,
     
     // Normalize battery field
-    battery: getBattery(item),
+    battery: battery !== null ? battery : undefined,
+    
+    // Normalize location fields
+    lat: location.lat,
+    lon: location.lon,
+    
+    // Additional fields
+    filename: item.filename || item.source || item._metadata?.blobName,
+    sensor_id: item.sensor_id || item.sensorId,
+    device_id: item.device_id || item.deviceId,
+    
+    // Preserve metadata
+    _metadata: item._metadata
   };
   
   return normalized;
@@ -231,7 +226,18 @@ export const normalizeSensorDataArray = (data: any[]): SensorData[] => {
   const normalized = data.map(item => normalizeSensorData(item));
   
   console.log(`✅ Normalized ${normalized.length} sensor data records`);
-  console.log('📊 Sample normalized data:', normalized.slice(0, 2));
+  
+  if (normalized.length > 0) {
+    console.log('📊 Sample normalized data:', {
+      id: normalized[0].id,
+      timestamp: normalized[0].timestamp,
+      temp_internal: normalized[0].temp_internal,
+      temp_external: normalized[0].temp_external,
+      hum_internal: normalized[0].hum_internal,
+      weight: normalized[0].weight,
+      battery: normalized[0].battery
+    });
+  }
   
   return normalized;
 };

@@ -169,31 +169,101 @@ export default function RegistrationPurchasePage() {
   };
 
   const handleVerificationCodeChange = (index: number, value: string) => {
-    if (value.length > 1) return; // Only allow single digit
-    
+  // Handle paste events - if pasting multiple digits
+  if (value.length > 1) {
+    const digits = value.slice(0, 6).split('');
     const newCode = [...verificationCode];
-    newCode[index] = value;
+    
+    digits.forEach((digit, i) => {
+      if (index + i < 6) {
+        newCode[index + i] = digit;
+      }
+    });
+    
     setVerificationCode(newCode);
     setVerificationError('');
-
-    // Auto-focus next input
-    if (value && index < 5) {
-      const nextInput = document.getElementById(`code-${index + 1}`);
-      nextInput?.focus();
-    }
-
-    // Auto-verify when all digits entered
-    if (index === 5 && value && newCode.every(digit => digit)) {
+    
+    // Focus on the next empty input or the last one
+    const nextEmptyIndex = newCode.findIndex((digit, i) => i > index && !digit);
+    const focusIndex = nextEmptyIndex !== -1 ? nextEmptyIndex : 5;
+    const nextInput = document.getElementById(`code-${focusIndex}`);
+    nextInput?.focus();
+    
+    // Auto-verify if all digits are filled
+    if (newCode.every(digit => digit)) {
       verifyCode(newCode.join(''));
     }
-  };
+    
+    return;
+  }
+
+  // Only allow single digit (0-9)
+  if (value && !/^\d$/.test(value)) {
+    return;
+  }
+  
+  const newCode = [...verificationCode];
+  newCode[index] = value;
+  setVerificationCode(newCode);
+  setVerificationError('');
+
+  // Auto-focus next input when a digit is entered
+  if (value && index < 5) {
+    // Use setTimeout to ensure the state update completes first
+    setTimeout(() => {
+      const nextInput = document.getElementById(`code-${index + 1}`) as HTMLInputElement;
+      if (nextInput) {
+        nextInput.focus();
+        // Optional: Select the content if there's any
+        nextInput.select();
+      }
+    }, 0);
+  }
+
+  // Auto-verify when all digits entered
+  if (index === 5 && value && newCode.every(digit => digit)) {
+    verifyCode(newCode.join(''));
+  }
+};
 
   const handleVerificationKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !verificationCode[index] && index > 0) {
-      const prevInput = document.getElementById(`code-${index - 1}`);
-      prevInput?.focus();
+  // Handle backspace
+  if (e.key === 'Backspace') {
+    if (!verificationCode[index] && index > 0) {
+      // If current input is empty, move to previous input and clear it
+      e.preventDefault();
+      const newCode = [...verificationCode];
+      newCode[index - 1] = '';
+      setVerificationCode(newCode);
+      
+      const prevInput = document.getElementById(`code-${index - 1}`) as HTMLInputElement;
+      if (prevInput) {
+        prevInput.focus();
+        prevInput.select();
+      }
+    } else if (verificationCode[index]) {
+      // If current input has value, clear it (default behavior will handle this)
+      // Just ensure we stay on the same input
+      const newCode = [...verificationCode];
+      newCode[index] = '';
+      setVerificationCode(newCode);
     }
-  };
+  }
+  
+  // Handle left arrow key
+  if (e.key === 'ArrowLeft' && index > 0) {
+    e.preventDefault();
+    const prevInput = document.getElementById(`code-${index - 1}`);
+    prevInput?.focus();
+  }
+  
+  // Handle right arrow key
+  if (e.key === 'ArrowRight' && index < 5) {
+    e.preventDefault();
+    const nextInput = document.getElementById(`code-${index + 1}`);
+    nextInput?.focus();
+  }
+};
 
   const verifyCode = async (code: string) => {
     setVerifyingCode(true);
@@ -477,18 +547,22 @@ export default function RegistrationPurchasePage() {
 
         <div className="flex gap-2 justify-center mb-6">
           {verificationCode.map((digit, index) => (
-            <input
-              key={index}
-              id={`code-${index}`}
-              type="text"
-              maxLength={1}
-              value={digit}
-              onChange={(e) => handleVerificationCodeChange(index, e.target.value)}
-              onKeyDown={(e) => handleVerificationKeyDown(index, e)}
-              disabled={verifyingCode}
-              className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none disabled:bg-gray-100"
-            />
-          ))}
+  <input
+    key={index}
+    id={`code-${index}`}
+    type="text"
+    inputMode="numeric"  // Shows numeric keyboard on mobile
+    pattern="\d*"        // Additional mobile optimization
+    maxLength={1}
+    value={digit}
+    onChange={(e) => handleVerificationCodeChange(index, e.target.value)}
+    onKeyDown={(e) => handleVerificationKeyDown(index, e)}
+    onFocus={(e) => e.target.select()}  // Select content on focus
+    disabled={verifyingCode}
+    autoComplete="off"   // Prevent browser autocomplete
+    className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 focus:outline-none disabled:bg-gray-100 transition-all"
+  />
+))}
         </div>
 
         {verifyingCode && (

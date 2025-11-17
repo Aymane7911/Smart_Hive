@@ -1,12 +1,19 @@
 'use client';
 
-
-
-
 import { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Home, ShoppingCart, LayoutDashboard, LogOut, Menu, X, Save, AlertCircle, CheckCircle, Settings, TrendingUp } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import React from 'react';
+import { 
+  CalibrationFormState, 
+  CalibrationFormData,
+  CalibrationOffsets,
+  formToOffsets,
+  offsetsToForm,
+  validateCalibrationForm
+} from '../../lib/calibrationUtils';
+
 interface SensorData {
   timestamp: string;
   temp_external: number;
@@ -26,16 +33,6 @@ interface SensorData {
   };
 }
 
-
-
-interface CalibrationSettings {
-  temp_external: CalibrationData;
-  temp_internal: CalibrationData;
-  humidity: CalibrationData;
-  weight: CalibrationData;
-  appliedAt: string; // NEW: Timestamp when calibration was saved
-}
-
 interface PurchaseInfo {
   id: number;
   masterHives: number;
@@ -43,35 +40,31 @@ interface PurchaseInfo {
   assignedContainers: string[];
 }
 
-interface CalibrationData {
-  visualized: string;
-  real: string;
-  offset: number;
-}
-
 export default function CorrectionPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [purchaseInfo, setPurchaseInfo] = useState<PurchaseInfo | null>(null);
+  const [availableContainers, setAvailableContainers] = useState<string[]>([]);
   const [selectedContainer, setSelectedContainer] = useState<string>('');
   const [selectedHive, setSelectedHive] = useState<string>('');
   const [hiveNames, setHiveNames] = useState<Record<number, string>>({});
   const [apiaryNames, setApiaryNames] = useState<Record<string, string>>({});
   const [historicalData, setHistoricalData] = useState<SensorData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hasAccess, setHasAccess] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
-  const [calibrations, setCalibrations] = useState<{
-    temp_external: CalibrationData;
-    temp_internal: CalibrationData;
-    humidity: CalibrationData;
-    weight: CalibrationData;
-  }>({
+  const [calibrations, setCalibrations] = useState<CalibrationFormState>({
     temp_external: { visualized: '', real: '', offset: 0 },
     temp_internal: { visualized: '', real: '', offset: 0 },
     humidity: { visualized: '', real: '', offset: 0 },
     weight: { visualized: '', real: '', offset: 0 }
   });
-const [savedCalibrations, setSavedCalibrations] = useState<CalibrationSettings | null>(null);
+  const [savedCalibrations, setSavedCalibrations] = useState<CalibrationFormState | null>(null);
+
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [adminInfo, setAdminInfo] = useState<any>(null);
+  const [totalMasterHives, setTotalMasterHives] = useState(5); // Default for admin
+  const router = useRouter();
+
   const getHiveName = (hiveNumber: number): string => {
     return hiveNames[hiveNumber] || `Hive ${hiveNumber}`;
   };
@@ -80,6 +73,105 @@ const [savedCalibrations, setSavedCalibrations] = useState<CalibrationSettings |
     return apiaryNames[containerId] || containerId;
   };
 
+  // ✅ FIXED: Admin authentication and container loading
+  useEffect(() => {
+    const checkAdminAndLoadContainers = async () => {
+      console.log('🔐 Checking admin access...');
+      setAuthChecking(true);
+      setAuthError(null);
+      
+      try {
+        // ✅ FIX: Check for authToken instead of adminInfo
+        const authToken = localStorage.getItem('authToken');
+        
+        if (!authToken) {
+          console.log('❌ No auth token in localStorage');
+          setAuthError('Not authenticated');
+          setIsAdmin(false);
+          setAuthChecking(false);
+          setTimeout(() => router.push('/login'), 2000);
+          return;
+        }
+        
+        console.log('🔑 Auth token found, verifying with server...');
+        
+        // ✅ Verify token with server and get admin info
+        const verifyResponse = await fetch('/api/auth/verify', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+        
+        if (!verifyResponse.ok) {
+          throw new Error('Token verification failed');
+        }
+        
+        const adminData = await verifyResponse.json();
+        console.log('👤 Admin data from server:', adminData);
+        
+        // Verify admin role (trim any whitespace)
+        const userRole = (adminData.role || '').trim().toLowerCase();
+        if (userRole !== 'admin') {
+          console.log('❌ User is not an admin:', userRole);
+          setAuthError('Access denied. Admin privileges required.');
+          setIsAdmin(false);
+          setAuthChecking(false);
+          setTimeout(() => router.push('/welcome'), 2000);
+          return;
+        }
+        
+        console.log('✅ Admin authenticated:', adminData.email);
+        setAdminInfo(adminData);
+        setIsAdmin(true);
+        
+        // ✅ For admins: Fetch ALL available containers from Azure
+        console.log('📦 Fetching available containers for admin...');
+        const containersResponse = await fetch('/api/smart-hive/containers', {
+          credentials: 'include'
+        });
+        
+        if (!containersResponse.ok) {
+          throw new Error('Failed to fetch containers');
+        }
+        
+        const containersData = await containersResponse.json();
+        console.log('📊 Containers data:', containersData);
+        
+        // ✅ FIX: Check for data array instead of containers
+        if (containersData.success && containersData.data && Array.isArray(containersData.data)) {
+          const containerNames = containersData.data.map((c: any) => c.name);
+          setAvailableContainers(containerNames);
+          
+          // Auto-select first container
+          if (containerNames.length > 0) {
+            setSelectedContainer(containerNames[0]);
+          }
+          
+          console.log('✅ Loaded', containerNames.length, 'containers for admin:', containerNames);
+        } else {
+          console.log('⚠️ No containers found in response');
+          setAvailableContainers([]);
+        }
+        
+        setAuthError(null);
+        
+      } catch (error: any) {
+        console.error('❌ Error during auth/container loading:', error);
+        setAuthError(error.message || 'Authentication failed');
+        setIsAdmin(false);
+        setTimeout(() => router.push('/login'), 2000);
+      } finally {
+        setAuthChecking(false);
+        setLoading(false);
+      }
+    };
+    
+    checkAdminAndLoadContainers();
+  }, [router]);
+
   // Load saved names from localStorage
   useEffect(() => {
     const loadNames = async () => {
@@ -87,13 +179,11 @@ const [savedCalibrations, setSavedCalibrations] = useState<CalibrationSettings |
       
       try {
         if (typeof window !== 'undefined') {
-          // Load hive names
           const savedHiveNames = localStorage.getItem(`hive-names:${selectedContainer}`);
           if (savedHiveNames) {
             setHiveNames(JSON.parse(savedHiveNames));
           }
           
-          // Load apiary names
           const savedApiaryNames = localStorage.getItem('apiary-names');
           if (savedApiaryNames) {
             setApiaryNames(JSON.parse(savedApiaryNames));
@@ -107,38 +197,66 @@ const [savedCalibrations, setSavedCalibrations] = useState<CalibrationSettings |
     loadNames();
   }, [selectedContainer]);
 
+  // Load saved calibrations from database
+  useEffect(() => {
+    const loadCalibrationFromDB = async () => {
+      if (!selectedHive || !selectedContainer || !isAdmin) return;
+      
+      try {
+        const response = await fetch(
+          `/api/smart-hive/calibration/get?containerId=${encodeURIComponent(selectedContainer)}&hiveNumber=${selectedHive}`,
+          { credentials: 'include' }
+        );
 
+        const result = await response.json();
 
-  // Load saved calibrations from localStorage
-useEffect(() => {
-  const loadCalibrations = async () => {
-    if (!selectedHive || !selectedContainer) return;
-    
-    try {
-      if (typeof window !== 'undefined') {
-        const calibrationKey = `calibration:${selectedContainer}:${selectedHive}`;
-        const stored = localStorage.getItem(calibrationKey);
-        
-        if (stored) {
-          const loaded = JSON.parse(stored);
-          console.log('✅ Loaded calibrations:', loaded);
-          setSavedCalibrations(loaded);
+        if (result.success && result.hasCalibration) {
+          const cal = result.calibration;
+          
+          const formData = offsetsToForm(
+            {
+              tempExternalOffset: cal.tempExternal.offset,
+              tempInternalOffset: cal.tempInternal.offset,
+              humidityOffset: cal.humidity.offset,
+              weightOffset: cal.weight.offset,
+              appliedAt: cal.appliedAt
+            },
+            {
+              tempExternal: {
+                visualized: cal.tempExternal.visualized || 0,
+                real: cal.tempExternal.real || 0
+              },
+              tempInternal: {
+                visualized: cal.tempInternal.visualized || 0,
+                real: cal.tempInternal.real || 0
+              },
+              humidity: {
+                visualized: cal.humidity.visualized || 0,
+                real: cal.humidity.real || 0
+              },
+              weight: {
+                visualized: cal.weight.visualized || 0,
+                real: cal.weight.real || 0
+              }
+            }
+          );
+
+          setCalibrations(formData);
+          setSavedCalibrations(formData);
+          console.log('✅ Loaded calibration from database');
         } else {
-          console.log('ℹ️ No saved calibrations found');
+          console.log('ℹ️ No calibration found in database');
           setSavedCalibrations(null);
         }
+      } catch (error) {
+        console.error('❌ Error loading calibration from database:', error);
+        setSavedCalibrations(null);
       }
-    } catch (error) {
-      console.log('❌ Error loading calibrations:', error);
-      setSavedCalibrations(null);
-    }
-  };
-  
-  loadCalibrations();
-}, [selectedHive, selectedContainer]);
+    };
+    
+    loadCalibrationFromDB();
+  }, [selectedHive, selectedContainer, isAdmin]);
 
-
-  // Helper to flatten data structure
   const flattenData = useCallback((data: any): SensorData[] => {
     if (!data) return [];
     
@@ -156,15 +274,13 @@ useEffect(() => {
     return [data];
   }, []);
 
-  // Fetch historical data (same as temperature chart - 48 hours)
   const fetchHistoricalData = useCallback(async () => {
-    if (!hasAccess || !selectedContainer) return;
+    if (!isAdmin || !selectedContainer) return;
     
     console.log('🔄 Fetching historical data for:', selectedContainer);
     
     try {
-      // Fetch 48 hours of data to match the temperature chart
-      const url = `/api/admin/smart-hive/data/historical?containerId=${encodeURIComponent(selectedContainer)}&limit=48`;
+      const url = `/api/smart-hive/data/historical?containerId=${encodeURIComponent(selectedContainer)}&limit=48`;
       const response = await fetch(url, {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include'
@@ -177,77 +293,31 @@ useEffect(() => {
       }
       
       const result = await response.json();
-      console.log('📦 Raw API result:', result);
-      
       const flatData = flattenData(result.data || result);
       console.log('📊 Flattened data:', flatData.length, 'items');
-      console.log('   First 2 items:', flatData.slice(0, 2));
-      
       setHistoricalData(flatData);
     } catch (error: any) {
       console.error('Failed to fetch historical data:', error);
       setHistoricalData([]);
     }
-  }, [hasAccess, selectedContainer, flattenData]);
+  }, [isAdmin, selectedContainer, flattenData]);
 
-  // Check access on mount
   useEffect(() => {
-    const checkAccess = async () => {
-      try {
-        const response = await fetch('/api/admin/smart-hive/check-access', {
-          credentials: 'include'
-        });
-        
-        const result = await response.json();
-        
-        if (result.success && result.hasAccess) {
-          setHasAccess(true);
-          setPurchaseInfo(result.purchase);
-          
-          if (result.purchase.assignedContainers && result.purchase.assignedContainers.length > 0) {
-            setSelectedContainer(result.purchase.assignedContainers[0]);
-          }
-        }
-      } catch (error) {
-        console.error('Failed to check access:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    checkAccess();
-  }, []);
-
-  // Fetch data when container changes
-  useEffect(() => {
-    if (!hasAccess || !selectedContainer) {
-      setLoading(false);
-      return;
-    }
+    if (!isAdmin || !selectedContainer) return;
 
     setHistoricalData([]);
-    setLoading(true);
-
-    const fetchData = async () => {
-      await fetchHistoricalData();
-      setLoading(false);
-    };
     
-    fetchData();
+    fetchHistoricalData();
 
-    // Refresh every 5 minutes
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         fetchHistoricalData();
       }
     }, 300000);
 
-    return () => {
-      clearInterval(interval);
-    };
-  }, [hasAccess, selectedContainer, fetchHistoricalData]);
+    return () => clearInterval(interval);
+  }, [isAdmin, selectedContainer, fetchHistoricalData]);
 
-  // Helper to safely convert to number
   const toNumber = (value: any): number | null => {
     if (value == null) return null;
     if (typeof value === 'number') return value;
@@ -258,7 +328,6 @@ useEffect(() => {
     return null;
   };
 
-  // Helper to get temperature value from various field names (same as TemperatureChart)
   const getTemperature = (item: any, type: 'internal' | 'external'): number | null => {
     let value: any;
     
@@ -270,20 +339,14 @@ useEffect(() => {
     
     const temp = toNumber(value);
     
-    // Filter out invalid temperature readings
     if (temp == null) return null;
     if (temp === -127) return null;
-    
-    // Very permissive range - show almost everything except obvious sensor errors
     if (temp < -100 || temp > 100) return null;
-    
-    // Set negative temperatures to 0
     if (temp < 0) return 0;
     
     return temp;
   };
 
-  // Helper function to get hive data from historical data
   const getHiveData = (allData: SensorData[], hiveIndex: number): SensorData[] => {
     if (!allData || allData.length === 0) return [];
     
@@ -313,81 +376,67 @@ useEffect(() => {
     return hiveData;
   };
 
-  // Get calibrated data
   const getCalibratedData = (): SensorData[] => {
-  console.log('🔧 getCalibratedData called');
-  
-  if (!selectedHive || !historicalData.length) {
-    console.log('   ❌ No hive selected or no data');
-    return [];
-  }
+    if (!selectedHive || !historicalData.length) return [];
 
-  const hiveIndex = parseInt(selectedHive) - 1;
-  const hiveData = getHiveData(historicalData, hiveIndex);
+    const hiveIndex = parseInt(selectedHive) - 1;
+    const hiveData = getHiveData(historicalData, hiveIndex);
+    
+    if (!savedCalibrations || !savedCalibrations.appliedAt) {
+      return hiveData.map(item => {
+        const tempInternal = getTemperature(item, 'internal');
+        const tempExternal = getTemperature(item, 'external');
+        
+        return {
+          ...item,
+          temp_internal: tempInternal !== null ? tempInternal : 0,
+          temp_internal_raw: tempInternal !== null ? tempInternal : 0,
+          temp_internal_calibrated: tempInternal !== null ? tempInternal : 0,
+          temp_external: tempExternal !== null ? tempExternal : 0,
+          temp_external_raw: tempExternal !== null ? tempExternal : 0,
+          temp_external_calibrated: tempExternal !== null ? tempExternal : 0
+        };
+      });
+    }
 
-  // IMPORTANT: For the calibration preview chart, show BOTH raw and calibrated
-  // But calibration is ONLY applied to data points AFTER appliedAt timestamp
-  
-  if (!savedCalibrations || !savedCalibrations.appliedAt) {
-    // No calibration - show raw data only
-    const result = hiveData.map(item => {
+    const calibrationTime = new Date(savedCalibrations.appliedAt).getTime();
+    
+    return hiveData.map(item => {
       const tempInternal = getTemperature(item, 'internal');
       const tempExternal = getTemperature(item, 'external');
+      
+      const timestampValue = item.timestamp || item._metadata?.lastModified;
+      const measurementTime = timestampValue ? new Date(timestampValue).getTime() : Date.now();
+      
+      const shouldApplyCalibration = measurementTime > calibrationTime;
       
       return {
         ...item,
         temp_internal: tempInternal !== null ? tempInternal : 0,
         temp_internal_raw: tempInternal !== null ? tempInternal : 0,
-        temp_internal_calibrated: tempInternal !== null ? tempInternal : 0,
+        temp_internal_calibrated: shouldApplyCalibration && tempInternal !== null 
+          ? (tempInternal + savedCalibrations.temp_internal.offset) 
+          : (tempInternal !== null ? tempInternal : 0),
         temp_external: tempExternal !== null ? tempExternal : 0,
         temp_external_raw: tempExternal !== null ? tempExternal : 0,
-        temp_external_calibrated: tempExternal !== null ? tempExternal : 0
+        temp_external_calibrated: shouldApplyCalibration && tempExternal !== null
+          ? (tempExternal + savedCalibrations.temp_external.offset)
+          : (tempExternal !== null ? tempExternal : 0),
+        humidity_calibrated: shouldApplyCalibration 
+          ? item.humidity + savedCalibrations.humidity.offset
+          : item.humidity,
+        weight_calibrated: shouldApplyCalibration
+          ? item.weight + savedCalibrations.weight.offset
+          : item.weight
       };
     });
-    
-    return result;
-  }
+  };
 
-  // With calibration - apply ONLY to measurements after appliedAt
-  const calibrationTime = new Date(savedCalibrations.appliedAt).getTime();
-  
-  const result = hiveData.map(item => {
-    const tempInternal = getTemperature(item, 'internal');
-    const tempExternal = getTemperature(item, 'external');
-    
-    // Safely get measurement timestamp
-    const timestampValue = item.timestamp || item._metadata?.lastModified;
-    const measurementTime = timestampValue ? new Date(timestampValue).getTime() : Date.now();
-    
-    // Check if this measurement is AFTER calibration was applied
-    const shouldApplyCalibration = measurementTime > calibrationTime;
-    
-    return {
-      ...item,
-      temp_internal: tempInternal !== null ? tempInternal : 0,
-      temp_internal_raw: tempInternal !== null ? tempInternal : 0,
-      temp_internal_calibrated: shouldApplyCalibration && tempInternal !== null 
-        ? (tempInternal + savedCalibrations.temp_internal.offset) 
-        : (tempInternal !== null ? tempInternal : 0),
-      temp_external: tempExternal !== null ? tempExternal : 0,
-      temp_external_raw: tempExternal !== null ? tempExternal : 0,
-      temp_external_calibrated: shouldApplyCalibration && tempExternal !== null
-        ? (tempExternal + savedCalibrations.temp_external.offset)
-        : (tempExternal !== null ? tempExternal : 0),
-      humidity_calibrated: shouldApplyCalibration 
-        ? item.humidity + savedCalibrations.humidity.offset
-        : item.humidity,
-      weight_calibrated: shouldApplyCalibration
-        ? item.weight + savedCalibrations.weight.offset
-        : item.weight
-    };
-  });
-  
-  return result;
-};
-
-
-  const handleCalibrationChange = (parameter: keyof typeof calibrations, field: 'visualized' | 'real', value: string) => {
+  const handleCalibrationChange = (
+    parameter: 'temp_external' | 'temp_internal' | 'humidity' | 'weight',
+    field: 'visualized' | 'real', 
+    value: string
+  ) => {
     setCalibrations(prev => {
       const updated = {
         ...prev,
@@ -397,56 +446,84 @@ useEffect(() => {
         }
       };
       
-      const vis = parseFloat(updated[parameter].visualized);
-      const rl = parseFloat(updated[parameter].real);
+      const calibrationData = updated[parameter];
+      const vis = parseFloat(calibrationData.visualized);
+      const rl = parseFloat(calibrationData.real);
+      
       if (!isNaN(vis) && !isNaN(rl)) {
-        updated[parameter].offset = rl - vis;
+        calibrationData.offset = rl - vis;
       } else {
-        updated[parameter].offset = 0;
+        calibrationData.offset = 0;
       }
       
       return updated;
     });
   };
 
-  const handleSave = () => {
-  setSaveStatus('saving');
-  
-  try {
-    if (typeof window !== 'undefined') {
-      // Add timestamp when saving calibration
-      const calibrationWithTimestamp = {
+  const handleSave = async () => {
+    if (!selectedHive || !selectedContainer) {
+      alert('Please select a hive first');
+      return;
+    }
+
+    const validation = validateCalibrationForm(calibrations);
+    if (!validation.isValid) {
+      alert('Validation errors:\n' + validation.errors.join('\n'));
+      return;
+    }
+
+    setSaveStatus('saving');
+    
+    try {
+      const offsetsToSave = formToOffsets(calibrations);
+      
+      const response = await fetch('/api/smart-hive/calibration/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          containerId: selectedContainer,
+          hiveNumber: selectedHive,
+          tempExternalOffset: offsetsToSave.tempExternalOffset,
+          tempExternalVisualized: parseFloat(calibrations.temp_external.visualized) || null,
+          tempExternalReal: parseFloat(calibrations.temp_external.real) || null,
+          tempInternalOffset: offsetsToSave.tempInternalOffset,
+          tempInternalVisualized: parseFloat(calibrations.temp_internal.visualized) || null,
+          tempInternalReal: parseFloat(calibrations.temp_internal.real) || null,
+          humidityOffset: offsetsToSave.humidityOffset,
+          humidityVisualized: parseFloat(calibrations.humidity.visualized) || null,
+          humidityReal: parseFloat(calibrations.humidity.real) || null,
+          weightOffset: offsetsToSave.weightOffset,
+          weightVisualized: parseFloat(calibrations.weight.visualized) || null,
+          weightReal: parseFloat(calibrations.weight.real) || null
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to save calibration');
+      }
+
+      const savedForm: CalibrationFormState = {
         ...calibrations,
-        appliedAt: new Date().toISOString() // NEW: Store current time
+        appliedAt: result.calibration.appliedAt
       };
-      
-      const calibrationKey = `calibration:${selectedContainer}:${selectedHive}`;
-      localStorage.setItem(calibrationKey, JSON.stringify(calibrationWithTimestamp));
-      
-      setSavedCalibrations(calibrationWithTimestamp);
+      setSavedCalibrations(savedForm);
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 2000);
       
-      console.log('✅ Calibration saved with timestamp:', calibrationWithTimestamp);
+    } catch (error: any) {
+      console.error('Failed to save calibration:', error);
+      alert('Failed to save calibration: ' + error.message);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
     }
-  } catch (error) {
-    console.error('Failed to save calibration:', error);
-    setSaveStatus('error');
-    setTimeout(() => setSaveStatus('idle'), 3000);
-  }
-};
+  };
 
-
-  const totalMasterHives = purchaseInfo?.masterHives || 0;
   const masterHiveNumbers = Array.from({ length: totalMasterHives }, (_, i) => i + 1);
-
-  // Check if selected container has any hives
   const containerHasHives = historicalData.length > 0;
-
   const calibratedData = getCalibratedData();
-  console.log('📈 Chart preparation:');
-  console.log('   calibratedData.length:', calibratedData.length);
-  console.log('   First calibrated item:', calibratedData[0]);
   
   const chartData = calibratedData.map(item => {
     const rawValue = typeof item.temp_internal_raw === 'number' 
@@ -461,12 +538,6 @@ useEffect(() => {
       ? parseFloat(item.temp_internal.toFixed(2))
       : 0;
     
-    console.log('   Chart point:', {
-      timestamp: item.timestamp,
-      rawValue,
-      calibratedValue
-    });
-    
     return {
       time: new Date(item.timestamp).toLocaleString([], { 
         month: 'short', 
@@ -478,11 +549,9 @@ useEffect(() => {
       'Calibrated Data': calibratedValue
     };
   });
-  
-  console.log('   chartData.length:', chartData.length);
-  console.log('   Sample chartData:', chartData.slice(0, 2));
 
-  if (loading) {
+  // Show loading or error states
+  if (authChecking || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
         <div className="absolute inset-0">
@@ -494,8 +563,36 @@ useEffect(() => {
           <div className="relative mb-6">
             <div className="animate-spin rounded-full h-20 w-20 border-4 border-purple-200 border-t-purple-600 mx-auto"></div>
           </div>
-          <p className="text-xl text-purple-900 font-semibold mb-2">Loading Calibration Data</p>
+          <p className="text-xl text-purple-900 font-semibold mb-2">
+            {authChecking ? 'Checking Access...' : 'Loading Calibration Data'}
+          </p>
           <p className="text-purple-700/80 text-sm">Please wait...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-red-100 via-rose-100 to-pink-100">
+        <div className="text-center relative z-10 max-w-md p-8 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl">
+          <AlertCircle className="w-16 h-16 text-red-600 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-red-900 mb-2">Access Denied</h2>
+          <p className="text-red-700 mb-4">{authError}</p>
+          <p className="text-sm text-red-600">Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ REMOVED: No longer check for purchaseInfo for admins
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-amber-100 via-orange-100 to-red-100">
+        <div className="text-center relative z-10 max-w-md p-8 bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl">
+          <AlertCircle className="w-16 h-16 text-orange-600 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-orange-900 mb-2">Admin Access Required</h2>
+          <p className="text-orange-700 mb-4">This page requires administrator privileges.</p>
         </div>
       </div>
     );
@@ -525,12 +622,18 @@ useEffect(() => {
           </div>
 
           <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800/50 rounded-lg transition-all duration-200 group">
+            <button 
+              onClick={() => router.push('/welcome')}
+              className="w-full flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800/50 rounded-lg transition-all duration-200 group"
+            >
               <Home className="w-5 h-5 text-slate-400 group-hover:text-emerald-400 transition-colors" />
               <span className="font-medium">Home</span>
             </button>
 
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800/50 rounded-lg transition-all duration-200 group">
+            <button 
+              onClick={() => router.push('/dashboard')}
+              className="w-full flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800/50 rounded-lg transition-all duration-200 group"
+            >
               <LayoutDashboard className="w-5 h-5 text-slate-400 group-hover:text-purple-400 transition-colors" />
               <span className="font-medium">Dashboard</span>
             </button>
@@ -540,22 +643,29 @@ useEffect(() => {
               <span className="font-medium">Calibration</span>
             </button>
 
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800/50 rounded-lg transition-all duration-200 group">
+            <button 
+              onClick={() => router.push('/purchase')}
+              className="w-full flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800/50 rounded-lg transition-all duration-200 group"
+            >
               <ShoppingCart className="w-5 h-5 text-slate-400 group-hover:text-purple-400 transition-colors" />
               <span className="font-medium">Purchase Smart Hive</span>
             </button>
           </nav>
 
           <div className="p-4 border-t border-slate-700/50 space-y-2">
-            {purchaseInfo && (
-              <div className="px-4 py-3 bg-slate-800/50 rounded-lg mb-2">
-                <p className="text-xs text-slate-400 mb-1">Master Hives</p>
-                <p className="text-lg font-bold text-emerald-400">
-                  {purchaseInfo.masterHives}
-                </p>
-              </div>
-            )}
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-200 group">
+            <div className="px-4 py-3 bg-slate-800/50 rounded-lg mb-2">
+              <p className="text-xs text-slate-400 mb-1">Access Level</p>
+              <p className="text-lg font-bold text-emerald-400">
+                Administrator
+              </p>
+            </div>
+            <button 
+              onClick={() => {
+                localStorage.removeItem('adminInfo');
+                router.push('/login');
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-200 group"
+            >
               <LogOut className="w-5 h-5" />
               <span className="font-medium">Logout</span>
             </button>
@@ -569,7 +679,7 @@ useEffect(() => {
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity duration-300"
         />
       )}
-
+       
       {/* Main Content */}
       <div className="relative z-10">
         <header className="relative bg-white/80 backdrop-blur-xl p-4 rounded-2xl shadow-xl border border-white/20 text-black overflow-hidden mx-4 mt-4">
@@ -592,13 +702,19 @@ useEffect(() => {
                     Sensor Calibration
                   </h1>
                   <p className="text-gray-600 text-xs mt-0.5">
-                    Adjust sensor readings for accuracy
+                    Admin: {adminInfo?.email || 'Administrator'}
                   </p>
                 </div>
               </div>
             </div>
 
-            <button className="group relative overflow-hidden px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-500 text-white rounded-lg font-medium text-sm shadow-lg transform transition-all duration-500 hover:scale-105 active:scale-95 flex items-center">
+            <button 
+              onClick={() => {
+                localStorage.removeItem('adminInfo');
+                router.push('/login');
+              }}
+              className="group relative overflow-hidden px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-500 text-white rounded-lg font-medium text-sm shadow-lg transform transition-all duration-500 hover:scale-105 active:scale-95 flex items-center"
+            >
               <LogOut className="w-4 h-4 mr-2" />
               <span>Logout</span>
             </button>
@@ -622,11 +738,15 @@ useEffect(() => {
                     }}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent bg-white text-gray-800 font-medium"
                   >
-                    {purchaseInfo?.assignedContainers.map(container => (
-                      <option key={container} value={container}>
-                        {getApiaryName(container)}
-                      </option>
-                    ))}
+                    {availableContainers.length === 0 ? (
+                      <option value="">No containers available</option>
+                    ) : (
+                      availableContainers.map(container => (
+                        <option key={container} value={container}>
+                          {getApiaryName(container)}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -693,21 +813,21 @@ useEffect(() => {
                       }`}
                     >
                       {saveStatus === 'success' ? (
-  <>
-    <CheckCircle className="w-4 h-4" />
-    Saved & Applied!
-  </>
-) : saveStatus === 'error' ? (
-  <>
-    <AlertCircle className="w-4 h-4" />
-    Save Failed
-  </>
-) : (
-  <>
-    <Save className="w-4 h-4" />
-    Save Calibration
-  </>
-)}
+                        <>
+                          <CheckCircle className="w-4 h-4" />
+                          Saved & Applied!
+                        </>
+                      ) : saveStatus === 'error' ? (
+                        <>
+                          <AlertCircle className="w-4 h-4" />
+                          Save Failed
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4" />
+                          Save Calibration
+                        </>
+                      )}
                     </button>
                   </div>
 
@@ -722,13 +842,9 @@ useEffect(() => {
                         </tr>
                       </thead>
                       <tbody>
-                        {/* Temperature External */}
                         <tr className="border-b border-gray-200 hover:bg-blue-50/50 transition-colors">
                           <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
-                              
-                              <span className="font-semibold text-gray-800">Temperature External</span>
-                            </div>
+                            <span className="font-semibold text-gray-800">Temperature External</span>
                           </td>
                           <td className="py-4 px-4">
                             <input
@@ -764,12 +880,9 @@ useEffect(() => {
                           </td>
                         </tr>
 
-                        {/* Temperature Internal */}
                         <tr className="border-b border-gray-200 hover:bg-orange-50/50 transition-colors">
                           <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-gray-800">Temperature Internal</span>
-                            </div>
+                            <span className="font-semibold text-gray-800">Temperature Internal</span>
                           </td>
                           <td className="py-4 px-4">
                             <input
@@ -805,12 +918,9 @@ useEffect(() => {
                           </td>
                         </tr>
 
-                        {/* Humidity */}
                         <tr className="border-b border-gray-200 hover:bg-cyan-50/50 transition-colors">
                           <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-gray-800">Humidity</span>
-                            </div>
+                            <span className="font-semibold text-gray-800">Humidity</span>
                           </td>
                           <td className="py-4 px-4">
                             <input
@@ -846,12 +956,9 @@ useEffect(() => {
                           </td>
                         </tr>
 
-                        {/* Weight */}
                         <tr className="hover:bg-amber-50/50 transition-colors">
                           <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-gray-800">Weight</span>
-                            </div>
+                            <span className="font-semibold text-gray-800">Weight</span>
                           </td>
                           <td className="py-4 px-4">
                             <input
@@ -890,7 +997,6 @@ useEffect(() => {
                     </table>
                   </div>
 
-                  {/* Info Box */}
                   <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-3">
                     <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-blue-800">
@@ -906,7 +1012,7 @@ useEffect(() => {
                   </div>
                 </div>
 
-                {/* Temperature Chart - Before and After */}
+                {/* Temperature Chart */}
                 <div className="bg-white/80 backdrop-blur-2xl rounded-3xl shadow-xl border border-gray-200/50 p-8">
                   <div className="flex items-center justify-between mb-6">
                     <div>
@@ -917,7 +1023,7 @@ useEffect(() => {
                       <p className="text-sm text-gray-600 mt-1">
                         {savedCalibrations && savedCalibrations.temp_internal.offset !== 0 ? (
                           <span className="text-emerald-600 font-medium">
-                            ✓ Calibration Active: {savedCalibrations.temp_internal.offset > 0 ? '+' : ''}{savedCalibrations.temp_internal.offset.toFixed(2)}°C offset applied to all measurements
+                            ✓ Calibration Active: {savedCalibrations.temp_internal.offset > 0 ? '+' : ''}{savedCalibrations.temp_internal.offset.toFixed(2)}°C offset applied
                           </span>
                         ) : (
                           <span className="text-gray-500">
@@ -959,9 +1065,9 @@ useEffect(() => {
                         }}
                       />
                       {React.createElement(Legend as any, {
-  wrapperStyle: { paddingTop: '20px' },
-  iconType: 'line'
-})}
+                        wrapperStyle: { paddingTop: '20px' },
+                        iconType: 'line'
+                      })}
                       <Line 
                         type="monotone" 
                         dataKey="Raw Data" 
@@ -985,7 +1091,6 @@ useEffect(() => {
                     </LineChart>
                   </ResponsiveContainer>
 
-                  {/* Legend Explanation */}
                   <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
@@ -1010,7 +1115,6 @@ useEffect(() => {
                     )}
                   </div>
 
-                  {/* Example Calculation */}
                   {savedCalibrations && savedCalibrations.temp_internal.offset !== 0 && calibratedData.length > 0 && (
                     <div className="mt-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg">
                       <h4 className="font-bold text-blue-900 mb-3 flex items-center gap-2">

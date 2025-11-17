@@ -28,6 +28,7 @@ model User {
   
   // Relations
   purchases Purchase[]
+  calibrations Calibration[]
   
   @@map("users")
 }
@@ -123,5 +124,46 @@ model ApiaryLocation {
   updatedAt   DateTime @updatedAt
   
   @@map("apiary_locations")
+  @@index([containerId])
+}
+
+// Calibration model for storing sensor calibration settings per hive
+model Calibration {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  containerId   String   // Apiary ID (matches Container name)
+  hiveNumber    Int      // Which hive (1, 2, 3, etc.)
+  
+  // Temperature External Calibration
+  tempExternalOffset     Float  @default(0)
+  tempExternalVisualized Float?
+  tempExternalReal       Float?
+  
+  // Temperature Internal Calibration
+  tempInternalOffset     Float  @default(0)
+  tempInternalVisualized Float?
+  tempInternalReal       Float?
+  
+  // Humidity Calibration
+  humidityOffset      Float  @default(0)
+  humidityVisualized  Float?
+  humidityReal        Float?
+  
+  // Weight Calibration
+  weightOffset        Float  @default(0)
+  weightVisualized    Float?
+  weightReal          Float?
+  
+  // Metadata
+  appliedAt     DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("calibrations")
+  @@unique([userId, containerId, hiveNumber])
+  @@index([userId, containerId])
   @@index([containerId])
 }

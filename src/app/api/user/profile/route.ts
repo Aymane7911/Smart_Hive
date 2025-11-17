@@ -22,19 +22,29 @@ function verifyToken(token: string): JWTPayload | null {
   }
 }
 
+// app/api/user/profile/route.ts
+
 export async function GET(request: NextRequest) {
   try {
-    // Get token from Authorization header
-    const authHeader = request.headers.get('authorization');
+    // Get token from Authorization header OR cookies
+    let token: string | undefined;
     
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const authHeader = request.headers.get('authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else {
+      // Fallback to cookies
+      token = request.cookies.get('user-token')?.value || 
+              request.cookies.get('auth-token')?.value;
+    }
+    
+    if (!token) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized - No token provided' },
         { status: 401 }
       );
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
     const decoded = verifyToken(token);
 
     if (!decoded) {
@@ -88,7 +98,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Infer the purchase type from the query result
     type UserPurchase = typeof user.purchases[number];
 
     return NextResponse.json({

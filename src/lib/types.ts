@@ -19,12 +19,39 @@ export interface SensorData {
   // Optional fields that may be added during processing
   sensor_id?: string | number; // Alternative sensor identifier
   device_id?: string | number; // Device identifier
+  // Raw sensor values (before calibration)
+  temp_external_raw?: number;
+  temp_internal_raw?: number;
+  hum_internal_raw?: number;
+  hum_external_raw?: number;
+  weight_raw?: number;
+  
+  // Calibrated sensor values (after calibration)
+  temp_external_calibrated?: number;
+  temp_internal_calibrated?: number;
+  hum_internal_calibrated?: number;
+  hum_external_calibrated?: number;
+  weight_calibrated?: number;
+  
+  // Calibration metadata
+  _calibrated?: boolean;
+  _calibration?: {
+    tempExternalOffset: number;
+    tempInternalOffset: number;
+    humidityOffset: number;
+    weightOffset: number;
+    appliedAt: string;
+  };
   _metadata?: {
     sourceBlob: string;
     blobLastModified?: string;
     lastModified?: string;
     size?: number;
     processedAt: string;
+    blobName?: string;
+    containerId?: string;
+    hasOriginalTimestamp?: boolean; 
+    detectedTimestampField?: string; 
   };
 }
 
@@ -405,7 +432,9 @@ export const isSensorData = (data: any): data is SensorData => {
     (data.weight === undefined || typeof data.weight === 'number') &&
     (data.battery === undefined || typeof data.battery === 'number') &&
     (data.lat === undefined || typeof data.lat === 'number') &&
-    (data.lon === undefined || typeof data.lon === 'number')
+    (data.lon === undefined || typeof data.lon === 'number') &&
+    // Calibration fields are optional
+    (data._calibrated === undefined || typeof data._calibrated === 'boolean')
   );
 };
 
@@ -465,3 +494,27 @@ export const REFRESH_INTERVALS = {
   SLOW: 900000, // 15 minutes
   IOT_STANDARD: 14400000 // 4 hours
 } as const;
+
+export interface PurchaseFromDB {
+  id: bigint;
+  masterHives: number;
+  normalHives: number;
+  totalAmount: number;
+  purchaseDate: Date;
+  status: string;
+  accessGranted: boolean;
+  accessGrantedAt: Date | null;
+  assignedContainers: string[];
+}
+
+export interface SerializedPurchase {
+  id: number;
+  masterHives: number;
+  normalHives: number;
+  totalAmount: number;
+  purchaseDate: string;
+  status: string;
+  accessGranted: boolean;
+  accessGrantedAt: string | null;
+  assignedContainers: string[];
+}

@@ -3,8 +3,14 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { AzureBlobService } from '../../../../../lib/azure';
 import { csvUtils, csvParser } from '../../../../../lib/csvParser';
+import { PrismaClient } from '@prisma/client';
+import jwt from 'jsonwebtoken';
+import { fetchCalibrations, applyCalibrationToDataset } from '../../../../../lib/calibrationUtils';
 
-// hey Environment-based logging
+const prisma = new PrismaClient();
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+
+// Environment-based logging
 const LOG_LEVEL = process.env.LOG_LEVEL || 'production';
 const isVerbose = LOG_LEVEL === 'verbose' || LOG_LEVEL === 'debug';
 
@@ -22,7 +28,7 @@ export async function GET(request: NextRequest) {
       console.log('📊 Request params:', { limit, dateFrom, dateTo, containerId });
     }
     
-    // 1- Validate container ID
+    // Validate container ID
     if (!containerId) {
       console.error('❌ Missing containerId parameter');
       return NextResponse.json({
@@ -30,6 +36,21 @@ export async function GET(request: NextRequest) {
         data: [],
         timestamp: new Date().toISOString()
       }, { status: 400 });
+    }
+
+    // ✅ STEP 1: Get user ID from token (for calibration lookup)
+    const token = request.cookies.get('user-token')?.value || 
+                  request.cookies.get('auth-token')?.value;
+    
+    let userId: number | null = null;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        userId = decoded.userId || decoded.id;
+        console.log('🔐 User authenticated:', userId);
+      } catch (error) {
+        console.warn('⚠️ Invalid token for calibration lookup');
+      }
     }
     
     // Initialize Azure service
@@ -64,7 +85,7 @@ export async function GET(request: NextRequest) {
     
     for (const blob of recentBlobs) {
       try {
-        // Only log progress every 10 blobs or on last blob
+        // Log progress
         processedCount++;
         if (processedCount % 10 === 0 || processedCount === recentBlobs.length) {
           console.log(`⏳ Progress: ${processedCount}/${recentBlobs.length} blobs`);
@@ -77,7 +98,7 @@ export async function GET(request: NextRequest) {
         // Transform data
         const transformedData = csvParser.transformForDashboard(parsedResult, {
           dateFields: ['timestamp', 'lastModified', 'createdAt'],
-          numericFields: ['value', 'size', 'count', 'duration'],
+          numericFields: ['value', 'size', 'count', 'duration', 'temp_internal', 'temp_external', 'humidity', 'weight'],
           requiredFields: ['timestamp'],
           defaultValues: {
             timestamp: blob.lastModified || new Date().toISOString(),
@@ -101,7 +122,6 @@ export async function GET(request: NextRequest) {
         
         historicalData.push(...enrichedData);
         
-        // Verbose logging only
         if (isVerbose) {
           console.log(`✓ Processed ${blob.name}: ${enrichedData.length} records`);
         }
@@ -117,20 +137,35 @@ export async function GET(request: NextRequest) {
         processingErrors.push(errorInfo);
       }
     }
+
+    // ✅ STEP 2: Apply calibrations if user is authenticated
+    let calibratedHistoricalData = historicalData;
+    
+    if (userId && containerId) {
+      const calibrations = await fetchCalibrations(userId, containerId, prisma);
+      
+      if (calibrations.size > 0) {
+        console.log(`🔧 Applying ${calibrations.size} calibration(s) to historical data`);
+        calibratedHistoricalData = applyCalibrationToDataset(historicalData, calibrations);
+      } else {
+        console.log('ℹ️ No calibrations found for this user/container');
+      }
+    }
     
     // Sort by timestamp (most recent first)
-    historicalData.sort((a, b) => {
+    calibratedHistoricalData.sort((a, b) => {
       const timestampA = new Date(a.timestamp || a._metadata?.lastModified || new Date()).getTime();
       const timestampB = new Date(b.timestamp || b._metadata?.lastModified || new Date()).getTime();
       return timestampB - timestampA;
     });
     
     const responseData = {
-      data: historicalData,
+      data: calibratedHistoricalData,
       containerId: containerId,
       totalFiles: recentBlobs.length,
-      totalRecords: historicalData.length,
+      totalRecords: calibratedHistoricalData.length,
       processingErrors,
+      calibrated: calibratedHistoricalData.some(r => r._calibrated), // ✅ Track calibration status
       metadata: {
         requestedLimit: limit,
         actualFiles: recentBlobs.length,
@@ -142,7 +177,7 @@ export async function GET(request: NextRequest) {
       }
     };
     
-    console.log(`✅ Completed: ${recentBlobs.length} files, ${historicalData.length} records, ${processingErrors.length} errors`);
+    console.log(`✅ Completed: ${recentBlobs.length} files, ${calibratedHistoricalData.length} records, ${processingErrors.length} errors (Calibrated: ${responseData.calibrated})`);
     
     return NextResponse.json(responseData);
     
@@ -163,4 +198,4 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export const revalidate = 0; // Cache for 1 hour
+export const revalidate = 0; // No cache for historical data
