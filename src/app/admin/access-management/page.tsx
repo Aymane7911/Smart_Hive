@@ -471,16 +471,42 @@ export default function AdminAccessManagement() {
               </div>
             </div>
 
-            <button 
-              onClick={() => {
-                localStorage.removeItem('adminInfo');
-                router.push('/login');
-              }}
-              className="group relative overflow-hidden px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-500 text-white rounded-lg font-medium text-sm shadow-lg transform transition-all duration-500 hover:scale-105 active:scale-95 flex items-center"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              <span>Logout</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => router.push('/smart-hive')}
+                className="group relative overflow-hidden px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-green-500 text-white rounded-lg font-medium text-sm shadow-lg transform transition-all duration-500 hover:scale-105 active:scale-95 flex items-center"
+              >
+                <LayoutDashboard className="w-4 h-4 mr-2" />
+                <span>Smart Hive</span>
+              </button>
+
+              <button 
+                onClick={() => setShowLocationsPanel(!showLocationsPanel)}
+                className="group relative overflow-hidden px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-medium text-sm shadow-lg transform transition-all duration-500 hover:scale-105 active:scale-95 flex items-center"
+              >
+                <MapPin className="w-4 h-4 mr-2" />
+                <span>Locations</span>
+              </button>
+
+              <button 
+                onClick={() => router.push('/admin/correction')}
+                className="group relative overflow-hidden px-4 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium text-sm shadow-lg transform transition-all duration-500 hover:scale-105 active:scale-95 flex items-center"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                <span>Calibration</span>
+              </button>
+
+              <button 
+                onClick={() => {
+                  localStorage.removeItem('adminInfo');
+                  router.push('/login');
+                }}
+                className="group relative overflow-hidden px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-500 text-white rounded-lg font-medium text-sm shadow-lg transform transition-all duration-500 hover:scale-105 active:scale-95 flex items-center"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                <span>Logout</span>
+              </button>
+            </div>
           </div>
         </header>
 
@@ -494,23 +520,7 @@ export default function AdminAccessManagement() {
               </div>
             )}
 
-            {/* Action Buttons */}
-            <div className="mb-8 flex gap-3 flex-wrap">
-              <button
-                onClick={() => router.push('/admin/correction')}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-xl transition-all font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
-              >
-                <Edit2 className="w-4 h-4" />
-                Calibration
-              </button>
-              <button
-                onClick={() => setShowLocationsPanel(!showLocationsPanel)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl transition-all font-medium shadow-lg hover:shadow-xl transform hover:scale-105"
-              >
-                <MapPin className="w-4 h-4" />
-                Manage Locations
-              </button>
-            </div>
+
 
             {/* Location Management Panel */}
             {showLocationsPanel && (
