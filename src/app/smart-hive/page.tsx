@@ -1,17 +1,5 @@
 'use client';
 
-// Declare window.storage type
-declare global {
-  interface Window {
-    storage: {
-      get: (key: string, shared?: boolean) => Promise<{ key: string; value: string; shared: boolean } | null>;
-      set: (key: string, value: string, shared?: boolean) => Promise<{ key: string; value: string; shared: boolean } | null>;
-      delete: (key: string, shared?: boolean) => Promise<{ key: string; deleted: boolean; shared: boolean } | null>;
-      list: (prefix?: string, shared?: boolean) => Promise<{ keys: string[]; prefix?: string; shared: boolean } | null>;
-    };
-  }
-}
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { SensorData } from '../../lib/types';
@@ -20,7 +8,7 @@ import HumidityChart from '../../components/Charts/HumidityChart';
 import BatteryChart from '../../components/Charts/BatteryChart';
 import WeightChart from '../../components/Charts/WeightChart';
 import LocationMap from '../../components/Charts/LocationMap';
-import { Home, ShoppingCart, LayoutDashboard, LogOut, Menu, X, RefreshCw, ChevronLeft, Edit2, Check, XCircle, Search, Filter, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Home, ShoppingCart, LayoutDashboard, LogOut, Menu, X, RefreshCw, ChevronLeft, Edit2, Check, XCircle, Search, Filter, TrendingUp, TrendingDown } from 'lucide-react';
 import { 
   getTemperature, 
   getHumidity, 
@@ -31,6 +19,9 @@ import {
   getHiveData
 } from '../../lib/hiveDataUtils';
 import SmartHiveAIAssistant from '../../components/AIAssistant/SmartHiveAIAssistant';
+import { motion, AnimatePresence } from 'framer-motion';
+import GasSensorChart from '../../components/Charts/GasSensorChart';
+import HiveHealthIndex from '../../components/Charts/HiveHealthIndex';
 
 interface PurchaseInfo {
   id: number;
@@ -40,31 +31,6 @@ interface PurchaseInfo {
   accessGrantedAt: string;
   assignedContainers: string[];
 }
-
-const getLatestValue = (data: SensorData[], field: keyof SensorData): number | null => {
-  if (!data || data.length === 0) return null;
-  const latestItem = data[data.length - 1];
-  return toNumber(latestItem?.[field]);
-};
-
-const isHiveActivated = (hiveData: SensorData[]): boolean => {
-  if (!hiveData || hiveData.length === 0) return false;
-  
-  const latestItem = hiveData[hiveData.length - 1];
-  if (!latestItem) return false;
-  
-  const tempInternal = getTemperature(latestItem, 'internal');
-  const humInternal = getHumidity(latestItem, 'internal');
-  const weight = getWeight(latestItem);
-  const battery = getBattery(latestItem);
-  
-  const hasTemperature = tempInternal !== null && !isNaN(tempInternal) && tempInternal !== 0;
-  const hasHumidity = humInternal !== null && !isNaN(humInternal) && humInternal !== 0;
-  const hasWeight = weight !== null && !isNaN(weight) && weight !== 0;
-  const hasBattery = battery !== null && !isNaN(battery);
-  
-  return hasTemperature || hasHumidity || hasWeight || hasBattery;
-};
 
 const calculateChange = (data: SensorData[], field: keyof SensorData): number | null => {
   if (!data || data.length < 2) return null;
@@ -84,7 +50,6 @@ const getBatteryColor = (battery: number | null): string => {
 const HiveCircle = ({ 
   hiveNumber, 
   data,
-  isMaster,
   historicalData,
   onClick, 
   isSelected,
@@ -94,7 +59,6 @@ const HiveCircle = ({
   hiveNumber: number;
   data: SensorData[];
   historicalData: SensorData[];
-  isMaster: boolean;
   onClick: () => void;
   isSelected: boolean;
   onEditName: () => void;
@@ -126,7 +90,6 @@ const HiveCircle = ({
   const hiveData = getHiveData(data, hiveNumber);
   const latestHiveItem = hiveData.length > 0 ? hiveData[hiveData.length - 1] : null;
   const batteryRaw = latestHiveItem ? getBattery(latestHiveItem) : null;
-  // Force battery to 0 for Hive 2, otherwise use actual value or default to 100
   const battery = hiveNumber === 2 ? 0 : (batteryRaw !== null ? batteryRaw : 100);
   
   const tempChange = calculateChange(hiveData, 'temp_internal');
@@ -134,41 +97,34 @@ const HiveCircle = ({
   
   const batteryColor = getBatteryColor(battery);
   
-   const getLastReadingTime = (): string | null => {
-  // Helper function to check if a data point has real sensor readings
-  const hasRealData = (item: any): boolean => {
-    if (!item) return false;
+  const getLastReadingTime = (): string | null => {
+    const hasRealData = (item: any): boolean => {
+      if (!item) return false;
+      
+      const temp = getTemperature(item, 'internal');
+      const hum = getHumidity(item, 'internal');
+      const weight = getWeight(item);
+      
+      return (temp !== null && !isNaN(temp) && temp !== 0) || 
+             (hum !== null && !isNaN(hum) && hum !== 0) || 
+             (weight !== null && !isNaN(weight) && weight !== 0);
+    };
     
-    const temp = getTemperature(item, 'internal');
-    const hum = getHumidity(item, 'internal');
-    const weight = getWeight(item);
+    const historicalHiveData = getHiveData(historicalData, hiveNumber);
+    const allHiveData = [...historicalHiveData, ...hiveData];
     
-    // At least one sensor must have a valid non-zero reading
-    // Battery reading alone is NOT sufficient (can be simulated)
-    return (temp !== null && !isNaN(temp) && temp !== 0) || 
-           (hum !== null && !isNaN(hum) && hum !== 0) || 
-           (weight !== null && !isNaN(weight) && weight !== 0);
-  };
-  
-  // Combine both latest and historical data for this specific hive
-  const historicalHiveData = getHiveData(historicalData, hiveNumber);
-  const allHiveData = [...historicalHiveData, ...hiveData];
-  
-  // Search backwards from most recent to oldest through ALL data
-  for (let i = allHiveData.length - 1; i >= 0; i--) {
-    const item = allHiveData[i];
-    if (hasRealData(item)) {
-      const timestamp = item?.timestamp || item?._metadata?.lastModified;
-      if (timestamp) return timestamp;
+    for (let i = allHiveData.length - 1; i >= 0; i--) {
+      const item = allHiveData[i];
+      if (hasRealData(item)) {
+        const timestamp = item?.timestamp || item?._metadata?.lastModified;
+        if (timestamp) return timestamp;
+      }
     }
-  }
-  
-  return null;
-};
+    
+    return null;
+  };
 
   const lastReadingTime = getLastReadingTime();
-
-
 
   const formatTimeAgo = (timestamp: string | null | undefined) => {
     if (!timestamp) return 'No data';
@@ -254,7 +210,6 @@ const HiveCircle = ({
           </div>
         </div>
 
-        {/* Temperature - Top */}
         <div className="absolute top-1 left-1/2 -translate-x-1/2 bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-sm px-3 py-2 rounded-xl border border-blue-400/40 shadow-lg shadow-blue-500/20">
           <div className="text-[9px] text-blue-300 text-center mb-0.5 font-semibold uppercase tracking-wider">Temp</div>
           <div className="flex items-center gap-1.5 justify-center">
@@ -270,7 +225,6 @@ const HiveCircle = ({
           </div>
         </div>
 
-        {/* Humidity - Right */}
         <div className="absolute right-1 top-1/2 -translate-y-1/2 bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-sm px-3 py-2 rounded-xl border border-indigo-400/40 shadow-lg shadow-indigo-500/20">
           <div className="text-[9px] text-indigo-300 text-center mb-0.5 font-semibold uppercase tracking-wider">Humidity</div>
           <div className="text-sm font-bold text-indigo-400 text-center">
@@ -278,7 +232,6 @@ const HiveCircle = ({
           </div>
         </div>
 
-        {/* Weight - Bottom */}
         <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-sm px-3 py-2 rounded-xl border border-purple-400/40 shadow-lg shadow-purple-500/20">
           <div className="text-[9px] text-purple-300 text-center mb-0.5 font-semibold uppercase tracking-wider">Weight</div>
           <div className="flex items-center gap-1.5 justify-center">
@@ -294,7 +247,6 @@ const HiveCircle = ({
           </div>
         </div>
 
-        {/* Battery - Left */}
         <div className="absolute left-1 top-1/2 -translate-y-1/2 bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-sm px-3 py-2 rounded-xl border shadow-lg" style={{ borderColor: `${batteryColor}66`, boxShadow: `0 4px 12px ${batteryColor}33` }}>
           <div className="text-[9px] text-center mb-0.5 font-semibold uppercase tracking-wider" style={{ color: `${batteryColor}dd` }}>Battery</div>
           <div className="text-sm font-bold text-center flex items-center gap-1" style={{ color: batteryColor }}>
@@ -333,195 +285,150 @@ export default function SmartHiveDashboard() {
   const [tempName, setTempName] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [availableContainers, setAvailableContainers] = useState<string[]>([]);
-const [containerLoading, setContainerLoading] = useState(true);
-const [containerError, setContainerError] = useState<string | null>(null);
+  const [containerLoading, setContainerLoading] = useState(true);
+  const [containerError, setContainerError] = useState<string | null>(null);
   const isMountedRef = useRef(true);
-
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   const fetchUserAccessAndContainers = useCallback(async () => {
-  if (!isMountedRef.current) return;
-  
-  console.log('🔐 Checking authentication and access...');
-  setAuthChecking(true);
-  setContainerLoading(true);
-  setContainerError(null);
-  setAuthError(null);
-  
-  try {
-    // Check user access and get assigned containers
-    const accessResponse = await fetch('/api/smart-hive/check-access', {
-      credentials: 'include',
-      cache: 'no-store', // 🔥 CRITICAL: Always fetch fresh data
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache'
+    if (!isMountedRef.current) return;
+    
+    setAuthChecking(true);
+    setContainerLoading(true);
+    setContainerError(null);
+    setAuthError(null);
+    
+    try {
+      const accessResponse = await fetch('/api/smart-hive/check-access', {
+        credentials: 'include',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (!isMountedRef.current) return;
+      
+      if (accessResponse.status === 401) {
+        setAuthError('Not authenticated. Redirecting to login...');
+        setHasAccess(false);
+        setTimeout(() => router.push('/login'), 1000);
+        return;
       }
-    });
-    
-    if (!isMountedRef.current) return;
-    
-    // Handle 401 Unauthorized
-    if (accessResponse.status === 401) {
-      console.log('❌ Unauthorized - redirecting to login');
-      setAuthError('Not authenticated. Redirecting to login...');
-      setHasAccess(false);
-      setTimeout(() => {
-        router.push('/login');
-      }, 1000);
-      return;
-    }
-    
-    // Handle other error responses
-    if (!accessResponse.ok) {
-      console.log(`❌ Access check failed with status: ${accessResponse.status}`);
-      setAuthError('Failed to verify access. Please try again.');
-      setHasAccess(false);
-      // Don't redirect on error - let user retry
-      setContainerLoading(false);
-      setAuthChecking(false);
-      return;
-    }
-    
-    const accessResult = await accessResponse.json();
-    
-    if (!isMountedRef.current) return;
-    
-    console.log('📊 Access check result:', accessResult);
-    
-    // Case 1: Not authenticated at all
-    if (!accessResult.success) {
-      console.log('❌ Access denied - not authenticated');
-      setAuthError('Session expired. Please login again.');
-      setHasAccess(false);
-      setTimeout(() => {
-        router.push('/login');
-      }, 1500);
-      return;
-    }
-    
-    // Case 2: No purchase made yet
-    if (!accessResult.hasPurchased) {
-      console.log('❌ No purchase found - redirecting to payment');
-      setAuthError('No Smart Hive purchase found. Please purchase a plan first.');
-      setHasAccess(false);
-      setTimeout(() => {
-        router.push('/login');
-      }, 2000);
-      return;
-    }
-    
-    // Case 3: Purchase pending approval
-    if (!accessResult.hasAccess) {
-      console.log('⏳ Purchase pending admin approval');
-      setHasAccess(false);
-      setAuthError(null); // ✅ Clear auth error since user is authenticated
-      setContainerError('Your purchase is pending admin approval. Please wait for access to be granted.');
-      setContainerLoading(false);
-      setAuthChecking(false);
-      // Don't set purchaseInfo here - user has no access yet
-      return;
-    }
-    
-    // Case 4: Has access - get assigned containers
-    const purchaseData = accessResult.purchase;
-    const assignedContainers = purchaseData.assignedContainers || [];
-    
-    console.log(`✅ User has access to ${assignedContainers.length} containers:`, assignedContainers);
-    
-    // Case 5: Access granted but no containers assigned
-    if (assignedContainers.length === 0) {
-      console.log('⚠️ Access granted but no containers assigned');
+      
+      if (!accessResponse.ok) {
+        setAuthError('Failed to verify access. Please try again.');
+        setHasAccess(false);
+        setContainerLoading(false);
+        setAuthChecking(false);
+        return;
+      }
+      
+      const accessResult = await accessResponse.json();
+      
+      if (!isMountedRef.current) return;
+      
+      if (!accessResult.success) {
+        setAuthError('Session expired. Please login again.');
+        setHasAccess(false);
+        setTimeout(() => router.push('/login'), 1500);
+        return;
+      }
+      
+      if (!accessResult.hasPurchased) {
+        setAuthError('No Smart Hive purchase found. Please purchase a plan first.');
+        setHasAccess(false);
+        setTimeout(() => router.push('/login'), 2000);
+        return;
+      }
+      
+      if (!accessResult.hasAccess) {
+        setHasAccess(false);
+        setAuthError(null);
+        setContainerError('Your purchase is pending admin approval. Please wait for access to be granted.');
+        setContainerLoading(false);
+        setAuthChecking(false);
+        return;
+      }
+      
+      const purchaseData = accessResult.purchase;
+      const assignedContainers = purchaseData.assignedContainers || [];
+      
+      if (assignedContainers.length === 0) {
+        setHasAccess(true);
+        setAuthError(null);
+        setContainerError('Access granted but no containers assigned yet. Please contact admin to assign containers.');
+        setAvailableContainers([]);
+        setPurchaseInfo({
+          id: purchaseData.id,
+          masterHives: purchaseData.masterHives || 0,
+          normalHives: purchaseData.normalHives || 0,
+          purchaseDate: purchaseData.purchaseDate,
+          accessGrantedAt: purchaseData.accessGrantedAt || new Date().toISOString(),
+          assignedContainers: []
+        });
+        setContainerLoading(false);
+        setAuthChecking(false);
+        return;
+      }
+      
+      setAvailableContainers(assignedContainers);
       setHasAccess(true);
       setAuthError(null);
-      setContainerError('Access granted but no containers assigned yet. Please contact admin to assign containers.');
-      setAvailableContainers([]);
+      setContainerError(null);
+      
       setPurchaseInfo({
         id: purchaseData.id,
         masterHives: purchaseData.masterHives || 0,
         normalHives: purchaseData.normalHives || 0,
         purchaseDate: purchaseData.purchaseDate,
         accessGrantedAt: purchaseData.accessGrantedAt || new Date().toISOString(),
-        assignedContainers: []
+        assignedContainers: assignedContainers
       });
-      setContainerLoading(false);
-      setAuthChecking(false);
-      return;
-    }
-    
-    // Case 6: Full access with containers ✅
-    console.log('✅ Full access granted with containers:', assignedContainers);
-    
-    setAvailableContainers(assignedContainers);
-    setHasAccess(true);
-    setAuthError(null);
-    setContainerError(null);
-    
-    // Set purchase info with correct data from database
-    setPurchaseInfo({
-      id: purchaseData.id,
-      masterHives: purchaseData.masterHives || 0,
-      normalHives: purchaseData.normalHives || 0,
-      purchaseDate: purchaseData.purchaseDate,
-      accessGrantedAt: purchaseData.accessGrantedAt || new Date().toISOString(),
-      assignedContainers: assignedContainers
-    });
-    
-    // Set first assigned container as default (or keep current if still valid)
-    if (!selectedContainer || !assignedContainers.includes(selectedContainer)) {
-      if (assignedContainers.length > 0) {
-        setSelectedContainer(assignedContainers[0]);
+      
+      if (!selectedContainer || !assignedContainers.includes(selectedContainer)) {
+        if (assignedContainers.length > 0) {
+          setSelectedContainer(assignedContainers[0]);
+        }
+      }
+      
+    } catch (error: any) {
+      if (isMountedRef.current) {
+        setHasAccess(false);
+        setAuthError('Failed to check access. Please refresh the page.');
+        setContainerError(error.message || 'Network error occurred');
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setContainerLoading(false);
+        setAuthChecking(false);
+        setLoading(false);
       }
     }
+  }, [selectedContainer, router]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    fetchUserAccessAndContainers();
     
-    console.log(`✅ Authentication successful - ${assignedContainers.length} containers loaded`);
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [fetchUserAccessAndContainers]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || availableContainers.length === 0) return;
     
-  } catch (error: any) {
-    console.error('❌ Error fetching user access:', error);
-    if (isMountedRef.current) {
-      setHasAccess(false);
-      setAuthError('Failed to check access. Please refresh the page.');
-      setContainerError(error.message || 'Network error occurred');
-      
-      // Don't redirect on network error - let user retry
+    const params = new URLSearchParams(window.location.search);
+    const containerParam = params.get('container');
+    
+    if (containerParam && availableContainers.includes(containerParam)) {
+      setSelectedContainer(containerParam);
+    } else if (!selectedContainer && availableContainers.length > 0) {
+      setSelectedContainer(availableContainers[0]);
     }
-  } finally {
-    if (isMountedRef.current) {
-      setContainerLoading(false);
-      setAuthChecking(false);
-      setLoading(false);
-    }
-  }
-}, [selectedContainer, router]);
-
-
- useEffect(() => {
-  isMountedRef.current = true;
-  
-  // Check authentication ONLY ONCE on mount
-  fetchUserAccessAndContainers();
-  
-  return () => {
-    isMountedRef.current = false;
-  };
-}, []);
-
-// Handle URL parameters for direct container selection
-useEffect(() => {
-  if (typeof window === 'undefined' || availableContainers.length === 0) return;
-  
-  const params = new URLSearchParams(window.location.search);
-  const containerParam = params.get('container');
-  
-  if (containerParam && availableContainers.includes(containerParam)) {
-    console.log('📍 Setting container from URL:', containerParam);
-    setSelectedContainer(containerParam);
-  } else if (!selectedContainer && availableContainers.length > 0) {
-    // If no valid parameter, set first available container
-    setSelectedContainer(availableContainers[0]);
-  }
-}, [availableContainers]);
-
-
+  }, [availableContainers, selectedContainer]);
 
   useEffect(() => {
     const loadNames = async () => {
@@ -547,35 +454,28 @@ useEffect(() => {
     loadNames();
   }, [selectedContainer]);
 
-  
-
   const handleLogout = useCallback(async () => {
-  try {
-    const response = await fetch('/api/auth/logout', {
-      method: 'POST',
-      credentials: 'include'
-    });
-    
-    const result = await response.json();
-    
-    if (result.success) {
-      // Clear local storage
-      if (typeof window !== 'undefined') {
-        localStorage.clear(); // Clear everything
-      }
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
       
-      // Redirect to login
+      const result = await response.json();
+      
+      if (result.success) {
+        if (typeof window !== 'undefined') {
+          localStorage.clear();
+        }
+        router.push('/login');
+      }
+    } catch (error) {
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+      }
       router.push('/login');
     }
-  } catch (error) {
-    console.error('Logout error:', error);
-    // Force redirect even on error
-    if (typeof window !== 'undefined') {
-      localStorage.clear();
-    }
-    router.push('/login');
-  }
-}, [router]);
+  }, [router]);
 
   const flattenData = useCallback((data: any): SensorData[] => {
     if (!data) return [];
@@ -621,7 +521,6 @@ useEffect(() => {
       if (!isMountedRef.current) return;
 
       const flatData = flattenData(result.data || result);
-
       setLatestData(flatData);
 
       const actualDataTimestamp = flatData.length > 0 && flatData[0]?.timestamp 
@@ -639,7 +538,7 @@ useEffect(() => {
       setLatestData([]);
       setIsOnline(false);
     }
-  }, [hasAccess, selectedContainer, flattenData]);
+  }, [selectedContainer, flattenData]);
 
   const fetchHistoricalData = useCallback(async () => {
     if (!isMountedRef.current || !selectedContainer) return;
@@ -666,7 +565,7 @@ useEffect(() => {
       if (!isMountedRef.current) return;
       setHistoricalData([]);
     }
-  }, [hasAccess, selectedContainer, flattenData]);
+  }, [selectedContainer, flattenData]);
 
   const handleContainerChange = useCallback((newContainer: string) => {
     if (newContainer === selectedContainer) return;
@@ -692,7 +591,7 @@ useEffect(() => {
     setTempName(getApiaryName(containerId));
   }, [getApiaryName]);
 
-  const saveHiveName = useCallback(async (hiveNumber: number, newName: string) => {
+  const saveHiveName = useCallback((hiveNumber: number, newName: string) => {
     if (!selectedContainer || !newName.trim()) {
       setEditingHive(null);
       return;
@@ -713,7 +612,7 @@ useEffect(() => {
     setEditingHive(null);
   }, [selectedContainer, hiveNames]);
 
-  const saveApiaryName = useCallback(async (containerId: string, newName: string) => {
+  const saveApiaryName = useCallback((containerId: string, newName: string) => {
     if (!newName.trim()) {
       setEditingApiary(null);
       return;
@@ -741,19 +640,12 @@ useEffect(() => {
     setError(null);
     
     try {
-      // First, refresh authentication and container access
       await fetchUserAccessAndContainers();
-      
-      // Then fetch the latest sensor data
       await Promise.allSettled([
         fetchLatestData(),
         fetchHistoricalData()
       ]);
-      
-      // Show success feedback
-      console.log('✅ Dashboard refreshed successfully');
     } catch (error) {
-      console.error('❌ Error refreshing dashboard:', error);
       setError('Failed to refresh. Please try again.');
     } finally {
       setTimeout(() => {
@@ -762,50 +654,48 @@ useEffect(() => {
         }
       }, 1000);
     }
-  }, [isRefreshing, fetchLatestData, fetchHistoricalData]);
+  }, [isRefreshing, fetchLatestData, fetchHistoricalData, fetchUserAccessAndContainers]);
 
   useEffect(() => {
-  // Wait for both containers and selection to be ready
-  if (containerLoading || !selectedContainer) {
-    setLoading(false);
-    return;
-  }
-
-  setLatestData([]);
-  setHistoricalData([]);
-  setError(null);
-  setLoading(true);
-
-  const fetchData = async () => {
-    if (!isMountedRef.current) return;
-    
-    await fetchHistoricalData();
-    await fetchLatestData();
-    
-    if (isMountedRef.current) {
+    if (containerLoading || !selectedContainer) {
       setLoading(false);
+      return;
     }
-  };
-  
-  fetchData();
-  
-  // Auto-refresh data every 5 MINUTES (300000ms) - NOT on every render
-  const interval = setInterval(() => {
-    if (isMountedRef.current && document.visibilityState === 'visible') {
-      console.log('🔄 Auto-refreshing sensor data...');
-      fetchLatestData();
-      fetchHistoricalData();
-    }
-  }, 300000); // 5 minutes
 
-  return () => {
-    clearInterval(interval);
-  };
-}, [selectedContainer]);
+    setLatestData([]);
+    setHistoricalData([]);
+    setError(null);
+    setLoading(true);
+
+    const fetchData = async () => {
+      if (!isMountedRef.current) return;
+      
+      await fetchHistoricalData();
+      await fetchLatestData();
+      
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+    
+    const interval = setInterval(() => {
+      if (isMountedRef.current && document.visibilityState === 'visible') {
+        fetchLatestData();
+        fetchHistoricalData();
+      }
+    }, 300000);
+
+    return () => clearInterval(interval);
+  }, [selectedContainer, containerLoading, fetchLatestData, fetchHistoricalData]);
 
 
-
-  
+useEffect(() => {
+  if (selectedHive !== null) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+}, [selectedHive]);
 
   if (loading) {
     return (
@@ -826,272 +716,188 @@ useEffect(() => {
     );
   }
 
- // Calculate actual number of hives from data (each row with unique id = 1 hive)
-const getActualHiveCount = (): number => {
-  // Try latest data first
-  if (latestData && latestData.length > 0) {
-    // Count unique hive IDs (each id represents a different hive)
-    const uniqueHiveIds = new Set(
-      latestData
-        .map(item => item.id)
-        .filter(id => id !== null && id !== undefined && !isNaN(id))
-    );
-    
-    if (uniqueHiveIds.size > 0) {
-      console.log('📊 Detected hives from latest data:', uniqueHiveIds.size);
-      return uniqueHiveIds.size;
-    }
-  }
-  
-  // Try historical data as fallback
-  if (historicalData && historicalData.length > 0) {
-    const uniqueHiveIds = new Set(
-      historicalData
-        .map(item => item.id)
-        .filter(id => id !== null && id !== undefined && !isNaN(id))
-    );
-    
-    if (uniqueHiveIds.size > 0) {
-      console.log('📊 Detected hives from historical data:', uniqueHiveIds.size);
-      return uniqueHiveIds.size;
-    }
-  }
-  
-  // No data yet - return 0 to show empty state
-  console.log('⚠️ No hive data found yet');
-  return 0;
-};
-
-const actualHiveCount = getActualHiveCount();
-const totalHives = actualHiveCount > 0 ? actualHiveCount : (purchaseInfo ? purchaseInfo.masterHives + purchaseInfo.normalHives : 0);
-const hiveNumbers = Array.from({ length: totalHives }, (_, i) => i + 1);
-
-console.log('🎯 Total hives to display:', totalHives);
-
-  const activatedHives = hiveNumbers.filter((hiveNum) => {
-  // Get all data for this specific hive from both sources
-  const currentHiveData = getHiveData(latestData, hiveNum);
-  const historicalHiveData = getHiveData(historicalData, hiveNum);
-  const allHiveData = [...historicalHiveData, ...currentHiveData];
-  
-  // Define "recent" as within last 3 hours (adjustable)
-  const RECENT_HOURS = 4;
-  const recentThreshold = new Date(Date.now() - RECENT_HOURS * 60 * 60 * 1000);
-  
-  // Search through all data points for this hive
-  for (let i = allHiveData.length - 1; i >= 0; i--) {
-    const item = allHiveData[i];
-    if (!item) continue;
-    
-    // Check if data is recent enough
-    const timestamp = item?.timestamp || item?._metadata?.lastModified;
-    if (timestamp) {
-      const dataTime = new Date(timestamp);
-      if (dataTime < recentThreshold) {
-        continue; // Skip old data
+  const getActualHiveCount = (): number => {
+    if (latestData && latestData.length > 0) {
+      const uniqueHiveIds = new Set(
+        latestData
+          .map(item => item.id)
+          .filter(id => id !== null && id !== undefined && !isNaN(id))
+      );
+      
+      if (uniqueHiveIds.size > 0) {
+        return uniqueHiveIds.size;
       }
     }
     
-    const temp = getTemperature(item, 'internal');
-    const hum = getHumidity(item, 'internal');
-    const weight = getWeight(item);
-    
-    // Must have at least one real sensor reading (not battery alone)
-    if ((temp !== null && !isNaN(temp) && temp !== 0) ||
-        (hum !== null && !isNaN(hum) && hum !== 0) ||
-        (weight !== null && !isNaN(weight) && weight !== 0)) {
-      return true; // Found recent valid sensor data
-    }
-  }
-  
-  return false; // No recent valid sensor data found
-}).length;
-
-// Get list of inactive hives
-const inactiveHives = hiveNumbers.filter((hiveNum) => {
-  const currentHiveData = getHiveData(latestData, hiveNum);
-  const historicalHiveData = getHiveData(historicalData, hiveNum);
-  const allHiveData = [...historicalHiveData, ...currentHiveData];
-  
-  const RECENT_HOURS = 4;
-  const recentThreshold = new Date(Date.now() - RECENT_HOURS * 60 * 60 * 1000);
-  
-  for (let i = allHiveData.length - 1; i >= 0; i--) {
-    const item = allHiveData[i];
-    if (!item) continue;
-    
-    const timestamp = item?.timestamp || item?._metadata?.lastModified;
-    if (timestamp) {
-      const dataTime = new Date(timestamp);
-      if (dataTime < recentThreshold) continue;
+    if (historicalData && historicalData.length > 0) {
+      const uniqueHiveIds = new Set(
+        historicalData
+          .map(item => item.id)
+          .filter(id => id !== null && id !== undefined && !isNaN(id))
+      );
+      
+      if (uniqueHiveIds.size > 0) {
+        return uniqueHiveIds.size;
+      }
     }
     
-    const temp = getTemperature(item, 'internal');
-    const hum = getHumidity(item, 'internal');
-    const weight = getWeight(item);
-    
-    if ((temp !== null && !isNaN(temp) && temp !== 0) ||
-        (hum !== null && !isNaN(hum) && hum !== 0) ||
-        (weight !== null && !isNaN(weight) && weight !== 0)) {
-      return false; // Active
-    }
-  }
-  
-  return true; // Inactive
-});
-
-const inactiveHiveNames = inactiveHives.map(num => getHiveName(num));
-
-
-
-  // Calculate average stats
-  const calculateAverage = (field: 'temp' | 'hum' | 'weight') => {
-    const values = hiveNumbers
-      .map(hiveNum => {
-        const hiveData = getHiveData(latestData, hiveNum);
-        if (hiveData.length === 0) return null;
-        const latest = hiveData[hiveData.length - 1];
-        if (field === 'temp') return getTemperature(latest, 'internal');
-        if (field === 'hum') return getHumidity(latest, 'internal');
-        if (field === 'weight') return getWeight(latest);
-        return null;
-      })
-      .filter((v): v is number => v !== null && !isNaN(v) && v !== 0);
-    
-    if (values.length === 0) return null;
-    return values.reduce((a, b) => a + b, 0) / values.length;
+    return 0;
   };
 
-  const avgTemp = calculateAverage('temp');
-  const avgHum = calculateAverage('hum');
-  const totalWeight = hiveNumbers
-    .map(hiveNum => {
-      const hiveData = getHiveData(latestData, hiveNum);
-      if (hiveData.length === 0) return 0;
-      const latest = hiveData[hiveData.length - 1];
-      const w = getWeight(latest);
-      return w !== null && !isNaN(w) ? w : 0;
-    })
-    .reduce((a, b) => a + b, 0);
+  const actualHiveCount = getActualHiveCount();
+  const totalHives = actualHiveCount > 0 ? actualHiveCount : (purchaseInfo ? purchaseInfo.masterHives + purchaseInfo.normalHives : 0);
+  const hiveNumbers = Array.from({ length: totalHives }, (_, i) => i + 1);
 
-    // Show loading screen while checking authentication
-if (authChecking || loading) {
-  return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-indigo-100 via-purple-100 to-pink-100"></div>
-        <div className="absolute inset-0 bg-gradient-to-tr from-blue-300/40 via-indigo-300/30 via-purple-300/40 to-pink-200/30 animate-pulse"></div>
-      </div>
+  const isHiveActive = (hiveNum: number): boolean => {
+    const currentHiveData = getHiveData(latestData, hiveNum);
+    const historicalHiveData = getHiveData(historicalData, hiveNum);
+    const allHiveData = [...historicalHiveData, ...currentHiveData];
+    
+    const RECENT_HOURS = 4;
+    const recentThreshold = new Date(Date.now() - RECENT_HOURS * 60 * 60 * 1000);
+    
+    for (let i = allHiveData.length - 1; i >= 0; i--) {
+      const item = allHiveData[i];
+      if (!item) continue;
       
-      <div className="text-center relative z-10">
-        <div className="relative mb-6">
-          <div className="animate-spin rounded-full h-20 w-20 border-4 border-indigo-200 border-t-indigo-600 mx-auto"></div>
+      const timestamp = item?.timestamp || item?._metadata?.lastModified;
+      if (timestamp) {
+        const dataTime = new Date(timestamp);
+        if (dataTime < recentThreshold) continue;
+      }
+      
+      const temp = getTemperature(item, 'internal');
+      const hum = getHumidity(item, 'internal');
+      const weight = getWeight(item);
+      
+      if ((temp !== null && !isNaN(temp) && temp !== 0) ||
+          (hum !== null && !isNaN(hum) && hum !== 0) ||
+          (weight !== null && !isNaN(weight) && weight !== 0)) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  const activatedHives = hiveNumbers.filter(isHiveActive).length;
+  const inactiveHives = hiveNumbers.filter(num => !isHiveActive(num));
+  const inactiveHiveNames = inactiveHives.map(num => getHiveName(num));
+
+  if (authChecking || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-indigo-100 via-purple-100 to-pink-100"></div>
+          <div className="absolute inset-0 bg-gradient-to-tr from-blue-300/40 via-indigo-300/30 via-purple-300/40 to-pink-200/30 animate-pulse"></div>
         </div>
-        <p className="text-xl text-indigo-900 font-semibold mb-2">
-          {authError ? 'Redirecting...' : authChecking ? 'Verifying Access...' : 'Loading Dashboard...'}
-        </p>
-        <p className="text-indigo-700/80 text-sm">
-          {authError || (authChecking ? 'Please wait while we check your credentials' : 'Preparing your sensor data...')}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// Show error screen if authentication failed
-if (authError && !authChecking) {
-  return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50"></div>
-      </div>
-      
-      <div className="text-center relative z-10 max-w-md mx-auto px-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 border border-red-200">
-          <div className="mb-6">
-            <svg className="w-20 h-20 mx-auto text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+        
+        <div className="text-center relative z-10">
+          <div className="relative mb-6">
+            <div className="animate-spin rounded-full h-20 w-20 border-4 border-indigo-200 border-t-indigo-600 mx-auto"></div>
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Access Error</h2>
-          <p className="text-gray-600 mb-6">{authError}</p>
-          <div className="space-y-3">
-            <button
-              onClick={() => {
-                setAuthError(null);
-                fetchUserAccessAndContainers();
-              }}
-              className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Retry
-            </button>
-            <button
-              onClick={() => router.push('/login')}
-              className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-colors"
-            >
-              Go to Login
-            </button>
-          </div>
+          <p className="text-xl text-indigo-900 font-semibold mb-2">
+            {authError ? 'Redirecting...' : authChecking ? 'Verifying Access...' : 'Loading Dashboard...'}
+          </p>
+          <p className="text-indigo-700/80 text-sm">
+            {authError || (authChecking ? 'Please wait while we check your credentials' : 'Preparing your sensor data...')}
+          </p>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
 
-// Show pending approval message if user has no access
-if (!hasAccess && !authChecking && containerError) {
-  return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50"></div>
-      </div>
-      
-      <div className="text-center relative z-10 max-w-md mx-auto px-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 border border-yellow-200">
-          <div className="mb-6">
-            <svg className="w-20 h-20 mx-auto text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Access Pending</h2>
-          <p className="text-gray-600 mb-6">{containerError}</p>
-          <div className="space-y-3">
-            <button
-              onClick={() => {
-                setContainerError(null);
-                fetchUserAccessAndContainers();
-              }}
-              className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Check Access Again
-            </button>
-            <button
-              onClick={() => router.push('/welcome')}
-              className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-colors"
-            >
-              Go to Home
-            </button>
-            <button
-              onClick={handleLogout}
-              className="w-full px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg font-medium transition-colors text-sm"
-            >
-              Logout
-            </button>
+  if (authError && !authChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50"></div>
+        </div>
+        
+        <div className="text-center relative z-10 max-w-md mx-auto px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 border border-red-200">
+            <div className="mb-6">
+              <svg className="w-20 h-20 mx-auto text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Access Error</h2>
+            <p className="text-gray-600 mb-6">{authError}</p>
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  setAuthError(null);
+                  fetchUserAccessAndContainers();
+                }}
+                className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Retry
+              </button>
+              <button
+                onClick={() => router.push('/login')}
+                className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-colors"
+              >
+                Go to Login
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
+
+  if (!hasAccess && !authChecking && containerError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-yellow-50 via-amber-50 to-orange-50"></div>
+        </div>
+        
+        <div className="text-center relative z-10 max-w-md mx-auto px-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 border border-yellow-200">
+            <div className="mb-6">
+              <svg className="w-20 h-20 mx-auto text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Access Pending</h2>
+            <p className="text-gray-600 mb-6">{containerError}</p>
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  setContainerError(null);
+                  fetchUserAccessAndContainers();
+                }}
+                className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Check Access Again
+              </button>
+              <button
+                onClick={() => router.push('/welcome')}
+                className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-colors"
+              >
+                Go to Home
+              </button>
+              <button
+                onClick={handleLogout}
+                className="w-full px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg font-medium transition-colors text-sm"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* Enhanced gradient background with blue/indigo/purple theme */}
       <div className="fixed inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50"></div>
       <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-100/40 via-transparent to-transparent"></div>
       
-      {/* Edit Hive Name Modal */}
       {editingHive !== null && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
@@ -1128,7 +934,6 @@ if (!hasAccess && !authChecking && containerError) {
         </div>
       )}
 
-      {/* Edit Apiary Name Modal */}
       {editingApiary !== null && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
@@ -1165,7 +970,6 @@ if (!hasAccess && !authChecking && containerError) {
         </div>
       )}
       
-      {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out shadow-2xl`}>
         <div className="h-full bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex flex-col">
           <div className="p-6 border-b border-slate-700/50">
@@ -1250,9 +1054,7 @@ if (!hasAccess && !authChecking && containerError) {
         />
       )}
 
-      {/* Main Content */}
       <div className="relative z-10">
-        {/* Enhanced Header */}
         <header className="relative bg-white/90 backdrop-blur-xl p-5 rounded-3xl shadow-2xl border border-white/50 text-black overflow-hidden mx-4 mt-4">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-indigo-500/5 to-purple-500/5"></div>
           
@@ -1265,10 +1067,11 @@ if (!hasAccess && !authChecking && containerError) {
                 <Menu className="h-5 w-5 text-gray-700" />
               </button>
               <button
-  onClick={() => router.push('/welcome')}
-  className="mr-4 flex items-center gap-2 px-4 py-2 bg-white/80 rounded-xl border border-blue-200/50 shadow-sm hover:shadow-md transition-all text-sm font-medium text-gray-700 hover:text-blue-600"
->
-</button>
+                onClick={() => router.push('/welcome')}
+                className="mr-4 flex items-center gap-2 px-4 py-2 bg-white/80 rounded-xl border border-blue-200/50 shadow-sm hover:shadow-md transition-all text-sm font-medium text-gray-700 hover:text-blue-600"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
               <div className="flex items-center">
                 <div className="mr-3 bg-gradient-to-br from-blue-500 to-indigo-500 p-2.5 rounded-xl shadow-lg">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -1332,11 +1135,9 @@ if (!hasAccess && !authChecking && containerError) {
 
         <div className="px-4 sm:px-6 lg:px-8 py-6">
           <div className="max-w-[1600px] mx-auto">
-            {/* Enhanced Stats and Controls Bar */}
             {purchaseInfo && (
               <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-5 mb-6">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                  {/* Stats Cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
                     <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl p-4 border border-blue-200/50 shadow-sm hover:shadow-md transition-shadow">
                       <p className="text-xs font-semibold text-blue-800 mb-1 uppercase tracking-wider">Total Hives</p>
@@ -1367,90 +1168,64 @@ if (!hasAccess && !authChecking && containerError) {
                     </div>
                   </div>
 
-                  {/* Inactive Hives Alert */}
-{inactiveHives.length > 0 && (
-  <div className="mt-4 p-4 bg-yellow-50/90 backdrop-blur-xl border-l-4 border-yellow-500 rounded-xl shadow-lg">
-    <div className="flex items-start gap-3">
-      <div className="flex-shrink-0">
-        <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-        </svg>
-      </div>
-      <div className="flex-1">
-        <h3 className="text-sm font-bold text-yellow-800 mb-1">
-          ⚠️ {inactiveHives.length} {inactiveHives.length === 1 ? 'Hive' : 'Hives'} Inactive
-        </h3>
-        <p className="text-sm text-yellow-700 mb-2">
-          The following {inactiveHives.length === 1 ? 'hive has' : 'hives have'} not sent data in the last 4 hours:
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {inactiveHiveNames.map((name, idx) => (
-            <span 
-              key={idx}
-              className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-yellow-200 text-yellow-800"
-            >
-              {name}
-            </span>
-          ))}
-        </div>
-        <p className="text-xs text-yellow-600 mt-2">
-          Please check sensor connections and battery levels.
-        </p>
-      </div>
-      <button
-        onClick={() => {
-          // Optionally add dismiss functionality
-          console.log('Alert dismissed');
-        }}
-        className="flex-shrink-0 text-yellow-600 hover:text-yellow-800 transition-colors"
-        title="Dismiss"
-      >
-        <XCircle className="w-5 h-5" />
-      </button>
-    </div>
-  </div>
-)}
+                  {inactiveHives.length > 0 && (
+                    <div className="mt-4 p-4 bg-yellow-50/90 backdrop-blur-xl border-l-4 border-yellow-500 rounded-xl shadow-lg">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0">
+                          <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-sm font-bold text-yellow-800 mb-1">
+                            ⚠️ {inactiveHives.length} {inactiveHives.length === 1 ? 'Hive' : 'Hives'} Inactive
+                          </h3>
+                          <p className="text-sm text-yellow-700 mb-2">
+                            The following {inactiveHives.length === 1 ? 'hive has' : 'hives have'} not sent data in the last 4 hours:
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {inactiveHiveNames.map((name, idx) => (
+                              <span 
+                                key={idx}
+                                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-yellow-200 text-yellow-800"
+                              >
+                                {name}
+                              </span>
+                            ))}
+                          </div>
+                          <p className="text-xs text-yellow-600 mt-2">
+                            Please check sensor connections and battery levels.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {}}
+                          className="flex-shrink-0 text-yellow-600 hover:text-yellow-800 transition-colors"
+                          title="Dismiss"
+                        >
+                          <XCircle className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
-                  {/* Filter Controls */}
-<div className="flex items-center gap-3">
-  <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-1">
-    <button
-      onClick={() => setFilterStatus('all')}
-      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-        filterStatus === 'all'
-          ? 'bg-blue-600 text-white'
-          : 'text-gray-600 hover:bg-gray-100'
-      }`}
-    >
-      All ({totalHives})
-    </button>
-    <button
-      onClick={() => setFilterStatus('active')}
-      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-        filterStatus === 'active'
-          ? 'bg-green-600 text-white'
-          : 'text-gray-600 hover:bg-gray-100'
-      }`}
-    >
-      Active ({activatedHives})
-    </button>
-    <button
-      onClick={() => setFilterStatus('inactive')}
-      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-        filterStatus === 'inactive'
-          ? 'bg-yellow-600 text-white'
-          : 'text-gray-600 hover:bg-gray-100'
-      }`}
-    >
-      Inactive ({inactiveHives.length})
-    </button>
-  </div>
-</div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-1">
+                      <button
+                        onClick={() => setFilterStatus('all')}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          filterStatus === 'inactive'
+                            ? 'bg-yellow-600 text-white'
+                            : 'text-gray-600 hover:bg-gray-100'
+                        }`}
+                      >
+                        Inactive ({inactiveHives.length})
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Check if there's no data for the selected container */}
             {latestData.length === 0 && !loading ? (
               <div className="flex items-center justify-center min-h-[400px]">
                 <div className="text-center">
@@ -1469,9 +1244,7 @@ if (!hasAccess && !authChecking && containerError) {
                 </div>
               </div>
             ) : selectedHive === null ? (
-              /* Hive Circles View with Enhanced Container List */
               <div className="flex gap-6">
-                {/* Container List - Left Side */}
                 {purchaseInfo && purchaseInfo.assignedContainers && purchaseInfo.assignedContainers.length > 1 && (
                   <div className="w-80 flex-shrink-0">
                     <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-5 sticky top-4">
@@ -1480,7 +1253,6 @@ if (!hasAccess && !authChecking && containerError) {
                         Select Apiary
                       </h3>
                       
-                      {/* Enhanced Search Bar */}
                       <div className="mb-4">
                         <div className="relative">
                           <input
@@ -1494,7 +1266,6 @@ if (!hasAccess && !authChecking && containerError) {
                         </div>
                       </div>
 
-                      {/* Apiary List */}
                       <div className="space-y-2 max-h-96 overflow-y-auto">
                         {purchaseInfo.assignedContainers
                           .filter(container => 
@@ -1550,158 +1321,243 @@ if (!hasAccess && !authChecking && containerError) {
                   </div>
                 )}
 
-                {/* Enhanced Hive Circles Grid */}
                 <div className="flex-1">
-                  <div className="text-center mb-10">
-                    <h2 className="text-4xl font-bold text-gray-800 mb-3 flex items-center justify-center gap-3">
-                      <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                        All Hives
-                      </span>
-                    </h2>
-                    <p className="text-gray-600 text-base">
-                      Click on any hive to view detailed analytics and insights
-                    </p>
-                  </div>
-                  
-                  {/* Responsive grid that centers items and maintains good spacing */}
-                  <div className="flex flex-wrap justify-center gap-x-16 gap-y-20 px-4">
-                    {hiveNumbers
-  .filter((hiveNumber) => {
-    // Get hive activation status
-    const currentHiveData = getHiveData(latestData, hiveNumber);
-    const historicalHiveData = getHiveData(historicalData, hiveNumber);
-    const allHiveData = [...historicalHiveData, ...currentHiveData];
-    
-    const RECENT_HOURS = 4;
-    const recentThreshold = new Date(Date.now() - RECENT_HOURS * 60 * 60 * 1000);
-    
-    let isActive = false;
-    for (let i = allHiveData.length - 1; i >= 0; i--) {
-      const item = allHiveData[i];
-      if (!item) continue;
+  <AnimatePresence mode="wait">
+    <motion.div
+      key="all-hives"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3, ease: "easeInOut" }}
+    >
+      <div className="text-center mb-10">
+        <h2 className="text-4xl font-bold text-gray-800 mb-3 flex items-center justify-center gap-3">
+          <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            All Hives
+          </span>
+        </h2>
+        <p className="text-gray-600 text-base">
+          Click on any hive to view detailed analytics and insights
+        </p>
+      </div>
       
-      const timestamp = item?.timestamp || item?._metadata?.lastModified;
-      if (timestamp) {
-        const dataTime = new Date(timestamp);
-        if (dataTime < recentThreshold) continue;
-      }
-      
-      const temp = getTemperature(item, 'internal');
-      const hum = getHumidity(item, 'internal');
-      const weight = getWeight(item);
-      
-      if ((temp !== null && !isNaN(temp) && temp !== 0) ||
-          (hum !== null && !isNaN(hum) && hum !== 0) ||
-          (weight !== null && !isNaN(weight) && weight !== 0)) {
-        isActive = true;
-        break;
-      }
-    }
-    
-    // Apply filter
-    if (filterStatus === 'active') return isActive;
-    if (filterStatus === 'inactive') return !isActive;
-    return true; // 'all' shows everything
-  })
-  .map((hiveNumber) => (
-    <div key={hiveNumber} className="flex justify-center">
-      <HiveCircle
-        hiveNumber={hiveNumber}
-        data={latestData}
-        historicalData={historicalData}
-        isMaster={hiveNumber === 1}
-        onClick={() => setSelectedHive(hiveNumber)}
-        isSelected={false}
-        onEditName={() => handleHiveNameEdit(hiveNumber)}
-        hiveName={getHiveName(hiveNumber)}
-      />
-    </div>
-  ))}
-                  </div>
-                  
-                  
-                </div>
+      <div className="flex flex-wrap justify-center gap-x-16 gap-y-20 px-4">
+        {hiveNumbers
+          .filter((hiveNumber) => {
+            if (filterStatus === 'active') return isHiveActive(hiveNumber);
+            if (filterStatus === 'inactive') return !isHiveActive(hiveNumber);
+            return true;
+          })
+          .map((hiveNumber, index) => (
+            <motion.div
+              key={hiveNumber}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ 
+                duration: 0.4, 
+                delay: index * 0.1,
+                ease: "easeOut"
+              }}
+              className="flex justify-center"
+            >
+              <HiveCircle
+                hiveNumber={hiveNumber}
+                data={latestData}
+                historicalData={historicalData}
+                onClick={() => {
+                  if (isTransitioning) return;
+                  setIsTransitioning(true);
+                  setTimeout(() => {
+                    setSelectedHive(hiveNumber);
+                    setIsTransitioning(false);
+                  }, 300);
+                }}
+                isSelected={false}
+                onEditName={() => handleHiveNameEdit(hiveNumber)}
+                hiveName={getHiveName(hiveNumber)}
+              />
+            </motion.div>
+          ))}
+      </div>
+    </motion.div>
+  </AnimatePresence>
+</div>
               </div>
             ) : (
-              /* Enhanced Detail View */
               <div>
                 <button
-                  onClick={() => setSelectedHive(null)}
-                  className="mb-6 flex items-center gap-2 px-5 py-3 bg-white/90 backdrop-blur-xl rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-gray-700 hover:text-gray-900 border border-gray-200 hover:border-blue-300"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                  <span className="font-medium">Back to All Hives</span>
-                </button>
+  onClick={() => {
+    if (isTransitioning) return;
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setSelectedHive(null);
+      setIsTransitioning(false);
+    }, 300);
+  }}
+  className="mb-6 flex items-center gap-2 px-5 py-3 bg-white/90 backdrop-blur-xl rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-gray-700 hover:text-gray-900 border border-gray-200 hover:border-blue-300"
+>
+  <ChevronLeft className="w-5 h-5" />
+  <span className="font-medium">Back to All Hives</span>
+</button>
 
-                <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8 mb-8">
-                  <div className="flex flex-col items-center mb-8">
-                    <HiveCircle
-                      hiveNumber={selectedHive}
-                      data={latestData}
-                      historicalData={historicalData}
-                      isMaster={selectedHive === 1}
-                      onClick={() => {}}
-                      isSelected={true}
-                      onEditName={() => handleHiveNameEdit(selectedHive)}
-                      hiveName={getHiveName(selectedHive)}
-                    />
-                  </div>
+                <AnimatePresence mode="wait">
+  <motion.div
+    key={`hive-${selectedHive}`}
+    initial={{ opacity: 0, scale: 0.95 }}
+    animate={{ opacity: 1, scale: 1 }}
+    exit={{ opacity: 0, scale: 0.95 }}
+    transition={{ duration: 0.3, ease: "easeInOut" }}
+  >
+    <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8 mb-8">
+      <motion.div 
+        className="flex flex-col items-center mb-8"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.1 }}
+      >
+        <HiveCircle
+          hiveNumber={selectedHive}
+          data={latestData}
+          historicalData={historicalData}
+          onClick={() => {}}
+          isSelected={true}
+          onEditName={() => handleHiveNameEdit(selectedHive)}
+          hiveName={getHiveName(selectedHive)}
+        />
+      </motion.div>
 
-                  {/* Charts Grid */}
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <div className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/30 transition-all duration-500">
-                      <TemperatureChart 
-                        data={historicalData}
-                        containerId={selectedContainer}
-                        title={`Temperature Trends`}
-                        selectedHiveOnly={selectedHive}
-                      />
-                    </div>
-                    <div className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-indigo-200/50 overflow-hidden hover:shadow-indigo-500/30 transition-all duration-500">
-                      <HumidityChart 
-                        data={historicalData} 
-                        containerId={selectedContainer}
-                        title={`Humidity Trends`}
-                        selectedHiveOnly={selectedHive}
-                      />
-                    </div>
-                    <div className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-purple-200/50 overflow-hidden hover:shadow-purple-500/30 transition-all duration-500">
-                      <WeightChart 
-                        data={historicalData}
-                        containerId={selectedContainer}
-                        selectedHiveOnly={selectedHive}
-                        title={`Weight Monitoring`}
-                        height={400}
-                        showTrend={true}
-                        timeRange="all"
-                      />
-                    </div>
-                    <div className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-pink-200/50 overflow-hidden hover:shadow-pink-500/30 transition-all duration-500">
-                      <BatteryChart 
-                        data={historicalData}
-                        containerId={selectedContainer}
-                        selectedHiveOnly={selectedHive}
-                        title={`Battery Levels`} 
-                      />
-                    </div>
-                  </div>
-
-                  {/* Map for All Hives - Shows entire apiary location */}
-                  <div className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 p-6 hover:shadow-blue-500/30 transition-all duration-500">
-                    <LocationMap 
-                      data={latestData} 
-                      title={`${getApiaryName(selectedContainer)} - All Hive Locations`}
-                      containerId={selectedContainer}
-                    />
-                  </div>
-                </div>
+      <motion.div 
+        className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
+        <motion.div 
+          className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/30 transition-all duration-500"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4, delay: 0.3 }}
+        >
+          <TemperatureChart 
+            data={historicalData}
+            containerId={selectedContainer}
+            title={`Temperature Trends`}
+            selectedHiveOnly={selectedHive}
+          />
+        </motion.div>
+        
+        <motion.div 
+          className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-indigo-200/50 overflow-hidden hover:shadow-indigo-500/30 transition-all duration-500"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4, delay: 0.4 }}
+        >
+          <HumidityChart 
+            data={historicalData} 
+            containerId={selectedContainer}
+            title={`Humidity Trends`}
+            selectedHiveOnly={selectedHive}
+          />
+        </motion.div>
+        
+        <motion.div 
+          className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-purple-200/50 overflow-hidden hover:shadow-purple-500/30 transition-all duration-500"
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4, delay: 0.5 }}
+        >
+          <WeightChart 
+            data={historicalData}
+            containerId={selectedContainer}
+            selectedHiveOnly={selectedHive}
+            title={`Weight Monitoring`}
+            height={400}
+            showTrend={true}
+            timeRange="all"
+          />
+        </motion.div>
+        
+        <motion.div 
+          className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-pink-200/50 overflow-hidden hover:shadow-pink-500/30 transition-all duration-500"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.4, delay: 0.6 }}
+        >
+          <BatteryChart 
+            data={historicalData}
+            containerId={selectedContainer}
+            selectedHiveOnly={selectedHive}
+            title={`Battery Levels`} 
+          />
+        </motion.div>
+      </motion.div>
+      {/* Health Index Section */}
+<motion.div 
+  className="mb-8"
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ duration: 0.5, delay: 0.75 }}
+>
+  <motion.div 
+    className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-purple-200/50 overflow-hidden hover:shadow-purple-500/30 transition-all duration-500"
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.4, delay: 0.75 }}
+  >
+    <HiveHealthIndex 
+      data={latestData}
+      historicalData={historicalData}
+      containerId={selectedContainer}
+      selectedHiveOnly={selectedHive}
+      title="Hive Health Index"
+      height={400}
+    />
+  </motion.div>
+</motion.div>
+      <motion.div 
+  className="mb-8"
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ duration: 0.5, delay: 0.8 }}
+>
+  {/* Single Combined Gas Chart */}
+  <motion.div 
+    className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/30 transition-all duration-500"
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.4, delay: 0.8 }}
+  >
+    <GasSensorChart 
+      data={latestData}
+      containerId={selectedContainer}
+      selectedHiveOnly={selectedHive}
+      title="Gas Monitoring"
+      height={500}
+      gasType="all"
+    />
+  </motion.div>
+</motion.div>
+      <motion.div 
+        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 p-6 hover:shadow-blue-500/30 transition-all duration-500"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.7 }}
+      >
+        <LocationMap 
+          data={latestData} 
+          title={`${getApiaryName(selectedContainer)} - All Hive Locations`}
+          containerId={selectedContainer}
+        />
+      </motion.div>
+    </div>
+  </motion.div>
+</AnimatePresence>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* AI Assistant */}
       {!loading && (
         <SmartHiveAIAssistant
           latestData={latestData}
@@ -1714,3 +1570,4 @@ if (!hasAccess && !authChecking && containerError) {
     </div>
   );
 }
+                          

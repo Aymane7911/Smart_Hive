@@ -106,7 +106,7 @@ export default function SmartHivePage() {
           {/* hAuth Buttons */}
           <div className="flex items-center gap-3">
             <a
-              href="/auth/login"
+              href="/login"
               className="flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white font-bold py-2 px-4 sm:px-6 rounded-lg transition-all duration-300 hover:shadow-lg"
             >
               <LogIn className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -114,7 +114,7 @@ export default function SmartHivePage() {
             </a>
 
             <a
-              href="/auth/register"
+              href="/register"
               className="flex items-center gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white font-bold py-2 px-4 sm:px-6 rounded-lg shadow-lg hover:shadow-yellow-500/50 transition-all duration-300"
             >
               <UserPlus className="w-4 h-4 sm:w-5 sm:h-5" />
