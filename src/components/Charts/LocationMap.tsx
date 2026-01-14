@@ -134,41 +134,41 @@ function LocationMapComponent({
 
   // Load apiary location from storage
   useEffect(() => {
-  const loadApiaryLocation = async () => {
-    if (!containerId) {
-      console.log('⚠️ No containerId provided to LocationMap');
-      return;
-    }
-    
-    console.log('🔍 Loading apiary location for container:', containerId);
-    
-    try {
-      const response = await fetch('/api/smart-hive/apiary-locations');
-      const result = await response.json();
-      
-      console.log('📡 API response:', result);
-      
-      if (result.success && result.data) {
-        console.log('📍 All locations from API:', result.data);
-        
-        const location = result.data[containerId];
-        if (location) {
-          console.log('✅ Found location for container:', location);
-          setApiaryLocation(location);
-        } else {
-          console.log('⚠️ No location found for container:', containerId);
-          console.log('Available containers:', Object.keys(result.data));
-        }
-      } else {
-        console.log('⚠️ No apiary location data found in API');
+    const loadApiaryLocation = async () => {
+      if (!containerId) {
+        console.log('⚠️ No containerId provided to LocationMap');
+        return;
       }
-    } catch (error) {
-      console.error('❌ Error loading apiary location:', error);
-    }
-  };
-  
-  loadApiaryLocation();
-}, [containerId]);
+      
+      console.log('🔍 Loading apiary location for container:', containerId);
+      
+      try {
+        const response = await fetch('/api/smart-hive/apiary-locations');
+        const result = await response.json();
+        
+        console.log('📡 API response:', result);
+        
+        if (result.success && result.data) {
+          console.log('📍 All locations from API:', result.data);
+          
+          const location = result.data[containerId];
+          if (location) {
+            console.log('✅ Found location for container:', location);
+            setApiaryLocation(location);
+          } else {
+            console.log('⚠️ No location found for container:', containerId);
+            console.log('Available containers:', Object.keys(result.data));
+          }
+        } else {
+          console.log('⚠️ No apiary location data found in API');
+        }
+      } catch (error) {
+        console.error('❌ Error loading apiary location:', error);
+      }
+    };
+    
+    loadApiaryLocation();
+  }, [containerId]);
 
   // Process and validate location data
   const validLocationData = React.useMemo(() => {
@@ -304,12 +304,12 @@ function LocationMapComponent({
 
         // Initialize map
         const map = L.map(mapElement, {
-  center: [centerLat, centerLon],
-  zoom: -45, // Changed from 15 to 13 for wider view
-  scrollWheelZoom: true,
-  dragging: true,
-  zoomControl: true
-});
+          center: [centerLat, centerLon],
+          zoom: 13,
+          scrollWheelZoom: true,
+          dragging: true,
+          zoomControl: true
+        });
 
         // Add OpenStreetMap tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -432,15 +432,15 @@ function LocationMapComponent({
         });
 
         // Fit bounds to show all markers with more padding for wider view
-if (validLocationData.length > 0) {
-  const bounds = L.latLngBounds(
-    validLocationData.map(s => [s.lat, s.lon] as [number, number])
-  );
-  map.fitBounds(bounds, { 
-    padding: [60, 60],  // Increased padding
-    maxZoom: 13  // Prevent zooming in too close even with fitBounds
-  });
-}
+        if (validLocationData.length > 0) {
+          const bounds = L.latLngBounds(
+            validLocationData.map(s => [s.lat, s.lon] as [number, number])
+          );
+          map.fitBounds(bounds, { 
+            padding: [60, 60],
+            maxZoom: 13
+          });
+        }
 
         console.log('✅ Map initialized with', markersRef.current.length, 'markers');
       } catch (error) {
@@ -466,9 +466,11 @@ if (validLocationData.length > 0) {
   // Show error if load failed
   if (loadError) {
     return (
-      <div className="w-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
-        <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
-        <div className="flex items-center justify-center bg-red-500/10 backdrop-blur-sm rounded-xl border border-red-500/30" style={{ height }}>
+      <div className="w-full h-full bg-slate-800 rounded-xl shadow-xl border border-slate-700 flex flex-col">
+        <div className="p-4 border-b border-slate-600/50">
+          <h3 className="text-xl font-bold text-white">{title}</h3>
+        </div>
+        <div className="flex-1 flex items-center justify-center bg-red-500/10 backdrop-blur-sm">
           <div className="text-center">
             <div className="text-4xl mb-4">❌</div>
             <p className="text-red-400 mb-2 font-semibold">{loadError}</p>
@@ -487,10 +489,12 @@ if (validLocationData.length > 0) {
   // Early return for no location set
   if (!apiaryLocation) {
     return (
-      <div className="w-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
-        <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
-        <div className="flex items-center justify-center bg-white/5 backdrop-blur-sm rounded-xl border border-white/10" style={{ height }}>
-          <div className="text-center">
+      <div className="w-full h-full bg-slate-800 rounded-xl shadow-xl border border-slate-700 flex flex-col">
+        <div className="p-4 border-b border-slate-600/50">
+          <h3 className="text-xl font-bold text-white">{title}</h3>
+        </div>
+        <div className="flex-1 flex items-center justify-center bg-white/5 backdrop-blur-sm">
+          <div className="text-center p-6">
             <div className="text-4xl mb-4">📍</div>
             <p className="text-white/60 mb-2">No apiary location set</p>
             <p className="text-white/40 text-sm">Please set the GPS coordinates for this apiary in the Access Management page</p>
@@ -503,10 +507,12 @@ if (validLocationData.length > 0) {
   // Early return for no data
   if (validLocationData.length === 0) {
     return (
-      <div className="w-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
-        <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
-        <div className="flex items-center justify-center bg-white/5 backdrop-blur-sm rounded-xl border border-white/10" style={{ height }}>
-          <div className="text-center">
+      <div className="w-full h-full bg-slate-800 rounded-xl shadow-xl border border-slate-700 flex flex-col">
+        <div className="p-4 border-b border-slate-600/50">
+          <h3 className="text-xl font-bold text-white">{title}</h3>
+        </div>
+        <div className="flex-1 flex items-center justify-center bg-white/5 backdrop-blur-sm">
+          <div className="text-center p-6">
             <div className="text-4xl mb-4">📍</div>
             <p className="text-white/60 mb-2">No hive data available</p>
             <p className="text-white/40 text-sm">Waiting for sensor data...</p>
@@ -517,9 +523,9 @@ if (validLocationData.length > 0) {
   }
 
   return (
-    <div className="w-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
+    <div className="w-full h-full bg-slate-800 rounded-xl shadow-xl border border-slate-700 flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between p-4 border-b border-slate-600/50">
         <h3 className="text-xl font-bold text-white">{title}</h3>
         <div className="flex items-center gap-2 text-sm text-white/60">
           <span>📍 {validLocationData.length} hive{validLocationData.length !== 1 ? 's' : ''}</span>
@@ -532,8 +538,8 @@ if (validLocationData.length > 0) {
       {/* Map Container */}
       <div 
         ref={mapRef}
-        className="relative rounded-xl overflow-hidden border-4 border-slate-600 shadow-xl"
-        style={{ height, minHeight: '400px' }}
+        className="relative flex-1 overflow-hidden"
+        style={{ minHeight: '400px' }}
       >
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-700 z-50">
@@ -545,8 +551,6 @@ if (validLocationData.length > 0) {
           </div>
         )}
       </div>
-
-      
     </div>
   );
 }
@@ -554,9 +558,11 @@ if (validLocationData.length > 0) {
 export default dynamic(() => Promise.resolve(LocationMapComponent), {
   ssr: false,
   loading: () => (
-    <div className="w-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
-      <h3 className="text-xl font-bold text-white mb-4">Sensor Locations</h3>
-      <div className="flex items-center justify-center bg-slate-700 rounded-xl" style={{ height: 500 }}>
+    <div className="w-full h-full bg-slate-800 rounded-xl shadow-xl border border-slate-700 flex flex-col">
+      <div className="p-4 border-b border-slate-600/50">
+        <h3 className="text-xl font-bold text-white">Sensor Locations</h3>
+      </div>
+      <div className="flex-1 flex items-center justify-center bg-slate-700">
         <div className="text-center">
           <div className="text-4xl mb-4">🗺️</div>
           <p className="text-white/60">Initializing map...</p>

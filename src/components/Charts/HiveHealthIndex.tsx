@@ -147,7 +147,7 @@ export default function HiveHealthIndex({
     });
 
     // 3. Weight Trend Score (25 points)
-    const recentHiveData = hiveData.slice(-7); // Last 7 readings
+    const recentHiveData = hiveData.slice(-7);
     let weightScore = 0;
     let weightStatus: 'excellent' | 'good' | 'warning' | 'critical' = 'critical';
     let weightDetails = 'No data';
@@ -189,7 +189,7 @@ export default function HiveHealthIndex({
       details: weightDetails
     });
 
-    // 4. Activity Score (15 points) - Based on data freshness
+    // 4. Activity Score (15 points)
     const timestamp = latestData.timestamp || latestData._metadata?.lastModified;
     let activityScore = 0;
     let activityStatus: 'excellent' | 'good' | 'warning' | 'critical' = 'critical';
@@ -227,7 +227,7 @@ export default function HiveHealthIndex({
       details: activityDetails
     });
 
-    // 5. Environmental Score (15 points) - Temperature stability
+    // 5. Environmental Score (15 points)
     let envScore = 0;
     let envStatus: 'excellent' | 'good' | 'warning' | 'critical' = 'critical';
     let envDetails = 'No data';
@@ -270,7 +270,6 @@ export default function HiveHealthIndex({
       details: envDetails
     });
 
-    // Calculate overall health (out of 100)
     const overallHealth = scores.reduce((sum, s) => sum + s.score, 0);
     
     let overallStatus: 'excellent' | 'good' | 'warning' | 'critical';
@@ -288,7 +287,6 @@ export default function HiveHealthIndex({
     };
   };
 
-  // Get unique hive numbers
   const uniqueHiveNumbers = useMemo(() => {
     if (selectedHiveOnly !== null) return [selectedHiveOnly];
 
@@ -300,7 +298,6 @@ export default function HiveHealthIndex({
     return Array.from(hiveIds).sort((a, b) => a - b);
   }, [data, historicalData, selectedHiveOnly]);
 
-  // Calculate health for all hives
   const hivesHealth = useMemo(() => {
     return uniqueHiveNumbers.map(hiveNum => calculateHiveHealth(hiveNum));
   }, [uniqueHiveNumbers, data, historicalData]);
@@ -327,7 +324,7 @@ export default function HiveHealthIndex({
 
   const renderRadialView = () => {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="w-full px-6 py-6">
         {hivesHealth.map((hive) => {
           const radialData = [
             {
@@ -338,81 +335,89 @@ export default function HiveHealthIndex({
           ];
 
           return (
-            <div key={hive.hiveNumber} className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
+            <div key={hive.hiveNumber} className="w-full">
               {/* Header */}
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-lg font-bold text-white">Hive {hive.hiveNumber}</h4>
-                <span className="text-2xl">{getStatusEmoji(hive.status)}</span>
+              <div className="flex items-center justify-between mb-6">
+                <h4 className="text-xl font-bold text-white">Hive {hive.hiveNumber}</h4>
+                <span className="text-3xl">{getStatusEmoji(hive.status)}</span>
               </div>
 
-              {/* Radial Chart */}
-              <div className="flex justify-center mb-4">
-                <div className="relative w-48 h-48">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RadialBarChart
-                      cx="50%"
-                      cy="50%"
-                      innerRadius="70%"
-                      outerRadius="100%"
-                      data={radialData}
-                      startAngle={90}
-                      endAngle={-270}
-                    >
-                      <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-                      <RadialBar
-                        background
-                        dataKey="value"
-                        cornerRadius={10}
-                        fill={getStatusColor(hive.status)}
-                      />
-                    </RadialBarChart>
-                  </ResponsiveContainer>
-                  
-                  {/* Center Text */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <div className="text-4xl font-bold text-white">
-                      {hive.overallHealth}
+              {/* Main Content Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                {/* Left: Radial Chart */}
+                <div className="flex flex-col items-center">
+                  <div className="relative w-56 h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <RadialBarChart
+                        cx="50%"
+                        cy="50%"
+                        innerRadius="70%"
+                        outerRadius="100%"
+                        data={radialData}
+                        startAngle={90}
+                        endAngle={-270}
+                      >
+                        <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
+                        <RadialBar
+                          background
+                          dataKey="value"
+                          cornerRadius={10}
+                          fill={getStatusColor(hive.status)}
+                        />
+                      </RadialBarChart>
+                    </ResponsiveContainer>
+                    
+                    {/* Center Text */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <div className="text-5xl font-bold text-white">
+                        {hive.overallHealth}
+                      </div>
+                      <div className="text-sm text-white/60 mt-1">Health Score</div>
                     </div>
-                    <div className="text-sm text-white/60">Health Score</div>
+                  </div>
+
+                  {/* Status Badge */}
+                  <div className="mt-6">
+                    <span 
+                      className="px-6 py-2 rounded-full text-sm font-semibold text-white"
+                      style={{ backgroundColor: getStatusColor(hive.status) }}
+                    >
+                      {hive.status.toUpperCase()}
+                    </span>
                   </div>
                 </div>
-              </div>
 
-              {/* Status Badge */}
-              <div className="text-center mb-4">
-                <span 
-                  className="px-4 py-1 rounded-full text-sm font-semibold text-white"
-                  style={{ backgroundColor: getStatusColor(hive.status) }}
-                >
-                  {hive.status.toUpperCase()}
-                </span>
-              </div>
-
-              {/* Score Breakdown */}
-              <div className="space-y-2">
-                {hive.scores.map((score, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-sm">
-                    <span className="text-white/80">{score.category}</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-20 h-2 bg-white/10 rounded-full overflow-hidden">
+                {/* Right: Score Breakdown */}
+                <div className="space-y-4">
+                  {hive.scores.map((score, idx) => (
+                    <div key={idx}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-white/90 text-base font-medium">
+                          {score.category}
+                        </span>
+                        <span className="text-white font-bold text-base">
+                          {score.score}/{score.maxScore}
+                        </span>
+                      </div>
+                      <div className="w-full h-3 bg-white/10 rounded-full overflow-hidden">
                         <div 
-                          className="h-full rounded-full transition-all"
+                          className="h-full rounded-full transition-all duration-300"
                           style={{ 
                             width: `${(score.score / score.maxScore) * 100}%`,
                             backgroundColor: getStatusColor(score.status)
                           }}
                         />
                       </div>
-                      <span className="text-white font-semibold w-12 text-right">
-                        {score.score}/{score.maxScore}
-                      </span>
+                      <div className="text-xs text-white/50 mt-1">
+                        {score.details}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
 
               {/* Last Updated */}
-              <div className="mt-4 pt-4 border-t border-white/10 text-xs text-white/50 text-center">
+              <div className="mt-6 pt-4 border-t border-slate-600/50 text-xs text-white/50 text-center">
                 Updated {new Date(hive.lastUpdated).toLocaleTimeString()}
               </div>
             </div>
@@ -424,9 +429,9 @@ export default function HiveHealthIndex({
 
   if (hivesHealth.length === 0) {
     return (
-      <div className="w-full p-6">
+      <div className="w-full h-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
         <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
-        <div className="flex items-center justify-center h-64 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
+        <div className="flex items-center justify-center h-64">
           <p className="text-white/60">No hive data available to calculate health index</p>
         </div>
       </div>
@@ -434,15 +439,13 @@ export default function HiveHealthIndex({
   }
 
   return (
-    <div className="w-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
-      <div className="flex flex-col gap-4 mb-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold text-white">{title}</h3>
+    <div className="w-full h-full bg-slate-800 rounded-xl shadow-xl border border-slate-700 flex flex-col">
+      <div className="p-6 border-b border-slate-700">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-2xl font-bold text-white">{title}</h3>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-white/60">
-              Average Health: 
-            </span>
-            <span className="text-lg font-bold text-white">
+            <span className="text-sm text-white/60">Average Health:</span>
+            <span className="text-xl font-bold text-white">
               {Math.round(hivesHealth.reduce((sum, h) => sum + h.overallHealth, 0) / hivesHealth.length)}
             </span>
           </div>
@@ -469,7 +472,9 @@ export default function HiveHealthIndex({
         </div>
       </div>
 
-      {renderRadialView()}
+      <div className="flex-1 overflow-y-auto">
+        {renderRadialView()}
+      </div>
     </div>
   );
 }

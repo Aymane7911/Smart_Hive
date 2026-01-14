@@ -51,10 +51,6 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
   height = 400,
   selectedHiveOnly = null
 }) => {
-  console.log('🔋 BatteryChart mounted with data:', data?.length || 0);
-  console.log('🔋 First 2 data items:', data?.slice(0, 2));
-  console.log('🔋 selectedHiveOnly:', selectedHiveOnly);
-
   const [selectedHives, setSelectedHives] = useState<Set<number>>(new Set());
   const [showLowBatteryOnly, setShowLowBatteryOnly] = useState(false);
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('all');
@@ -64,8 +60,6 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
   useEffect(() => {
     const loadCalibrations = () => {
       if (!containerId || typeof window === 'undefined') return;
-
-      console.log('🔧 Loading calibrations for container:', containerId);
       
       try {
         const calibMap = new Map<number, CalibrationSettings>();
@@ -78,7 +72,6 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
             if (stored) {
               const loaded = JSON.parse(stored) as CalibrationSettings;
               calibMap.set(hiveNum, loaded);
-              console.log(`✅ Loaded calibration for Hive ${hiveNum}:`, loaded);
             }
           } catch (error) {
             // Silently continue if calibration not found for this hive
@@ -86,9 +79,8 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
         }
         
         setCalibrations(calibMap);
-        console.log(`✅ Total calibrations loaded: ${calibMap.size}`);
       } catch (error) {
-        console.error('❌ Error loading calibrations:', error);
+        console.error('Error loading calibrations:', error);
       }
     };
 
@@ -111,35 +103,21 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
     const value = item.battery || item.Battery || item.battery_level || item.bat || item.batt;
     const battery = toNumber(value);
     
-    // If no battery field exists, default to 100%
     if (battery == null) {
       return 100;
     }
     
-    // Filter out invalid battery readings and default to 100%
     if (battery < 0 || battery > 200) return 100;
     
     return battery;
   };
 
-  // FIXED: Use useMemo and properly handle timestamp extraction
   const filteredData = useMemo(() => {
-    console.log('🔍 filteredData useMemo running...');
-    console.log('🔍 data:', data?.length || 0);
-    console.log('🔍 timeRange:', timeRange);
-    
     if (!data || data.length === 0) {
-      console.log('⚠️ No data provided to filteredData');
       return [];
     }
     
     if (timeRange === 'all') {
-      console.log('✅ Returning all data (no time filter):', data.length);
-      // Log first item structure
-      if (data[0]) {
-        console.log('📊 First item structure:', Object.keys(data[0]));
-        console.log('📊 First item:', data[0]);
-      }
       return data;
     }
     
@@ -158,43 +136,31 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
         break;
     }
     
-    console.log(`🔍 Filtering data: timeRange=${timeRange}, cutoffTime=${cutoffTime.toISOString()}`);
-    
     const filtered = data.filter(item => {
-      // Try timestamp field first, then fall back to _metadata
       const timestampValue = item.timestamp || item._metadata?.lastModified;
       
       if (!timestampValue) {
-        console.warn('⚠️ Item missing timestamp:', item);
         return false;
       }
       
       const itemTime = new Date(timestampValue);
       
       if (isNaN(itemTime.getTime())) {
-        console.warn('⚠️ Invalid timestamp:', timestampValue);
         return false;
       }
       
       return itemTime >= cutoffTime;
     });
     
-    console.log(`✅ Filtered: ${data.length} → ${filtered.length} items`);
     return filtered;
   }, [data, timeRange]);
 
-  // Process and group data by hive (row-based) - FIXED VERSION
+  // Process and group data by hive
   const chartData = useMemo(() => {
-    console.log('📊 Processing battery chart data...');
-    console.log('📊 filteredData length:', filteredData?.length || 0);
-    console.log('📊 selectedHiveOnly:', selectedHiveOnly);
-    
     if (!filteredData || filteredData.length === 0) {
-      console.log('⚠️ No data available');
       return [];
     }
 
-    // Group by timestamp AND preserve original index
     const timestampGroups = new Map<string, Array<{item: any, originalIndex: number}>>();
     
     filteredData.forEach((item, originalIndex) => {
@@ -208,14 +174,10 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
       timestampGroups.get(timeKey)!.push({ item, originalIndex });
     });
 
-    // Sort items within each timestamp group by original index
     timestampGroups.forEach((items, timeKey) => {
       items.sort((a, b) => a.originalIndex - b.originalIndex);
     });
 
-    console.log('📊 Timestamp groups:', timestampGroups.size);
-
-    // Convert to chart data structure
     const result: ChartDataPoint[] = [];
     
     timestampGroups.forEach((itemsWithIndex, timeKey) => {
@@ -225,46 +187,31 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
         validDataPoints: 0
       };
       
-      console.log(`📊 Processing timestamp ${timeKey} with ${itemsWithIndex.length} items`);
-      
-      // Process each item as a separate hive based on its position in the array
       itemsWithIndex.forEach(({ item }, rowIndex) => {
-        const hiveNumber = rowIndex + 1; // First row = Hive 1, second row = Hive 2, etc.
+        const hiveNumber = rowIndex + 1;
         
-        console.log(`📊   Hive ${hiveNumber}: selectedHiveOnly=${selectedHiveOnly}, match=${selectedHiveOnly === null || hiveNumber === selectedHiveOnly}`);
-        
-        // Skip if filtering to specific hive only
         if (selectedHiveOnly !== null && hiveNumber !== selectedHiveOnly) {
           return;
         }
         
         const battery = getBattery(item);
-        console.log(`📊   Hive ${hiveNumber} battery:`, battery);
         
-        // Battery will always have a value (defaults to 100 if no data)
         dataPoint[`battery_${hiveNumber}`] = battery;
         dataPoint.validDataPoints++;
       });
       
-      // ✅ FIX: Always push dataPoint - don't filter out any timestamps
       result.push(dataPoint);
     });
 
-    // Sort by timestamp
     const sortedResult = result.sort((a, b) => 
       new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
-
-    console.log('✅ Final chart data length:', sortedResult.length);
-    console.log('✅ Sample chart data:', sortedResult.slice(0, 2));
 
     return sortedResult;
   }, [filteredData, selectedHiveOnly]);
 
   // Get unique hive numbers from the data
   const hives = useMemo(() => {
-    console.log('🔍 Computing unique hive numbers...');
-    
     const hiveSet = new Set<number>();
     
     chartData.forEach(point => {
@@ -281,7 +228,6 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
     });
 
     const result = Array.from(hiveSet).sort((a, b) => a - b);
-    console.log('✅ Unique hive numbers:', result);
     return result;
   }, [chartData, selectedHiveOnly]);
 
@@ -305,17 +251,6 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
     return filtered.slice(0, 10);
   }, [hives, selectedHives, showLowBatteryOnly, chartData]);
 
-  console.log('🎨 BatteryChart render:', {
-    dataLength: data?.length || 0,
-    chartDataLength: chartData.length,
-    hivesCount: hives.length,
-    visibleHivesCount: visibleHives.length,
-    selectedHivesCount: selectedHives.size,
-    timeRange,
-    showLowBatteryOnly,
-    selectedHiveOnly
-  });
-
   // Dark theme colors for different hives
   const getColorForHive = (index: number): string => {
     const colors = [
@@ -328,10 +263,9 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
   // Check if battery data exists in the dataset
   const hasBatteryData = useMemo(() => {
     if (!data || data.length === 0) return false;
-    // Check first few items for battery field
     for (let i = 0; i < Math.min(5, data.length); i++) {
       const item = data[i];
-      const value = item.battery 
+      const value = item.battery;
       if (value !== undefined && value !== null) {
         return true;
       }
@@ -339,7 +273,7 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
     return false;
   }, [data]);
 
-  // Custom tooltip with dark theme
+  // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
@@ -362,7 +296,7 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
                       style={{ backgroundColor: entry.color }}
                     ></div>
                     <p className="text-sm font-medium text-white">
-                      Hive {hiveNumber} {hiveNumber === 1 ? '(Master)' : '(Slave)'}
+                      Hive {hiveNumber}
                       {hasCalibration && <span className="ml-1 text-green-400 text-xs">✓</span>}
                       {!hasBatteryData && <span className="ml-1 text-blue-400 text-xs">(simulated)</span>}
                     </p>
@@ -449,12 +383,10 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
 
     const ticks = Array.from(dateGroups.values()).map(timestamps => timestamps[0]);
     
-    console.log('🎯 X-axis ticks:', ticks.length, 'dates');
-    
     return ticks;
   }, [chartData, timeRange]);
 
-  // Create legend items manually
+  // Create legend items
   const getLegendItems = () => {
     return visibleHives.map((hiveNumber, index) => {
       const hasCalibration = calibrations.has(hiveNumber);
@@ -467,11 +399,10 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
   };
 
   if (!data || data.length === 0) {
-    console.log('❌ No data prop provided');
     return (
-      <div className="w-full p-6">
+      <div className="w-full h-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700 flex flex-col">
         <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
-        <div className="flex items-center justify-center h-64 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="text-4xl mb-4">🔋</div>
             <p className="text-white/60 mb-2">No battery data available</p>
@@ -483,15 +414,12 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
   }
 
   if (chartData.length === 0) {
-    console.log('⚠️ No chart data after processing');
-    
     return (
-      <div className="w-full p-6">
+      <div className="w-full h-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700 flex flex-col">
         <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
-        <div className="flex items-center justify-center h-64 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
+        <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-white/60 mb-2">No battery data for selected time range</p>
-            <p className="text-white/40 text-sm">Original data: {data.length} records</p>
             <p className="text-white/40 text-sm">Time range: {timeRange}</p>
           </div>
         </div>
@@ -503,14 +431,13 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
   const calibratedCount = Array.from(calibrations.keys()).filter(h => visibleHives.includes(h)).length;
 
   return (
-    <div className="w-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
+    <div className="w-full h-full bg-slate-800 rounded-xl shadow-xl border border-slate-700 flex flex-col">
       {/* Header */}
-      <div className="flex flex-col gap-4 mb-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold text-white">{title}</h3>
+      <div className="p-6 border-b border-slate-700">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-2xl font-bold text-white">{title}</h3>
           <div className="flex items-center gap-3">
             <div className="flex items-center space-x-2 text-sm text-white/60">
-              
               {visibleHives.length !== hives.length && (
                 <span className="text-white/40">({visibleHives.length} shown)</span>
               )}
@@ -526,7 +453,7 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
           </div>
         </div>
         
-        {/* Controls Row - Only show if not filtering to single hive */}
+        {/* Controls Row */}
         {selectedHiveOnly === null && (
           <div className="flex flex-wrap items-center gap-3">
             {/* Time Range */}
@@ -571,7 +498,7 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
               </button>
             </div>
 
-            {/* Stats Summary */}
+            {/* Stats */}
             <div className="flex items-center gap-4 text-sm text-white/60 w-full sm:w-auto">
               <span className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full bg-blue-400"></div>
@@ -581,7 +508,7 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
           </div>
         )}
         
-        {/* Simplified controls for single hive view */}
+        {/* Simplified controls for single hive */}
         {selectedHiveOnly !== null && (
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -608,10 +535,10 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
         )}
       </div>
 
-      {/* Chart */}
-      <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-        <ResponsiveContainer width="100%" height={height}>
-          <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+      {/* Chart - Full Height */}
+      <div className="flex-1 p-6">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
             <XAxis 
               dataKey="timestamp"
@@ -635,26 +562,11 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
             <Tooltip content={<CustomTooltip />} />
             
             {/* Reference lines */}
-            <ReferenceLine 
-              y={20} 
-              stroke="#F87171" 
-              strokeDasharray="3 3" 
-              strokeOpacity={0.5}
-            />
-            <ReferenceLine 
-              y={30} 
-              stroke="#FBBF24" 
-              strokeDasharray="3 3" 
-              strokeOpacity={0.5}
-            />
-            <ReferenceLine 
-              y={50} 
-              stroke="#34D399" 
-              strokeDasharray="3 3" 
-              strokeOpacity={0.3}
-            />
+            <ReferenceLine y={20} stroke="#F87171" strokeDasharray="3 3" strokeOpacity={0.5} />
+            <ReferenceLine y={30} stroke="#FBBF24" strokeDasharray="3 3" strokeOpacity={0.5} />
+            <ReferenceLine y={50} stroke="#34D399" strokeDasharray="3 3" strokeOpacity={0.3} />
             
-            {/* Battery level lines for each hive */}
+            {/* Battery level lines */}
             {visibleHives.map((hiveNumber, index) => {
               const dataKey = `battery_${hiveNumber}`;
               const color = getColorForHive(index);
@@ -669,16 +581,15 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
                   dot={{ r: 4, fill: color, strokeWidth: 2 }}
                   activeDot={{ r: 6, stroke: color, strokeWidth: 3 }}
                   connectNulls={true}
-                  strokeDasharray={undefined}
                 />
               );
             })}
           </ComposedChart>
         </ResponsiveContainer>
         
-        {/* Custom Legend */}
+        {/* Legend */}
         {legendItems.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-4 mt-6 pt-4 border-t border-white/10">
+          <div className="flex flex-wrap justify-center gap-4 mt-4 pt-4 border-t border-white/10">
             {legendItems.map((item, index) => (
               <div key={index} className="flex items-center gap-2">
                 <div 
@@ -692,10 +603,9 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
         )}
       </div>
 
-      {/* Status Footer with Battery Warnings - Removed "Last updated" */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-end gap-2 text-sm text-white/60 mt-4 pt-4 border-t border-white/10">
-        {/* Low Battery Warnings */}
-        <div className="flex flex-wrap gap-2">
+      {/* Status Footer */}
+      <div className="px-6 pb-6">
+        <div className="flex flex-wrap gap-2 justify-end">
           {visibleHives.map(hiveNumber => {
             const latestPoint = chartData[chartData.length - 1];
             const batteryLevel = latestPoint?.[`battery_${hiveNumber}`];

@@ -1408,9 +1408,9 @@ useEffect(() => {
     exit={{ opacity: 0, scale: 0.95 }}
     transition={{ duration: 0.3, ease: "easeInOut" }}
   >
-    <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-8 mb-8">
+    {/* Hive Overview Circle */}
+    <div className="flex flex-col items-center mb-8">
       <motion.div 
-        className="flex flex-col items-center mb-8"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.1 }}
@@ -1425,131 +1425,142 @@ useEffect(() => {
           hiveName={getHiveName(selectedHive)}
         />
       </motion.div>
+    </div>
 
+    {/* Temperature & Humidity Charts Grid */}
+    <motion.div 
+      className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5, delay: 0.2 }}
+    >
       <motion.div 
-        className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
+        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/30 transition-all duration-500"
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.4, delay: 0.3 }}
       >
-        <motion.div 
-          className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/30 transition-all duration-500"
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.4, delay: 0.3 }}
-        >
-          <TemperatureChart 
-            data={historicalData}
-            containerId={selectedContainer}
-            title={`Temperature Trends`}
-            selectedHiveOnly={selectedHive}
-          />
-        </motion.div>
-        
-        <motion.div 
-          className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-indigo-200/50 overflow-hidden hover:shadow-indigo-500/30 transition-all duration-500"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.4, delay: 0.4 }}
-        >
-          <HumidityChart 
-            data={historicalData} 
-            containerId={selectedContainer}
-            title={`Humidity Trends`}
-            selectedHiveOnly={selectedHive}
-          />
-        </motion.div>
-        
-        <motion.div 
-          className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-purple-200/50 overflow-hidden hover:shadow-purple-500/30 transition-all duration-500"
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.4, delay: 0.5 }}
-        >
-          <WeightChart 
-            data={historicalData}
-            containerId={selectedContainer}
-            selectedHiveOnly={selectedHive}
-            title={`Weight Monitoring`}
-            height={400}
-            showTrend={true}
-            timeRange="all"
-          />
-        </motion.div>
-        
-        <motion.div 
-          className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-pink-200/50 overflow-hidden hover:shadow-pink-500/30 transition-all duration-500"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.4, delay: 0.6 }}
-        >
-          <BatteryChart 
-            data={historicalData}
-            containerId={selectedContainer}
-            selectedHiveOnly={selectedHive}
-            title={`Battery Levels`} 
-          />
-        </motion.div>
-      </motion.div>
-      {/* Health Index Section */}
-<motion.div 
-  className="mb-8"
-  initial={{ opacity: 0 }}
-  animate={{ opacity: 1 }}
-  transition={{ duration: 0.5, delay: 0.75 }}
->
-  <motion.div 
-    className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-purple-200/50 overflow-hidden hover:shadow-purple-500/30 transition-all duration-500"
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.4, delay: 0.75 }}
-  >
-    <HiveHealthIndex 
-      data={latestData}
-      historicalData={historicalData}
-      containerId={selectedContainer}
-      selectedHiveOnly={selectedHive}
-      title="Hive Health Index"
-      height={400}
-    />
-  </motion.div>
-</motion.div>
-      <motion.div 
-  className="mb-8"
-  initial={{ opacity: 0 }}
-  animate={{ opacity: 1 }}
-  transition={{ duration: 0.5, delay: 0.8 }}
->
-  {/* Single Combined Gas Chart */}
-  <motion.div 
-    className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/30 transition-all duration-500"
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.4, delay: 0.8 }}
-  >
-    <GasSensorChart 
-      data={latestData}
-      containerId={selectedContainer}
-      selectedHiveOnly={selectedHive}
-      title="Gas Monitoring"
-      height={500}
-      gasType="all"
-    />
-  </motion.div>
-</motion.div>
-      <motion.div 
-        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 p-6 hover:shadow-blue-500/30 transition-all duration-500"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.7 }}
-      >
-        <LocationMap 
-          data={latestData} 
-          title={`${getApiaryName(selectedContainer)} - All Hive Locations`}
+        <TemperatureChart 
+          data={historicalData}
           containerId={selectedContainer}
+          title={`Temperature Trends`}
+          selectedHiveOnly={selectedHive}
         />
       </motion.div>
-    </div>
+      
+      <motion.div 
+        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-indigo-200/50 overflow-hidden hover:shadow-indigo-500/30 transition-all duration-500"
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.4, delay: 0.4 }}
+      >
+        <HumidityChart 
+          data={historicalData} 
+          containerId={selectedContainer}
+          title={`Humidity Trends`}
+          selectedHiveOnly={selectedHive}
+        />
+      </motion.div>
+      
+      <motion.div 
+        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-purple-200/50 overflow-hidden hover:shadow-purple-500/30 transition-all duration-500"
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.4, delay: 0.5 }}
+      >
+        <WeightChart 
+          data={historicalData}
+          containerId={selectedContainer}
+          selectedHiveOnly={selectedHive}
+          title={`Weight Monitoring`}
+          height={400}
+          showTrend={true}
+          timeRange="all"
+        />
+      </motion.div>
+      
+      <motion.div 
+        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-pink-200/50 overflow-hidden hover:shadow-pink-500/30 transition-all duration-500"
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.4, delay: 0.6 }}
+      >
+        <BatteryChart 
+          data={historicalData}
+          containerId={selectedContainer}
+          selectedHiveOnly={selectedHive}
+          title={`Battery Levels`} 
+        />
+      </motion.div>
+    </motion.div>
+
+    {/* Gas Monitoring Section - ONLY FOR MASTER HIVE (Hive 1) */}
+{selectedHive === 1 && (
+  <motion.div 
+    className="mb-8"
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ duration: 0.5, delay: 0.7 }}
+  >
+    <motion.div 
+      className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/30 transition-all duration-500"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.7 }}
+    >
+      <GasSensorChart 
+        data={latestData}
+        containerId={selectedContainer}
+        selectedHiveOnly={selectedHive}
+        title="Gas Monitoring"
+        height={500}
+        gasType="all"
+      />
+    </motion.div>
+  </motion.div>
+)}
+
+    {/* Health Index and Location Map Grid - SIDE BY SIDE */}
+    <motion.div 
+      className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5, delay: 0.8 }}
+    >
+      {/* Hive Health Index - LEFT SIDE */}
+      <motion.div 
+        className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-purple-500/30 transition-all duration-500"
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.4, delay: 0.85 }}
+      >
+        <HiveHealthIndex 
+          data={latestData}
+          historicalData={historicalData}
+          containerId={selectedContainer}
+          selectedHiveOnly={selectedHive}
+          title="Hive Health Index"
+          height={600}
+        />
+      </motion.div>
+
+      {/* Location Map - RIGHT SIDE */}
+      <motion.div 
+        className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-blue-500/30 transition-all duration-500 h-full"
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.4, delay: 0.85 }}
+      >
+        <div className="h-full">
+          <LocationMap 
+            data={latestData} 
+            title={`${getApiaryName(selectedContainer)} - All Hive Locations`}
+            containerId={selectedContainer}
+            height={600}
+          />
+        </div>
+      </motion.div>
+    </motion.div>
   </motion.div>
 </AnimatePresence>
               </div>
