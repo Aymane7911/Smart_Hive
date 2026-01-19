@@ -103,7 +103,7 @@ export default function SmartHivePage() {
             </a>
           </div>
 
-          {/* hAuth Buttons */}
+          {/* Auth Buttons */}
           <div className="flex items-center gap-3">
             <a
               href="/login"
@@ -124,8 +124,19 @@ export default function SmartHivePage() {
         </div>
       </div>
 
+      {/* Footer - Powered By */}
+      <div className={`fixed bottom-0 left-0 right-0 z-20 flex items-center justify-center px-6 py-4 transition-all duration-700 ${
+        isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+      }`}>
+        <div className="bg-black/60 backdrop-blur-sm px-6 py-2 rounded-full border border-white/10">
+          <p className="text-white/90 text-sm font-semibold tracking-wide">
+            Powered by <span className="text-amber-400 font-bold">FRC</span>
+          </p>
+        </div>
+      </div>
+
       {/* Content */}
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 pt-20">
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 pt-20 pb-16">
         {/* Main Content */}
         {!showInfo && !showContact ? (
           <div className={`text-center max-w-2xl mx-auto transform transition-all duration-500 ${
