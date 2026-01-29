@@ -32,6 +32,64 @@ interface PurchaseInfo {
   assignedContainers: string[];
 }
 
+interface VideoItem {
+  id: number;
+  title: string;
+  path: string;
+  thumbnail?: string;
+  duration: string;
+  description: string;
+}
+
+interface HiveVideos {
+  [key: number]: VideoItem[];
+}
+
+interface AudioItem {
+  id: number;
+  title: string;
+  path: string;
+  duration: string;
+  recordedDate: string;
+  description: string;
+  thumbnail?: string;
+}
+
+interface HiveBuzzSounds {
+  [key: number]: AudioItem[];
+}
+
+const HIVE_BUZZ_SOUNDS: HiveBuzzSounds = {
+  1: [ // ONLY Master Hive has buzz recordings
+    { 
+      id: 1, 
+      title: "", 
+      path: "/voice/buzz1.mp3",
+      duration: "1:45",
+      recordedDate: "2024-01-15",
+      description: "Active morning foraging sounds",
+    },
+    { 
+      id: 2, 
+      title: "", 
+      path: "/voice/buzz2.mp3",
+      duration: "2:10",
+      recordedDate: "2024-01-14",
+      description: "Queen piping sound during inspection",
+    },
+    { 
+      id: 3, 
+      title: "", 
+      path: "/voice/buzz3.mp3",
+      duration: "3:30",
+      recordedDate: "2024-01-13",
+      description: "Pre-swarm colony behavior sounds", // Waveform thumbnail
+    }
+  ]
+  // Note: No other hives have audio recordings
+};
+
+
 const calculateChange = (data: SensorData[], field: keyof SensorData): number | null => {
   if (!data || data.length < 2) return null;
   const latest = toNumber(data[data.length - 1]?.[field]);
@@ -289,6 +347,925 @@ export default function SmartHiveDashboard() {
   const [containerError, setContainerError] = useState<string | null>(null);
   const isMountedRef = useRef(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [showVideo, setShowVideo] = useState(false);
+const [videoLayout, setVideoLayout] = useState<'side' | 'top'>('side'); // 'side' or 'top'
+const [videoError, setVideoError] = useState<string | null>(null);
+const [selectedVideoIndex, setSelectedVideoIndex] = useState(0);
+const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+
+
+const HiveDataSummaryCard = ({ 
+  hiveNumber,
+  data,
+  historicalData,
+  hiveName,
+  onEditName
+}: {
+  hiveNumber: number;
+  data: SensorData[];
+  historicalData: SensorData[];
+  hiveName: string;
+  onEditName: () => void;
+}) => {
+  const hiveIndex = hiveNumber - 1;
+  
+  const tempInternal = getLastValidValue(
+    data,
+    historicalData,
+    hiveIndex,
+    (item) => getTemperature(item, 'internal')
+  );
+  
+  const humInternal = getLastValidValue(
+    data,
+    historicalData,
+    hiveIndex,
+    (item) => getHumidity(item, 'internal')
+  );
+  
+  const weight = getLastValidValue(
+    data,
+    historicalData,
+    hiveIndex,
+    (item) => getWeight(item)
+  );
+  
+  const hiveData = getHiveData(data, hiveNumber);
+  const latestHiveItem = hiveData.length > 0 ? hiveData[hiveData.length - 1] : null;
+  const batteryRaw = latestHiveItem ? getBattery(latestHiveItem) : null;
+  const battery = hiveNumber === 2 ? 0 : (batteryRaw !== null ? batteryRaw : 100);
+  
+  const tempChange = calculateChange(hiveData, 'temp_internal');
+  const weightChange = calculateChange(hiveData, 'weight');
+  
+  const batteryColor = getBatteryColor(battery);
+  
+  const getLastReadingTime = (): string | null => {
+    const hasRealData = (item: any): boolean => {
+      if (!item) return false;
+      const temp = getTemperature(item, 'internal');
+      const hum = getHumidity(item, 'internal');
+      const weight = getWeight(item);
+      return (temp !== null && !isNaN(temp) && temp !== 0) || 
+             (hum !== null && !isNaN(hum) && hum !== 0) || 
+             (weight !== null && !isNaN(weight) && weight !== 0);
+    };
+    
+    const historicalHiveData = getHiveData(historicalData, hiveNumber);
+    const allHiveData = [...historicalHiveData, ...hiveData];
+    
+    for (let i = allHiveData.length - 1; i >= 0; i--) {
+      const item = allHiveData[i];
+      if (hasRealData(item)) {
+        const timestamp = item?.timestamp || item?._metadata?.lastModified;
+        if (timestamp) return timestamp;
+      }
+    }
+    return null;
+  };
+
+  const lastReadingTime = getLastReadingTime();
+
+  const formatTimeAgo = (timestamp: string | null | undefined) => {
+    if (!timestamp) return 'No data';
+    try {
+      const now = new Date();
+      const then = new Date(timestamp);
+      if (isNaN(then.getTime())) return 'Invalid date';
+      const diffMs = now.getTime() - then.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+      if (diffMins < 1) return 'Just now';
+      if (diffMins === 1) return '1 minute ago';
+      if (diffMins < 60) return `${diffMins} minutes ago`;
+      if (diffHours === 1) return '1 hour ago';
+      if (diffHours < 24) return `${diffHours} hours ago`;
+      if (diffDays === 1) return '1 day ago';
+      return `${diffDays} days ago`;
+    } catch (error) {
+      return 'No data';
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-6 mb-8"
+    >
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-2xl shadow-lg">
+            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z"/>
+              <path d="M2 17L12 22L22 17M2 12L12 17L22 12" strokeWidth="2"/>
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              {hiveName}
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">Real-time Monitoring Dashboard</p>
+          </div>
+        </div>
+        <button
+          onClick={onEditName}
+          className="px-4 py-2 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors flex items-center gap-2 text-gray-700"
+        >
+          <Edit2 className="w-4 h-4" />
+          <span className="text-sm font-medium">Rename</span>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {/* Temperature */}
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-4 border border-blue-200/50">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-2 bg-blue-500 rounded-lg">
+              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C8.69 2 6 4.69 6 8c0 1.89.87 3.58 2.24 4.7C7.45 13.36 7 14.14 7 15v4c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2v-4c0-.86-.45-1.64-1.24-2.3C17.13 11.58 18 9.89 18 8c0-3.31-2.69-6-6-6zm4 13h-1v-2h1v2zm-6 0v-2h1v2H10zm4-5.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+              </svg>
+            </div>
+            <span className="text-xs font-semibold text-blue-800 uppercase tracking-wider">Temperature</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-blue-600">
+              {tempInternal !== null ? `${tempInternal.toFixed(1)}°C` : 'N/A'}
+            </span>
+            {tempChange !== null && Math.abs(tempChange) > 0.1 && (
+              <span className={`text-xs flex items-center ${tempChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {tempChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {Math.abs(tempChange).toFixed(1)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Humidity */}
+        <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-2xl p-4 border border-indigo-200/50">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-2 bg-indigo-500 rounded-lg">
+              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+              </svg>
+            </div>
+            <span className="text-xs font-semibold text-indigo-800 uppercase tracking-wider">Humidity</span>
+          </div>
+          <div className="text-2xl font-bold text-indigo-600">
+            {humInternal !== null ? `${humInternal.toFixed(0)}%` : 'N/A'}
+          </div>
+        </div>
+
+        {/* Weight */}
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl p-4 border border-purple-200/50">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-2 bg-purple-500 rounded-lg">
+              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 3L2 12h3v8h14v-8h3L12 3zm0 2.5L18.5 12H17v6H7v-6H5.5L12 5.5z"/>
+              </svg>
+            </div>
+            <span className="text-xs font-semibold text-purple-800 uppercase tracking-wider">Weight</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-purple-600">
+              {weight !== null ? `${weight.toFixed(1)}kg` : 'N/A'}
+            </span>
+            {weightChange !== null && Math.abs(weightChange) > 0.1 && (
+              <span className={`text-xs flex items-center ${weightChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {weightChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                {Math.abs(weightChange).toFixed(1)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Battery */}
+        <div className="bg-gradient-to-br from-green-50 to-green-100/50 rounded-2xl p-4 border border-green-200/50" style={{
+          backgroundImage: `linear-gradient(to bottom right, ${batteryColor}15, ${batteryColor}25)`
+        }}>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-2 rounded-lg" style={{ backgroundColor: batteryColor }}>
+              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/>
+              </svg>
+            </div>
+            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: `${batteryColor}dd` }}>Battery</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl font-bold" style={{ color: batteryColor }}>
+              {Math.round(battery)}%
+            </span>
+            {batteryRaw === null && (
+              <span className="text-[9px] text-gray-400" title="Simulated data">*</span>
+            )}
+          </div>
+        </div>
+
+        {/* Last Reading */}
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-2xl p-4 border border-gray-200/50">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-2 bg-gray-500 rounded-lg">
+              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/>
+              </svg>
+            </div>
+            <span className="text-xs font-semibold text-gray-800 uppercase tracking-wider">Last Reading</span>
+          </div>
+          <div className="text-sm font-bold text-gray-600">
+            {historicalData.length === 0 ? 'Loading...' : formatTimeAgo(lastReadingTime)}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// Video configuration - Update paths to match your video files
+const HIVE_VIDEOS: HiveVideos ={
+  1: [ // Master Hive videos
+    { 
+      id: 1, 
+      title: "Morning Activity", 
+      path: "/videos/video1.mp4",
+      duration: "2:30",
+      description: "Morning bee activity and foraging behavior"
+    },
+    { 
+      id: 2, 
+      title: "Entrance Monitoring", 
+      path: "/videos/video2.mp4",
+      duration: "3:15",
+      description: "Worker bees entering and exiting the hive"
+    },
+    { 
+      id: 3, 
+      title: "Queen Bee Activity", 
+      path: "/videos/video3.mp4",
+      duration: "4:00",
+      description: "Queen bee inspection and behavior"
+    },
+    { 
+      id: 4, 
+      title: "Honey Production", 
+      path: "/videos/video4.mp4",
+      duration: "2:45",
+      description: "Honey comb building and storage"
+    },
+    { 
+      id: 5, 
+      title: "Evening Activity", 
+      path: "/videos/video5.mp4",
+      duration: "3:30",
+      description: "Evening bee behavior and hive settling"
+    }
+  ]
+  // Add more hives if needed:
+  // 2: [...videos for hive 2],
+  // 3: [...videos for hive 3],
+};
+
+const HiveVideoPlayer = ({ 
+  hiveNumber, 
+  onClose,
+  layout = 'side'
+}: { 
+  hiveNumber: number;
+  onClose: () => void;
+  layout?: 'side' | 'top';
+}) => {
+  const [selectedVideo, setSelectedVideo] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(0.7);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  const videos = HIVE_VIDEOS[hiveNumber] || [];
+  const currentVideo = videos[selectedVideo];
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleTimeUpdate = () => setCurrentTime(video.currentTime);
+    const handleDurationChange = () => setDuration(video.duration);
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => {
+      // Auto-play next video
+      if (selectedVideo < videos.length - 1) {
+        setSelectedVideo(selectedVideo + 1);
+      } else {
+        setIsPlaying(false);
+      }
+    };
+
+    video.addEventListener('timeupdate', handleTimeUpdate);
+    video.addEventListener('durationchange', handleDurationChange);
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handlePause);
+    video.addEventListener('ended', handleEnded);
+
+    return () => {
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+      video.removeEventListener('durationchange', handleDurationChange);
+      video.removeEventListener('play', handlePlay);
+      video.removeEventListener('pause', handlePause);
+      video.removeEventListener('ended', handleEnded);
+    };
+  }, [selectedVideo, videos.length]);
+
+  const togglePlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+    }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    setCurrentTime(time);
+    if (videoRef.current) {
+      videoRef.current.currentTime = time;
+    }
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const vol = parseFloat(e.target.value);
+    setVolume(vol);
+    if (videoRef.current) {
+      videoRef.current.volume = vol;
+    }
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    if (isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const selectVideo = (index: number) => {
+    setSelectedVideo(index);
+    setCurrentTime(0);
+    setIsPlaying(false);
+  };
+
+  if (videos.length === 0) {
+    return (
+      <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-blue-200/50 p-6">
+        <div className="text-center py-12">
+          <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          <p className="text-gray-600">No videos available for this hive</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      ref={containerRef}
+      className={`bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden ${
+        layout === 'side' ? 'h-full' : 'w-full'
+      }`}
+    >
+      <div className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-red-500 to-pink-500 rounded-lg">
+              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M15 8v8H5V8h10m1-2H4a1 1 0 00-1 1v10a1 1 0 001 1h12a1 1 0 001-1V7a1 1 0 00-1-1zm4 4l4-4v12l-4-4z"/>
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-800">Video Gallery</h3>
+              <p className="text-sm text-gray-600">Master Hive {hiveNumber} - {videos.length} Videos</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title="Close video"
+          >
+            <XCircle className="w-6 h-6 text-gray-600" />
+          </button>
+        </div>
+
+        {/* Main Video Player */}
+        <div className="relative bg-gray-900 rounded-2xl overflow-hidden aspect-video mb-4">
+          <video
+            ref={videoRef}
+            className="w-full h-full object-contain"
+            src={currentVideo.path}
+            onClick={togglePlay}
+          >
+            Your browser does not support video playback.
+          </video>
+
+          {/* Play/Pause Overlay */}
+          {!isPlaying && (
+            <div 
+              className="absolute inset-0 flex items-center justify-center bg-black/30 cursor-pointer"
+              onClick={togglePlay}
+            >
+              <div className="w-20 h-20 bg-white/90 rounded-full flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
+                <svg className="w-10 h-10 text-gray-800 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              </div>
+            </div>
+          )}
+
+          {/* Video Controls */}
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4">
+            {/* Progress Bar */}
+            <input
+              type="range"
+              min="0"
+              max={duration || 0}
+              value={currentTime}
+              onChange={handleSeek}
+              className="w-full h-1 mb-3 bg-gray-600 rounded-lg appearance-none cursor-pointer slider"
+              style={{
+                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(currentTime / duration) * 100}%, #4b5563 ${(currentTime / duration) * 100}%, #4b5563 100%)`
+              }}
+            />
+
+            <div className="flex items-center justify-between text-white">
+              <div className="flex items-center gap-3">
+                {/* Play/Pause */}
+                <button onClick={togglePlay} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                  {isPlaying ? (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  )}
+                </button>
+
+                {/* Time */}
+                <span className="text-sm font-medium">
+                  {formatTime(currentTime)} / {formatTime(duration)}
+                </span>
+
+                {/* Volume */}
+                <div className="flex items-center gap-2">
+                  <button onClick={toggleMute} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                    {isMuted || volume === 0 ? (
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+                      </svg>
+                    )}
+                  </button>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={volume}
+                    onChange={handleVolumeChange}
+                    className="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Video Title */}
+                <span className="text-sm font-medium mr-4">{currentVideo.title}</span>
+                
+                {/* Fullscreen */}
+                <button onClick={toggleFullscreen} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        
+
+        {/* Video Thumbnails Gallery */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Video Library ({videos.length})</h4>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-h-48 overflow-y-auto">
+            {videos.map((video, index) => (
+              <button
+                key={video.id}
+                onClick={() => selectVideo(index)}
+                className={`group relative aspect-video rounded-lg overflow-hidden transition-all duration-300 ${
+                  selectedVideo === index
+                    ? 'ring-4 ring-blue-500 shadow-lg scale-105'
+                    : 'ring-2 ring-gray-200 hover:ring-blue-300 hover:shadow-md'
+                }`}
+              >
+                {/* Thumbnail or placeholder */}
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
+                  {video.thumbnail ? (
+                    <img 
+                      src={video.thumbnail} 
+                      alt={video.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  )}
+                </div>
+
+                {/* Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute bottom-0 left-0 right-0 p-2">
+                    <p className="text-white text-xs font-medium truncate">{video.title}</p>
+                    <p className="text-white/80 text-[10px]">{video.duration}</p>
+                  </div>
+                </div>
+
+                {/* Playing indicator */}
+                {selectedVideo === index && isPlaying && (
+                  <div className="absolute top-2 right-2">
+                    <div className="flex items-center gap-1 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+                      <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
+                      PLAYING
+                    </div>
+                  </div>
+                )}
+
+                {/* Video number badge */}
+                <div className={`absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                  selectedVideo === index ? 'bg-blue-500 text-white' : 'bg-white/90 text-gray-700'
+                }`}>
+                  {index + 1}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        
+      </div>
+    </motion.div>
+  );
+};
+
+const BeeBuzzSoundsPlayer = ({ 
+  hiveNumber
+}: { 
+  hiveNumber: number;
+}) => {
+  const [selectedAudio, setSelectedAudio] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(0.7);
+  const [isMuted, setIsMuted] = useState(false);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  
+  const sounds = HIVE_BUZZ_SOUNDS[hiveNumber as keyof typeof HIVE_BUZZ_SOUNDS] || [];
+  const currentSound = sounds[selectedAudio];
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const handleDurationChange = () => setDuration(audio.duration);
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => {
+      if (selectedAudio < sounds.length - 1) {
+        setSelectedAudio(selectedAudio + 1);
+      } else {
+        setIsPlaying(false);
+      }
+    };
+
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('durationchange', handleDurationChange);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('durationchange', handleDurationChange);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [selectedAudio, sounds.length]);
+
+  const togglePlay = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+    }
+  };
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const time = parseFloat(e.target.value);
+    setCurrentTime(time);
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+    }
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const vol = parseFloat(e.target.value);
+    setVolume(vol);
+    if (audioRef.current) {
+      audioRef.current.volume = vol;
+    }
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    if (audioRef.current) {
+      audioRef.current.muted = !isMuted;
+    }
+  };
+
+  const formatTime = (seconds: number) => {
+    if (isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const selectAudio = (index: number) => {
+    setSelectedAudio(index);
+    setCurrentTime(0);
+    setIsPlaying(false);
+  };
+
+  if (sounds.length === 0) {
+    return (
+      <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-orange-200/50 p-6">
+        <div className="text-center py-12">
+          <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+          </svg>
+          <p className="text-gray-600">No buzz sounds available for this hive</p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-orange-200/50 overflow-hidden h-full"
+    >
+      <div className="p-6">
+        {/* Header - Matching Video Player */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg">
+              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-800">Bee Buzz Sounds</h3>
+              <p className="text-sm text-gray-600">Colony Audio Recordings - {sounds.length} files</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Audio Player - Same aspect ratio as video */}
+        <div className="relative bg-gradient-to-br from-amber-100 to-orange-100 rounded-2xl overflow-hidden aspect-video mb-4">
+          <audio
+            ref={audioRef}
+            src={currentSound.path}
+            preload="metadata"
+          />
+
+          {/* Waveform Visualization */}
+          <div className="absolute inset-0 flex items-center justify-center p-8">
+            <div className="flex items-center justify-center gap-1 h-full w-full">
+              {[...Array(40)].map((_, i) => (
+                <div
+                  key={i}
+                  className="bg-gradient-to-t from-orange-500 to-amber-400 rounded-full transition-all duration-150"
+                  style={{
+                    width: '2%',
+                    height: `${isPlaying ? Math.random() * 60 + 20 : 30}px`,
+                    opacity: (currentTime / duration) * 40 > i ? 1 : 0.3,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Play/Pause Overlay */}
+          {!isPlaying && (
+            <div 
+              className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
+              onClick={togglePlay}
+            >
+              <div className="w-20 h-20 bg-white/90 rounded-full flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
+                <svg className="w-10 h-10 text-orange-600 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+              </div>
+            </div>
+          )}
+
+          {/* Audio Controls - Similar to Video Controls */}
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4">
+            {/* Progress Bar */}
+            <input
+              type="range"
+              min="0"
+              max={duration || 0}
+              value={currentTime}
+              onChange={handleSeek}
+              className="w-full h-1 mb-3 bg-gray-600 rounded-lg appearance-none cursor-pointer slider"
+              style={{
+                background: `linear-gradient(to right, #f97316 0%, #f97316 ${(currentTime / duration) * 100}%, #4b5563 ${(currentTime / duration) * 100}%, #4b5563 100%)`
+              }}
+            />
+
+            <div className="flex items-center justify-between text-white">
+              <div className="flex items-center gap-3">
+                {/* Play/Pause */}
+                <button onClick={togglePlay} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                  {isPlaying ? (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  )}
+                </button>
+
+                {/* Time */}
+                <span className="text-sm font-medium">
+                  {formatTime(currentTime)} / {formatTime(duration)}
+                </span>
+
+                {/* Volume */}
+                <div className="flex items-center gap-2">
+                  <button onClick={toggleMute} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
+                    {isMuted || volume === 0 ? (
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+                      </svg>
+                    )}
+                  </button>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={volume}
+                    onChange={handleVolumeChange}
+                    className="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Current Sound Title */}
+                <span className="text-sm font-medium mr-4">{currentSound.title}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recording Library - Grid Layout Matching Video Library */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Recording Library ({sounds.length})</h4>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-h-48 overflow-y-auto">
+            {sounds.map((sound, index) => (
+              <button
+                key={sound.id}
+                onClick={() => selectAudio(index)}
+                className={`group relative aspect-video rounded-lg overflow-hidden transition-all duration-300 ${
+                  selectedAudio === index
+                    ? 'ring-4 ring-orange-500 shadow-lg scale-105'
+                    : 'ring-2 ring-gray-200 hover:ring-orange-300 hover:shadow-md'
+                }`}
+              >
+                {/* Thumbnail or waveform placeholder */}
+                <div className="absolute inset-0 bg-gradient-to-br from-orange-700 to-amber-900 flex items-center justify-center">
+                  {sound.thumbnail ? (
+                    <img 
+                      src={sound.thumbnail} 
+                      alt={sound.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    // Default waveform visual if no thumbnail
+                    <div className="flex items-center justify-center gap-0.5 h-full px-2">
+                      {[...Array(12)].map((_, i) => (
+                        <div
+                          key={i}
+                          className="bg-orange-300/60 rounded-full transition-all"
+                          style={{
+                            width: '3px',
+                            height: `${20 + Math.random() * 40}%`,
+                            animation: selectedAudio === index && isPlaying 
+                              ? `pulse ${0.5 + Math.random()}s ease-in-out infinite` 
+                              : 'none'
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute bottom-0 left-0 right-0 p-2">
+                    <p className="text-white text-xs font-medium truncate">{sound.title}</p>
+                    <p className="text-white/80 text-[10px]">{sound.duration}</p>
+                  </div>
+                </div>
+
+                {/* Playing indicator */}
+                {selectedAudio === index && isPlaying && (
+                  <div className="absolute top-2 right-2">
+                    <div className="flex items-center gap-1 bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded">
+                      <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
+                      PLAYING
+                    </div>
+                  </div>
+                )}
+
+                {/* Audio number badge */}
+                <div className={`absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                  selectedAudio === index ? 'bg-orange-500 text-white' : 'bg-white/90 text-orange-700'
+                }`}>
+                  {index + 1}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+
+const [selectedAudio, setSelectedAudio] = useState(0);
+const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+const [audioCurrentTime, setAudioCurrentTime] = useState(0);
+const [audioDuration, setAudioDuration] = useState(0);
+const [audioVolume, setAudioVolume] = useState(0.7);
+const [isAudioMuted, setIsAudioMuted] = useState(false);
+
+
 
   const fetchUserAccessAndContainers = useCallback(async () => {
     if (!isMountedRef.current) return;
@@ -1361,21 +2338,25 @@ useEffect(() => {
               className="flex justify-center"
             >
               <HiveCircle
-                hiveNumber={hiveNumber}
-                data={latestData}
-                historicalData={historicalData}
-                onClick={() => {
-                  if (isTransitioning) return;
-                  setIsTransitioning(true);
-                  setTimeout(() => {
-                    setSelectedHive(hiveNumber);
-                    setIsTransitioning(false);
-                  }, 300);
-                }}
-                isSelected={false}
-                onEditName={() => handleHiveNameEdit(hiveNumber)}
-                hiveName={getHiveName(hiveNumber)}
-              />
+  hiveNumber={hiveNumber}
+  data={latestData}
+  historicalData={historicalData}
+  onClick={() => {
+    if (isTransitioning) return;
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setSelectedHive(hiveNumber);
+      // Show video for Master Hive (Hive 1) - or any hive with videos
+      if (HIVE_VIDEOS[hiveNumber] && HIVE_VIDEOS[hiveNumber].length > 0) {
+        setShowVideo(true);
+      }
+      setIsTransitioning(false);
+    }, 300);
+  }}
+  isSelected={false}
+  onEditName={() => handleHiveNameEdit(hiveNumber)}
+  hiveName={getHiveName(hiveNumber)}
+/>
             </motion.div>
           ))}
       </div>
@@ -1384,69 +2365,63 @@ useEffect(() => {
 </div>
               </div>
             ) : (
-              <div>
-                <button
-  onClick={() => {
-    if (isTransitioning) return;
-    setIsTransitioning(true);
-    setTimeout(() => {
-      setSelectedHive(null);
-      setIsTransitioning(false);
-    }, 300);
-  }}
-  className="mb-6 flex items-center gap-2 px-5 py-3 bg-white/90 backdrop-blur-xl rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-gray-700 hover:text-gray-900 border border-gray-200 hover:border-blue-300"
->
-  <ChevronLeft className="w-5 h-5" />
-  <span className="font-medium">Back to All Hives</span>
-</button>
-
-                <AnimatePresence mode="wait">
-  <motion.div
-    key={`hive-${selectedHive}`}
-    initial={{ opacity: 0, scale: 0.95 }}
-    animate={{ opacity: 1, scale: 1 }}
-    exit={{ opacity: 0, scale: 0.95 }}
-    transition={{ duration: 0.3, ease: "easeInOut" }}
-  >
-    {/* Hive Overview Circle */}
-    <div className="flex flex-col items-center mb-8">
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.1 }}
-      >
-        <HiveCircle
-          hiveNumber={selectedHive}
-          data={latestData}
-          historicalData={historicalData}
-          onClick={() => {}}
-          isSelected={true}
-          onEditName={() => handleHiveNameEdit(selectedHive)}
-          hiveName={getHiveName(selectedHive)}
-        />
-      </motion.div>
-    </div>
-
-    {/* Temperature & Humidity Charts Grid */}
-    <motion.div 
-      className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5, delay: 0.2 }}
+  <div>
+    <button
+      onClick={() => {
+        if (isTransitioning) return;
+        setIsTransitioning(true);
+        setTimeout(() => {
+          setSelectedHive(null);
+          setShowVideo(false);
+          setSelectedVideoIndex(0);
+          setIsTransitioning(false);
+        }, 300);
+      }}
+      className="mb-6 flex items-center gap-2 px-5 py-3 bg-white/90 backdrop-blur-xl rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-gray-700 hover:text-gray-900 border border-gray-200 hover:border-blue-300"
     >
-      <motion.div 
-        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/30 transition-all duration-500"
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.4, delay: 0.3 }}
+      <ChevronLeft className="w-5 h-5" />
+      <span className="font-medium">Back to All Hives</span>
+    </button>
+
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={`hive-${selectedHive}`}
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.3, ease: "easeInOut" }}
       >
-        <TemperatureChart 
-          data={historicalData}
-          containerId={selectedContainer}
-          title={`Temperature Trends`}
-          selectedHiveOnly={selectedHive}
-        />
-      </motion.div>
+        {/* Hive Data Summary Card (replaces the circle) */}
+        {selectedHive && (
+          <HiveDataSummaryCard
+            hiveNumber={selectedHive}
+            data={latestData}
+            historicalData={historicalData}
+            hiveName={getHiveName(selectedHive)}
+            onEditName={() => handleHiveNameEdit(selectedHive)}
+          />
+        )}
+
+        {/* Temperature & Humidity Charts Grid */}
+        <motion.div 
+          className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <motion.div 
+            className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/30 transition-all duration-500"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.4, delay: 0.3 }}
+          >
+            <TemperatureChart 
+              data={historicalData}
+              containerId={selectedContainer}
+              title={`Temperature Trends`}
+              selectedHiveOnly={selectedHive}
+            />
+          </motion.div>
       
       <motion.div 
         className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-indigo-200/50 overflow-hidden hover:shadow-indigo-500/30 transition-all duration-500"
@@ -1561,10 +2536,54 @@ useEffect(() => {
         </div>
       </motion.div>
     </motion.div>
-  </motion.div>
-</AnimatePresence>
-              </div>
-            )}
+    {/* NEW BOTTOM SECTION: Video Gallery (Left) & Buzz Sounds (Right) */}
+        <motion.div 
+  className={`grid gap-6 mb-8 ${
+    selectedHive === 1 && HIVE_BUZZ_SOUNDS[1] && HIVE_BUZZ_SOUNDS[1].length > 0
+      ? 'grid-cols-1 lg:grid-cols-2'  // Two columns when Master Hive
+      : 'grid-cols-1'  // Single column for other hives
+  }`}
+  initial={{ opacity: 0 }}
+  animate={{ opacity: 1 }}
+  transition={{ duration: 0.5, delay: 0.9 }}
+>
+  {/* Video Gallery - Always shows if videos exist */}
+  {selectedHive && (() => {
+    const hiveVideos = HIVE_VIDEOS[selectedHive as keyof typeof HIVE_VIDEOS];
+    return hiveVideos && hiveVideos.length > 0;
+  })() && (
+    <motion.div 
+      className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-red-500/30 transition-all duration-500"
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.4, delay: 0.95 }}
+    >
+      <HiveVideoPlayer 
+        hiveNumber={selectedHive}
+        onClose={() => {}}
+        layout="top"
+      />
+    </motion.div>
+  )}
+
+  {/* Bee Buzz Sounds - ONLY FOR MASTER HIVE (Hive 1) */}
+  {selectedHive === 1 && HIVE_BUZZ_SOUNDS[1] && HIVE_BUZZ_SOUNDS[1].length > 0 && (
+    <motion.div 
+      className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-orange-500/30 transition-all duration-500"
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.4, delay: 0.95 }}
+    >
+      <BeeBuzzSoundsPlayer 
+        hiveNumber={selectedHive}
+      />
+    </motion.div>
+  )}
+</motion.div>
+      </motion.div>
+    </AnimatePresence>
+  </div>
+)}
           </div>
         </div>
       </div>
