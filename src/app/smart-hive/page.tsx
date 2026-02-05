@@ -1090,35 +1090,68 @@ const BeeBuzzSoundsPlayer = ({
   const currentSound = sounds[selectedAudio];
 
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+  const audio = audioRef.current;
+  if (!audio) return;
 
-    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const handleDurationChange = () => setDuration(audio.duration);
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
-    const handleEnded = () => {
-      if (selectedAudio < sounds.length - 1) {
-        setSelectedAudio(selectedAudio + 1);
-      } else {
-        setIsPlaying(false);
-      }
-    };
+  // Reset audio element
+  audio.pause();
+  audio.currentTime = 0;
+  
+  // Set the source
+  audio.src = currentSound.path;
+  
+  const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+  const handleDurationChange = () => {
+    if (isFinite(audio.duration)) {
+      setDuration(audio.duration);
+    }
+  };
+  const handlePlay = () => setIsPlaying(true);
+  const handlePause = () => setIsPlaying(false);
+  const handleEnded = () => {
+    if (selectedAudio < sounds.length - 1) {
+      setSelectedAudio(selectedAudio + 1);
+    } else {
+      setIsPlaying(false);
+    }
+  };
+  const handleLoadedMetadata = () => {
+    console.log('✅ Audio loaded:', currentSound.path);
+    if (isFinite(audio.duration)) {
+      setDuration(audio.duration);
+    }
+  };
+  const handleError = (e: Event) => {
+    console.error('❌ Audio error:', {
+      src: audio.src,
+      error: audio.error?.code,
+      message: audio.error?.message,
+      networkState: audio.networkState,
+      readyState: audio.readyState
+    });
+  };
 
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('durationchange', handleDurationChange);
-    audio.addEventListener('play', handlePlay);
-    audio.addEventListener('pause', handlePause);
-    audio.addEventListener('ended', handleEnded);
+  audio.addEventListener('timeupdate', handleTimeUpdate);
+  audio.addEventListener('durationchange', handleDurationChange);
+  audio.addEventListener('play', handlePlay);
+  audio.addEventListener('pause', handlePause);
+  audio.addEventListener('ended', handleEnded);
+  audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+  audio.addEventListener('error', handleError);
+  
+  // Load the audio
+  audio.load();
 
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('durationchange', handleDurationChange);
-      audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('pause', handlePause);
-      audio.removeEventListener('ended', handleEnded);
-    };
-  }, [selectedAudio, sounds.length]);
+  return () => {
+    audio.removeEventListener('timeupdate', handleTimeUpdate);
+    audio.removeEventListener('durationchange', handleDurationChange);
+    audio.removeEventListener('play', handlePlay);
+    audio.removeEventListener('pause', handlePause);
+    audio.removeEventListener('ended', handleEnded);
+    audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.removeEventListener('error', handleError);
+  };
+}, [currentSound.path, selectedAudio, sounds.length]);
 
   
 
@@ -1208,10 +1241,14 @@ const BeeBuzzSoundsPlayer = ({
         {/* CHANGED: Background from amber/orange gradient to slate/blue gradient */}
         <div className="relative bg-gradient-to-br from-slate-100 to-blue-100 rounded-2xl overflow-hidden aspect-video mb-4">
           <audio
-            ref={audioRef}
-            src={currentSound.path}
-            preload="metadata"
-          />
+  key={currentSound.id}
+  ref={audioRef}
+  preload="metadata"
+  crossOrigin="anonymous"
+>
+  <source src={currentSound.path} type="audio/mpeg" />
+  Your browser does not support the audio element.
+</audio>
 
           {/* Waveform Visualization */}
           {/* CHANGED: Waveform colors from orange/amber to blue/slate */}
