@@ -1120,6 +1120,49 @@ const BeeBuzzSoundsPlayer = ({
     };
   }, [selectedAudio, sounds.length]);
 
+  useEffect(() => {
+  const audio = audioRef.current;
+  if (!audio) return;
+
+  // Clear any previous sources
+  audio.load();
+
+  const handleCanPlay = () => {
+    console.log('✅ Audio can play:', currentSound.path);
+    setDuration(audio.duration);
+  };
+
+  const handleError = (e: Event) => {
+    console.error('❌ Audio error:', {
+      path: currentSound.path,
+      error: audio.error,
+      networkState: audio.networkState,
+      readyState: audio.readyState
+    });
+    
+    // Try to reload
+    audio.load();
+  };
+
+  const handleLoadedMetadata = () => {
+    console.log('📊 Metadata loaded:', audio.duration);
+    setDuration(audio.duration);
+  };
+
+  audio.addEventListener('canplay', handleCanPlay);
+  audio.addEventListener('error', handleError);
+  audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+
+  // Try to load
+  audio.load();
+
+  return () => {
+    audio.removeEventListener('canplay', handleCanPlay);
+    audio.removeEventListener('error', handleError);
+    audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+  };
+}, [currentSound.path]);
+
   const togglePlay = () => {
     if (audioRef.current) {
       if (isPlaying) {
