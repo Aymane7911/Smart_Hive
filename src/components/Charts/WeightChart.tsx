@@ -351,7 +351,7 @@ export default function WeightChart({
     return [domainMin, domainMax];
   }, [chartData, selectedHives]);
 
-  // Dark theme color palette for different hives
+  // Color palette for different hives
   const getColorPalette = (index: number, isTrend: boolean = false) => {
     // Always use amber for weight when viewing a single hive
     if (selectedHiveOnly !== null) {
@@ -359,23 +359,23 @@ export default function WeightChart({
     }
     
     const colors = [
-      { weight: '#60A5FA', trend: '#34D399' }, // Light Blue/Emerald
-      { weight: '#F87171', trend: '#FBBF24' }, // Light Red/Amber
-      { weight: '#A78BFA', trend: '#FB7185' }, // Light Purple/Pink
-      { weight: '#4ADE80', trend: '#FB923C' }, // Light Green/Orange
-      { weight: '#22D3EE', trend: '#A3E635' }, // Light Cyan/Lime
+      { weight: '#60A5FA', trend: '#34D399' }, // Blue/Emerald
+      { weight: '#F87171', trend: '#FBBF24' }, // Red/Amber
+      { weight: '#A78BFA', trend: '#FB7185' }, // Purple/Pink
+      { weight: '#4ADE80', trend: '#FB923C' }, // Green/Orange
+      { weight: '#22D3EE', trend: '#A3E635' }, // Cyan/Lime
     ];
     const colorSet = colors[index % colors.length];
     return isTrend ? colorSet.trend : colorSet.weight;
   };
 
-  // Custom tooltip with dark theme
+  // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0]?.payload;
       return (
-        <div className="bg-slate-900/95 backdrop-blur-xl p-4 border border-blue-500/30 rounded-xl shadow-2xl">
-          <p className="text-sm font-semibold text-white mb-3 pb-2 border-b border-blue-500/30">
+        <div className="bg-white border-2 border-gray-200 p-4 rounded-xl shadow-2xl">
+          <p className="text-sm font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-200">
             {new Date(label).toLocaleString()}
           </p>
           
@@ -394,7 +394,7 @@ export default function WeightChart({
                       className="w-3 h-3 rounded-full" 
                       style={{ backgroundColor: entry.color }}
                     ></div>
-                    <p className="text-sm font-medium text-white">
+                    <p className="text-sm font-medium text-gray-900">
                       Hive {hiveNumber} - {dataType}
                     </p>
                   </div>
@@ -406,7 +406,7 @@ export default function WeightChart({
                     )}
                   </p>
                   {dataType === 'Weight' && data?.[rawKey] && (
-                    <p className="text-xs text-white/40 ml-5">
+                    <p className="text-xs text-gray-500 ml-5">
                       Raw: {data[rawKey]}
                     </p>
                   )}
@@ -499,9 +499,9 @@ export default function WeightChart({
     console.log('❌ No data prop provided');
     return (
       <div className="w-full p-6">
-        <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
-        <div className="flex items-center justify-center h-64 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
-          <p className="text-white/60">No data available</p>
+        <h3 className="text-xl font-bold text-gray-900 mb-4">{title}</h3>
+        <div className="flex items-center justify-center h-64 bg-gray-50 rounded-xl border border-gray-200">
+          <p className="text-gray-500">No data available</p>
         </div>
       </div>
     );
@@ -512,12 +512,12 @@ export default function WeightChart({
     
     return (
       <div className="w-full p-6">
-        <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
-        <div className="flex items-center justify-center h-64 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
+        <h3 className="text-xl font-bold text-gray-900 mb-4">{title}</h3>
+        <div className="flex items-center justify-center h-64 bg-gray-50 rounded-xl border border-gray-200">
           <div className="text-center">
-            <p className="text-white/60 mb-2">No weight data available for selected time range</p>
-            <p className="text-white/40 text-sm">Original data: {data.length} records</p>
-            <p className="text-white/40 text-sm">Time range: {timeRange}</p>
+            <p className="text-gray-500 mb-2">No weight data available for selected time range</p>
+            <p className="text-gray-400 text-sm">Original data: {data.length} records</p>
+            <p className="text-gray-400 text-sm">Time range: {timeRange}</p>
           </div>
         </div>
       </div>
@@ -534,11 +534,11 @@ export default function WeightChart({
     
     return (
       <div className="w-full p-6">
-        <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
-        <div className="flex flex-col items-center justify-center h-64 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-          <p className="text-white/60 mb-4">No valid weight readings found</p>
-          <details className="text-xs text-white/40">
-            <summary className="cursor-pointer hover:text-white/60">Debug Info</summary>
+        <h3 className="text-xl font-bold text-gray-900 mb-4">{title}</h3>
+        <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-xl border border-gray-200 p-4">
+          <p className="text-gray-500 mb-4">No valid weight readings found</p>
+          <details className="text-xs text-gray-400">
+            <summary className="cursor-pointer hover:text-gray-600">Debug Info</summary>
             <pre className="mt-2 text-left overflow-auto max-h-32">
               {JSON.stringify(debugInfo, null, 2)}
             </pre>
@@ -634,7 +634,7 @@ export default function WeightChart({
       case 'area':
         return (
           <AreaChart {...commonProps}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
             <XAxis 
               dataKey="timestamp"
               ticks={getXAxisTicks}
@@ -643,16 +643,16 @@ export default function WeightChart({
               textAnchor="end"
               height={80}
               fontSize={11}
-              stroke="rgba(255,255,255,0.6)"
-              tick={{ fill: 'rgba(255,255,255,0.6)' }}
+              stroke="rgba(0,0,0,0.6)"
+              tick={{ fill: 'rgba(0,0,0,0.6)' }}
               interval={0}
             />
             <YAxis 
   domain={yAxisDomain}
-  label={{ value: 'Weight (kg)', angle: -90, position: 'insideLeft', fill: 'rgba(255,255,255,0.6)' }}
+  label={{ value: 'Weight (kg)', angle: -90, position: 'insideLeft', fill: 'rgba(0,0,0,0.6)' }}
   fontSize={11}
-  stroke="rgba(255,255,255,0.6)"
-  tick={{ fill: 'rgba(255,255,255,0.6)' }}
+  stroke="rgba(0,0,0,0.6)"
+  tick={{ fill: 'rgba(0,0,0,0.6)' }}
   tickFormatter={(value: number) => value.toFixed(2)}
 />
             <Tooltip content={<CustomTooltip />} />
@@ -663,7 +663,7 @@ export default function WeightChart({
       case 'scatter':
         return (
           <ScatterChart {...commonProps}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
             <XAxis 
               dataKey="timestamp"
               ticks={getXAxisTicks}
@@ -672,16 +672,16 @@ export default function WeightChart({
               textAnchor="end"
               height={80}
               fontSize={11}
-              stroke="rgba(255,255,255,0.6)"
-              tick={{ fill: 'rgba(255,255,255,0.6)' }}
+              stroke="rgba(0,0,0,0.6)"
+              tick={{ fill: 'rgba(0,0,0,0.6)' }}
               interval={0}
             />
            <YAxis 
   domain={yAxisDomain}
-  label={{ value: 'Weight (kg)', angle: -90, position: 'insideLeft', fill: 'rgba(255,255,255,0.6)' }}
+  label={{ value: 'Weight (kg)', angle: -90, position: 'insideLeft', fill: 'rgba(0,0,0,0.6)' }}
   fontSize={11}
-  stroke="rgba(255,255,255,0.6)"
-  tick={{ fill: 'rgba(255,255,255,0.6)' }}
+  stroke="rgba(0,0,0,0.6)"
+  tick={{ fill: 'rgba(0,0,0,0.6)' }}
   tickFormatter={(value: number) => value.toFixed(2)}
 />
             <Tooltip content={<CustomTooltip />} />
@@ -692,7 +692,7 @@ export default function WeightChart({
       default: // line chart
         return (
           <LineChart {...commonProps}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
             <XAxis 
               dataKey="timestamp"
               ticks={getXAxisTicks}
@@ -701,16 +701,16 @@ export default function WeightChart({
               textAnchor="end"
               height={80}
               fontSize={11}
-              stroke="rgba(255,255,255,0.6)"
-              tick={{ fill: 'rgba(255,255,255,0.6)' }}
+              stroke="rgba(0,0,0,0.6)"
+              tick={{ fill: 'rgba(0,0,0,0.6)' }}
               interval={0}
             />
             <YAxis 
   domain={yAxisDomain}
-  label={{ value: 'Weight (kg)', angle: -90, position: 'insideLeft', fill: 'rgba(255,255,255,0.6)' }}
+  label={{ value: 'Weight (kg)', angle: -90, position: 'insideLeft', fill: 'rgba(0,0,0,0.6)' }}
   fontSize={11}
-  stroke="rgba(255,255,255,0.6)"
-  tick={{ fill: 'rgba(255,255,255,0.6)' }}
+  stroke="rgba(0,0,0,0.6)"
+  tick={{ fill: 'rgba(0,0,0,0.6)' }}
   tickFormatter={(value: number) => value.toFixed(2)}
 />
             <Tooltip content={<CustomTooltip />} />
@@ -734,34 +734,34 @@ export default function WeightChart({
   const legendItems = getLegendItems();
 
   return (
-    <div className="w-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
+    <div className="w-full bg-white rounded-xl shadow-xl p-6 border border-gray-200">
       {/* Header */}
       <div className="flex flex-col gap-4 mb-6">
-        <h3 className="text-xl font-bold text-white">{title}</h3>
+        <h3 className="text-xl font-bold text-gray-900">{title}</h3>
         
         {/* Controls Row */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Time Range */}
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-white/80">Time:</label>
+            <label className="text-sm font-medium text-gray-700">Time:</label>
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value as any)}
-              className="px-3 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
             >
-              <option value="24h" className="bg-slate-900">Last 24 Hours</option>
-              <option value="7d" className="bg-slate-900">Last 7 Days</option>
-              <option value="30d" className="bg-slate-900">Last 30 Days</option>
-              <option value="all" className="bg-slate-900">All Data</option>
+              <option value="24h">Last 24 Hours</option>
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="all">All Data</option>
             </select>
           </div>
 
           
 
           {/* Stats Summary */}
-          <div className="ml-auto flex items-center gap-4 text-sm text-white/60">
+          <div className="ml-auto flex items-center gap-4 text-sm text-gray-600">
             <span className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
               {chartData.length} points
             </span>
             
@@ -770,20 +770,20 @@ export default function WeightChart({
       </div>
 
       {/* Chart */}
-      <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10 pb-6">
+      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 pb-6">
         <ResponsiveContainer width="100%" height={height}>
           {renderChart()}
         </ResponsiveContainer>
         {/* Custom Legend - Inside chart container */}
         {legendItems.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-4 mt-6 pt-4 border-t border-white/10">
+          <div className="flex flex-wrap justify-center gap-4 mt-6 pt-4 border-t border-gray-200">
             {legendItems.map((item, index) => (
               <div key={index} className="flex items-center gap-2">
                 <div 
                   className="w-3 h-3 rounded-full" 
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="text-xs text-white/80">{item.label}</span>
+                <span className="text-xs text-gray-700">{item.label}</span>
               </div>
             ))}
           </div>
@@ -794,13 +794,13 @@ export default function WeightChart({
 
      {/* Status Footer with Weight Changes */}
       {Object.keys(stats).length > 0 && (
-        <div className="flex flex-wrap justify-end gap-3 text-xs mt-4 pt-4 border-t border-white/10">
+        <div className="flex flex-wrap justify-end gap-3 text-xs mt-4 pt-4 border-t border-gray-200">
           {Object.entries(stats).map(([hiveNumberStr, stat]: [string, any]) => {
             const hiveNumber = parseInt(hiveNumberStr);
             return (
               <div key={hiveNumber} className="flex items-center gap-2">
-                <span className="text-white/60">H{hiveNumber}:</span>
-                <span className={stat.trend === 'increasing' ? 'text-green-400 font-medium' : 'text-red-400 font-medium'}>
+                <span className="text-gray-600">H{hiveNumber}:</span>
+                <span className={stat.trend === 'increasing' ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
                   {stat.trend === 'increasing' ? '↑' : '↓'} {Math.abs(stat.totalChange).toFixed(2)}kg
                 </span>
               </div>

@@ -8,7 +8,7 @@ import HumidityChart from '../../components/Charts/HumidityChart';
 import BatteryChart from '../../components/Charts/BatteryChart';
 import WeightChart from '../../components/Charts/WeightChart';
 import LocationMap from '../../components/Charts/LocationMap';
-import { Home, ShoppingCart, LayoutDashboard, LogOut, Menu, X, RefreshCw, ChevronLeft, Edit2, Check, XCircle, Search, Filter, TrendingUp, TrendingDown } from 'lucide-react';
+import { Home, ShoppingCart, LayoutDashboard, LogOut, Menu, X, RefreshCw, ChevronLeft, Edit2, Check, XCircle, Search, Filter, TrendingUp, TrendingDown, Moon, Sun } from 'lucide-react';
 import { 
   getTemperature, 
   getHumidity, 
@@ -22,6 +22,7 @@ import SmartHiveAIAssistant from '../../components/AIAssistant/SmartHiveAIAssist
 import { motion, AnimatePresence } from 'framer-motion';
 import GasSensorChart from '../../components/Charts/GasSensorChart';
 import HiveHealthIndex from '../../components/Charts/HiveHealthIndex';
+import { svg } from 'leaflet';
 
 interface PurchaseInfo {
   id: number;
@@ -60,7 +61,7 @@ interface HiveBuzzSounds {
 }
 
 const HIVE_BUZZ_SOUNDS: HiveBuzzSounds = {
-  1: [ // ONLY Master Hive has buzz recordings
+  1: [
     { 
       id: 1, 
       title: "", 
@@ -83,13 +84,52 @@ const HIVE_BUZZ_SOUNDS: HiveBuzzSounds = {
       path: "/voice/buzz3.mp3",
       duration: "3:30",
       recordedDate: "2024-01-13",
-      description: "Pre-swarm colony behavior sounds", // Waveform thumbnail
+      description: "Pre-swarm colony behavior sounds",
     }
   ]
-  // Note: No other hives have audio recordings
 };
 
+const HIVE_VIDEOS: HiveVideos = {
+  1: [
+    { 
+      id: 1, 
+      title: "Morning Activity", 
+      path: "/videos/video1.mp4",
+      duration: "2:30",
+      description: "Morning bee activity and foraging behavior"
+    },
+    { 
+      id: 2, 
+      title: "Entrance Monitoring", 
+      path: "/videos/video2.mp4",
+      duration: "3:15",
+      description: "Worker bees entering and exiting the hive"
+    },
+    { 
+      id: 3, 
+      title: "Queen Bee Activity", 
+      path: "/videos/video3.mp4",
+      duration: "4:00",
+      description: "Queen bee inspection and behavior"
+    },
+    { 
+      id: 4, 
+      title: "Honey Production", 
+      path: "/videos/video4.mp4",
+      duration: "2:45",
+      description: "Honey comb building and storage"
+    },
+    { 
+      id: 5, 
+      title: "Evening Activity", 
+      path: "/videos/video5.mp4",
+      duration: "3:30",
+      description: "Evening bee behavior and hive settling"
+    }
+  ]
+};
 
+// HELPER FUNCTIONS - No color changes needed
 const calculateChange = (data: SensorData[], field: keyof SensorData): number | null => {
   if (!data || data.length < 2) return null;
   const latest = toNumber(data[data.length - 1]?.[field]);
@@ -105,6 +145,8 @@ const getBatteryColor = (battery: number | null): string => {
   return '#10B981';
 };
 
+// FIXED: HiveCircle component with clearer yellow colors in light mode
+
 const HiveCircle = ({ 
   hiveNumber, 
   data,
@@ -112,7 +154,8 @@ const HiveCircle = ({
   onClick, 
   isSelected,
   onEditName,
-  hiveName
+  hiveName,
+  isDarkMode
 }: { 
   hiveNumber: number;
   data: SensorData[];
@@ -121,6 +164,7 @@ const HiveCircle = ({
   isSelected: boolean;
   onEditName: () => void;
   hiveName: string;
+  isDarkMode: boolean;
 }) => {
   const hiveIndex = hiveNumber - 1;
   
@@ -154,6 +198,12 @@ const HiveCircle = ({
   const weightChange = calculateChange(hiveData, 'weight');
   
   const batteryColor = getBatteryColor(battery);
+  
+  // UPDATED: Blue colors for the main circle ring
+  const circleColors = {
+    ring: '#3b82f6', // Blue
+    ringBg: 'rgba(59, 130, 246, 0.1)', // Light blue background
+  };
   
   const getLastReadingTime = (): string | null => {
     const hasRealData = (item: any): boolean => {
@@ -216,10 +266,11 @@ const HiveCircle = ({
         isSelected ? 'scale-110' : ''
       }`}
     >
+      {/* UPDATED: Glow effect with blue */}
       <div className={`absolute inset-0 rounded-full transition-all duration-500 ${
         isSelected 
-          ? 'bg-gradient-to-br from-blue-400/40 via-indigo-400/40 to-purple-400/40 blur-2xl scale-125' 
-          : 'bg-gradient-to-br from-blue-200/20 via-indigo-200/20 to-purple-200/20 blur-xl group-hover:blur-2xl group-hover:scale-110'
+          ? 'bg-gradient-to-br from-blue-400/40 to-blue-500/40 blur-2xl scale-125'
+          : 'bg-gradient-to-br from-blue-300/20 to-blue-400/20 blur-xl group-hover:blur-2xl group-hover:scale-110'
       }`}></div>
       
       <div className={`relative w-72 h-72 rounded-full overflow-visible transition-all duration-500 ${
@@ -227,55 +278,110 @@ const HiveCircle = ({
           ? 'shadow-2xl ring-4 ring-blue-400/50' 
           : 'shadow-xl group-hover:shadow-2xl'
       }`}>
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 rounded-full"></div>
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-full"></div>
+        {/* BACKGROUND - UPDATED TO YELLOW */}
+        <div className={`absolute inset-0 rounded-full ${
+  isDarkMode 
+    ? 'bg-gradient-to-br from-yellow-600 via-yellow-500 to-yellow-400' 
+    : 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900'
+}`}></div>
         
+        {/* HOVER OVERLAY */}
+        <div className={`absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-full ${
+          'from-blue-500/10 to-blue-600/10'
+        }`}></div>
+        
+        {/* UPDATED: Main circle ring (blue) and battery ring (green) - HIDE BLUE CIRCLE IF BATTERY IS 0 */}
         <svg className="absolute inset-0 w-full h-full -rotate-90">
-          <circle cx="50%" cy="50%" r="44%" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="2.5" />
+          {/* Blue outer ring background - only show if battery is NOT 0 */}
+          {battery !== 0 && (
+            <>
+              <circle 
+                cx="50%" 
+                cy="50%" 
+                r="44%" 
+                fill="none" 
+                stroke={circleColors.ringBg}
+                strokeWidth="2.5" 
+              />
+              {/* Blue outer ring */}
+              <circle
+                cx="50%" cy="50%" r="44%" fill="none" stroke={circleColors.ring} strokeWidth="2.5"
+                strokeDasharray={`${2 * Math.PI * 126}`}
+                className="transition-all duration-1000"
+              />
+            </>
+          )}
+          {/* Green battery ring background */}
+          <circle 
+            cx="50%" 
+            cy="50%" 
+            r="44%" 
+            fill="none" 
+            stroke="rgba(34, 197, 94, 0.15)"
+            strokeWidth="2.5" 
+          />
+          {/* Green battery progress ring */}
           <circle
-            cx="50%" cy="50%" r="44%" fill="none" stroke={batteryColor} strokeWidth="2.5"
+            cx="50%" cy="50%" r="44%" fill="none" 
+            stroke="#22c55e"
+            strokeWidth="2.5"
             strokeDasharray={`${2 * Math.PI * 126 * (battery / 100)} ${2 * Math.PI * 126}`}
             className="transition-all duration-1000"
           />
         </svg>
         
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-white">
+        {/* CENTER CONTENT */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-900">
           <div className="text-center">
-            <div className="mb-3 text-[9px] text-white/40 group-hover:text-white/60 transition-colors">
-              Click for details
-            </div>
+            <div className={`mb-3 text-[9px] transition-colors ${
+  isDarkMode 
+    ? 'text-gray-600 group-hover:text-gray-800' 
+    : 'text-yellow-500 group-hover:text-yellow-300'
+}`}>
+  Click for details
+</div>
             
-            <div className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent mb-2">
-              {hiveName}
-            </div>
+            {/* Hive name - BLACK */}
+            <div className={`text-3xl font-bold mb-2 ${
+  isDarkMode ? 'text-gray-900' : 'text-yellow-400'
+}`}>
+  {hiveName}
+</div>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onEditName();
               }}
-              className="text-white/40 hover:text-white/80 transition-colors p-1 mb-2"
+              className="text-gray-600 hover:text-gray-900 transition-colors p-1 mb-2"
               title="Rename hive"
             >
               <Edit2 className="w-3 h-3" />
             </button>
             
-            <div className="pt-2 border-t border-white/10">
-              <div className="text-[9px] text-white/50 mb-1">Last Reading</div>
-              <div className="text-xs font-semibold text-white/70">
-                {historicalData.length === 0 ? 'Loading...' : formatTimeAgo(lastReadingTime)}
-              </div>
-            </div>
+            <div className={`pt-2 border-t ${isDarkMode ? 'border-gray-300' : 'border-yellow-600/30'}`}>
+  <div className={`text-[9px] mb-1 ${isDarkMode ? 'text-gray-600' : 'text-yellow-500'}`}>Last Reading</div>
+  <div className={`text-xs font-semibold ${isDarkMode ? 'text-gray-900' : 'text-yellow-400'}`}>
+    {historicalData.length === 0 ? 'Loading...' : formatTimeAgo(lastReadingTime)}
+  </div>
+</div>
           </div>
         </div>
 
-        <div className="absolute top-1 left-1/2 -translate-x-1/2 bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-sm px-3 py-2 rounded-xl border border-blue-400/40 shadow-lg shadow-blue-500/20">
-          <div className="text-[9px] text-blue-300 text-center mb-0.5 font-semibold uppercase tracking-wider">Temp</div>
+        {/* TEMPERATURE - YELLOW THEME */}
+        <div className={`absolute top-1 left-1/2 -translate-x-1/2 backdrop-blur-sm px-3 py-2 rounded-xl border shadow-lg ${
+          isDarkMode 
+            ? 'bg-gradient-to-br from-slate-900/95 to-slate-800/95 border-yellow-400/40 shadow-yellow-500/20' 
+            : 'bg-gradient-to-br from-yellow-50/90 to-amber-50/90 border-yellow-400/40 shadow-yellow-400/20'
+        }`}>
+          <div className={`text-[9px] text-center mb-0.5 font-semibold uppercase tracking-wider ${
+            isDarkMode ? 'text-yellow-300' : 'text-yellow-700'
+          }`}>Temp</div>
           <div className="flex items-center gap-1.5 justify-center">
-            <span className="text-sm font-bold text-blue-400">
+            <span className={`text-sm font-bold ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
               {tempInternal !== null ? `${tempInternal.toFixed(1)}°C` : 'N/A'}
             </span>
             {tempChange !== null && Math.abs(tempChange) > 0.1 && (
-              <span className={`text-[10px] flex items-center ${tempChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <span className={`text-[10px] flex items-center ${tempChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {tempChange >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
                 {Math.abs(tempChange).toFixed(1)}
               </span>
@@ -283,21 +389,35 @@ const HiveCircle = ({
           </div>
         </div>
 
-        <div className="absolute right-1 top-1/2 -translate-y-1/2 bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-sm px-3 py-2 rounded-xl border border-indigo-400/40 shadow-lg shadow-indigo-500/20">
-          <div className="text-[9px] text-indigo-300 text-center mb-0.5 font-semibold uppercase tracking-wider">Humidity</div>
-          <div className="text-sm font-bold text-indigo-400 text-center">
+        {/* HUMIDITY - AMBER THEME */}
+        <div className={`absolute right-1 top-1/2 -translate-y-1/2 backdrop-blur-sm px-3 py-2 rounded-xl border shadow-lg ${
+          isDarkMode 
+            ? 'bg-gradient-to-br from-slate-900/95 to-slate-800/95 border-amber-400/40 shadow-amber-500/20' 
+            : 'bg-gradient-to-br from-amber-50/90 to-orange-50/90 border-amber-400/40 shadow-amber-400/20'
+        }`}>
+          <div className={`text-[9px] text-center mb-0.5 font-semibold uppercase tracking-wider ${
+            isDarkMode ? 'text-amber-300' : 'text-amber-700'
+          }`}>Humidity</div>
+          <div className={`text-sm font-bold text-center ${isDarkMode ? 'text-amber-400' : 'text-amber-600'}`}>
             {humInternal !== null ? `${humInternal.toFixed(0)}%` : 'N/A'}
           </div>
         </div>
 
-        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-sm px-3 py-2 rounded-xl border border-purple-400/40 shadow-lg shadow-purple-500/20">
-          <div className="text-[9px] text-purple-300 text-center mb-0.5 font-semibold uppercase tracking-wider">Weight</div>
+        {/* WEIGHT - YELLOW THEME */}
+        <div className={`absolute bottom-1 left-1/2 -translate-x-1/2 backdrop-blur-sm px-3 py-2 rounded-xl border shadow-lg ${
+          isDarkMode 
+            ? 'bg-gradient-to-br from-slate-900/95 to-slate-800/95 border-yellow-400/40 shadow-yellow-500/20' 
+            : 'bg-gradient-to-br from-yellow-50/90 to-amber-50/90 border-yellow-400/40 shadow-yellow-400/20'
+        }`}>
+          <div className={`text-[9px] text-center mb-0.5 font-semibold uppercase tracking-wider ${
+            isDarkMode ? 'text-yellow-300' : 'text-yellow-700'
+          }`}>Weight</div>
           <div className="flex items-center gap-1.5 justify-center">
-            <span className="text-sm font-bold text-purple-400">
+            <span className={`text-sm font-bold ${isDarkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
               {weight !== null ? `${weight.toFixed(1)}kg` : 'N/A'}
             </span>
             {weightChange !== null && Math.abs(weightChange) > 0.1 && (
-              <span className={`text-[10px] flex items-center ${weightChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <span className={`text-[10px] flex items-center ${weightChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {weightChange >= 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
                 {Math.abs(weightChange).toFixed(1)}
               </span>
@@ -305,12 +425,15 @@ const HiveCircle = ({
           </div>
         </div>
 
-        <div className="absolute left-1 top-1/2 -translate-y-1/2 bg-gradient-to-br from-slate-900/95 to-slate-800/95 backdrop-blur-sm px-3 py-2 rounded-xl border shadow-lg" style={{ borderColor: `${batteryColor}66`, boxShadow: `0 4px 12px ${batteryColor}33` }}>
+        {/* BATTERY - Keep dynamic color */}
+        <div className={`absolute left-1 top-1/2 -translate-y-1/2 backdrop-blur-sm px-3 py-2 rounded-xl border shadow-lg ${
+          isDarkMode ? 'bg-gradient-to-br from-slate-900/95 to-slate-800/95' : 'bg-gradient-to-br from-slate-50/90 to-gray-50/90'
+        }`} style={{ borderColor: `${batteryColor}66`, boxShadow: `0 4px 12px ${batteryColor}33` }}>
           <div className="text-[9px] text-center mb-0.5 font-semibold uppercase tracking-wider" style={{ color: `${batteryColor}dd` }}>Battery</div>
           <div className="text-sm font-bold text-center flex items-center gap-1" style={{ color: batteryColor }}>
             <span>{Math.round(battery)}%</span>
             {batteryRaw === null && (
-              <span className="text-[7px] text-white/30" title="Simulated data">*</span>
+              <span className={`text-[7px] ${isDarkMode ? 'text-white/30' : 'text-gray-400'}`} title="Simulated data">*</span>
             )}
           </div>
         </div>
@@ -348,10 +471,18 @@ export default function SmartHiveDashboard() {
   const isMountedRef = useRef(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
-const [videoLayout, setVideoLayout] = useState<'side' | 'top'>('side'); // 'side' or 'top'
-const [videoError, setVideoError] = useState<string | null>(null);
-const [selectedVideoIndex, setSelectedVideoIndex] = useState(0);
-const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [videoLayout, setVideoLayout] = useState<'side' | 'top'>('side');
+  const [videoError, setVideoError] = useState<string | null>(null);
+  const [selectedVideoIndex, setSelectedVideoIndex] = useState(0);
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [selectedAudio, setSelectedAudio] = useState(0);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [audioVolume, setAudioVolume] = useState(0.7);
+  const [isAudioMuted, setIsAudioMuted] = useState(false);
+const [isDarkMode, setIsDarkMode] = useState(false);
+
 
 
 const HiveDataSummaryCard = ({ 
@@ -457,14 +588,16 @@ const HiveDataSummaryCard = ({
     >
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-2xl shadow-lg">
+          {/* CHANGED: Icon background simplified to solid blue */}
+          <div className="p-4 bg-blue-600 rounded-2xl shadow-lg">
             <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 2L2 7L12 12L22 7L12 2Z"/>
               <path d="M2 17L12 22L22 17M2 12L12 17L22 12" strokeWidth="2"/>
             </svg>
           </div>
           <div>
-            <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            {/* CHANGED: Text gradient simplified to blue */}
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
               {hiveName}
             </h2>
             <p className="text-sm text-gray-600 mt-1">Real-time Monitoring Dashboard</p>
@@ -480,7 +613,7 @@ const HiveDataSummaryCard = ({
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {/* Temperature */}
+        {/* Temperature - Keep Blue */}
         <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-4 border border-blue-200/50">
           <div className="flex items-center gap-2 mb-2">
             <div className="p-2 bg-blue-500 rounded-lg">
@@ -503,33 +636,33 @@ const HiveDataSummaryCard = ({
           </div>
         </div>
 
-        {/* Humidity */}
-        <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-2xl p-4 border border-indigo-200/50">
+        {/* CHANGED: Humidity - Changed from indigo to slate */}
+        <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-2xl p-4 border border-slate-200/50">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-indigo-500 rounded-lg">
+            <div className="p-2 bg-slate-500 rounded-lg">
               <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
               </svg>
             </div>
-            <span className="text-xs font-semibold text-indigo-800 uppercase tracking-wider">Humidity</span>
+            <span className="text-xs font-semibold text-slate-800 uppercase tracking-wider">Humidity</span>
           </div>
-          <div className="text-2xl font-bold text-indigo-600">
+          <div className="text-2xl font-bold text-slate-600">
             {humInternal !== null ? `${humInternal.toFixed(0)}%` : 'N/A'}
           </div>
         </div>
 
-        {/* Weight */}
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-2xl p-4 border border-purple-200/50">
+        {/* CHANGED: Weight - Changed from purple to blue-700 */}
+        <div className="bg-gradient-to-br from-blue-100 to-blue-200/50 rounded-2xl p-4 border border-blue-300/50">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-purple-500 rounded-lg">
+            <div className="p-2 bg-blue-700 rounded-lg">
               <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 3L2 12h3v8h14v-8h3L12 3zm0 2.5L18.5 12H17v6H7v-6H5.5L12 5.5z"/>
               </svg>
             </div>
-            <span className="text-xs font-semibold text-purple-800 uppercase tracking-wider">Weight</span>
+            <span className="text-xs font-semibold text-blue-800 uppercase tracking-wider">Weight</span>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-purple-600">
+            <span className="text-2xl font-bold text-blue-700">
               {weight !== null ? `${weight.toFixed(1)}kg` : 'N/A'}
             </span>
             {weightChange !== null && Math.abs(weightChange) > 0.1 && (
@@ -541,7 +674,7 @@ const HiveDataSummaryCard = ({
           </div>
         </div>
 
-        {/* Battery */}
+        {/* Battery - Keep dynamic color */}
         <div className="bg-gradient-to-br from-green-50 to-green-100/50 rounded-2xl p-4 border border-green-200/50" style={{
           backgroundImage: `linear-gradient(to bottom right, ${batteryColor}15, ${batteryColor}25)`
         }}>
@@ -563,17 +696,17 @@ const HiveDataSummaryCard = ({
           </div>
         </div>
 
-        {/* Last Reading */}
-        <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-2xl p-4 border border-gray-200/50">
+        {/* CHANGED: Last Reading - Changed from gray to slate */}
+        <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-2xl p-4 border border-slate-200/50">
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-gray-500 rounded-lg">
+            <div className="p-2 bg-slate-500 rounded-lg">
               <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/>
               </svg>
             </div>
-            <span className="text-xs font-semibold text-gray-800 uppercase tracking-wider">Last Reading</span>
+            <span className="text-xs font-semibold text-slate-800 uppercase tracking-wider">Last Reading</span>
           </div>
-          <div className="text-sm font-bold text-gray-600">
+          <div className="text-sm font-bold text-slate-600">
             {historicalData.length === 0 ? 'Loading...' : formatTimeAgo(lastReadingTime)}
           </div>
         </div>
@@ -626,6 +759,8 @@ const HIVE_VIDEOS: HiveVideos ={
   // 3: [...videos for hive 3],
 };
 
+
+
 const HiveVideoPlayer = ({ 
   hiveNumber, 
   onClose,
@@ -657,7 +792,6 @@ const HiveVideoPlayer = ({
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
     const handleEnded = () => {
-      // Auto-play next video
       if (selectedVideo < videos.length - 1) {
         setSelectedVideo(selectedVideo + 1);
       } else {
@@ -762,7 +896,8 @@ const HiveVideoPlayer = ({
       <div className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-red-500 to-pink-500 rounded-lg">
+            {/* CHANGED: Icon background from red/pink gradient to solid blue */}
+            <div className="p-2 bg-blue-600 rounded-lg">
               <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M15 8v8H5V8h10m1-2H4a1 1 0 00-1 1v10a1 1 0 001 1h12a1 1 0 001-1V7a1 1 0 00-1-1zm4 4l4-4v12l-4-4z"/>
               </svg>
@@ -808,7 +943,7 @@ const HiveVideoPlayer = ({
 
           {/* Video Controls */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4">
-            {/* Progress Bar */}
+            {/* CHANGED: Progress bar color to blue */}
             <input
               type="range"
               min="0"
@@ -823,7 +958,6 @@ const HiveVideoPlayer = ({
 
             <div className="flex items-center justify-between text-white">
               <div className="flex items-center gap-3">
-                {/* Play/Pause */}
                 <button onClick={togglePlay} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
                   {isPlaying ? (
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -836,12 +970,10 @@ const HiveVideoPlayer = ({
                   )}
                 </button>
 
-                {/* Time */}
                 <span className="text-sm font-medium">
                   {formatTime(currentTime)} / {formatTime(duration)}
                 </span>
 
-                {/* Volume */}
                 <div className="flex items-center gap-2">
                   <button onClick={toggleMute} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
                     {isMuted || volume === 0 ? (
@@ -867,10 +999,8 @@ const HiveVideoPlayer = ({
               </div>
 
               <div className="flex items-center gap-2">
-                {/* Video Title */}
                 <span className="text-sm font-medium mr-4">{currentVideo.title}</span>
                 
-                {/* Fullscreen */}
                 <button onClick={toggleFullscreen} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
@@ -880,8 +1010,6 @@ const HiveVideoPlayer = ({
             </div>
           </div>
         </div>
-
-        
 
         {/* Video Thumbnails Gallery */}
         <div className="space-y-3">
@@ -897,7 +1025,6 @@ const HiveVideoPlayer = ({
                     : 'ring-2 ring-gray-200 hover:ring-blue-300 hover:shadow-md'
                 }`}
               >
-                {/* Thumbnail or placeholder */}
                 <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
                   {video.thumbnail ? (
                     <img 
@@ -912,7 +1039,6 @@ const HiveVideoPlayer = ({
                   )}
                 </div>
 
-                {/* Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                   <div className="absolute bottom-0 left-0 right-0 p-2">
                     <p className="text-white text-xs font-medium truncate">{video.title}</p>
@@ -920,17 +1046,17 @@ const HiveVideoPlayer = ({
                   </div>
                 </div>
 
-                {/* Playing indicator */}
+                {/* CHANGED: Playing indicator to blue */}
                 {selectedVideo === index && isPlaying && (
                   <div className="absolute top-2 right-2">
-                    <div className="flex items-center gap-1 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+                    <div className="flex items-center gap-1 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">
                       <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
                       PLAYING
                     </div>
                   </div>
                 )}
 
-                {/* Video number badge */}
+                {/* CHANGED: Selection badge to blue */}
                 <div className={`absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                   selectedVideo === index ? 'bg-blue-500 text-white' : 'bg-white/90 text-gray-700'
                 }`}>
@@ -940,12 +1066,12 @@ const HiveVideoPlayer = ({
             ))}
           </div>
         </div>
-
-        
       </div>
     </motion.div>
   );
 };
+
+
 
 const BeeBuzzSoundsPlayer = ({ 
   hiveNumber
@@ -1042,7 +1168,7 @@ const BeeBuzzSoundsPlayer = ({
 
   if (sounds.length === 0) {
     return (
-      <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-orange-200/50 p-6">
+      <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/50 p-6">
         <div className="text-center py-12">
           <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
@@ -1052,18 +1178,19 @@ const BeeBuzzSoundsPlayer = ({
       </div>
     );
   }
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-orange-200/50 overflow-hidden h-full"
+      className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/50 overflow-hidden h-full"
     >
       <div className="p-6">
-        {/* Header - Matching Video Player */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg">
+            {/* CHANGED: Icon background from orange/amber to slate */}
+            <div className="p-2 bg-slate-600 rounded-lg">
               <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
               </svg>
@@ -1075,8 +1202,9 @@ const BeeBuzzSoundsPlayer = ({
           </div>
         </div>
 
-        {/* Main Audio Player - Same aspect ratio as video */}
-        <div className="relative bg-gradient-to-br from-amber-100 to-orange-100 rounded-2xl overflow-hidden aspect-video mb-4">
+        {/* Main Audio Player */}
+        {/* CHANGED: Background from amber/orange gradient to slate/blue gradient */}
+        <div className="relative bg-gradient-to-br from-slate-100 to-blue-100 rounded-2xl overflow-hidden aspect-video mb-4">
           <audio
             ref={audioRef}
             src={currentSound.path}
@@ -1084,12 +1212,13 @@ const BeeBuzzSoundsPlayer = ({
           />
 
           {/* Waveform Visualization */}
+          {/* CHANGED: Waveform colors from orange/amber to blue/slate */}
           <div className="absolute inset-0 flex items-center justify-center p-8">
             <div className="flex items-center justify-center gap-1 h-full w-full">
               {[...Array(40)].map((_, i) => (
                 <div
                   key={i}
-                  className="bg-gradient-to-t from-orange-500 to-amber-400 rounded-full transition-all duration-150"
+                  className="bg-gradient-to-t from-blue-600 to-slate-500 rounded-full transition-all duration-150"
                   style={{
                     width: '2%',
                     height: `${isPlaying ? Math.random() * 60 + 20 : 30}px`,
@@ -1106,17 +1235,18 @@ const BeeBuzzSoundsPlayer = ({
               className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
               onClick={togglePlay}
             >
+              {/* CHANGED: Play button color from orange to blue */}
               <div className="w-20 h-20 bg-white/90 rounded-full flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
-                <svg className="w-10 h-10 text-orange-600 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                <svg className="w-10 h-10 text-blue-600 ml-1" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z"/>
                 </svg>
               </div>
             </div>
           )}
 
-          {/* Audio Controls - Similar to Video Controls */}
+          {/* Audio Controls */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4">
-            {/* Progress Bar */}
+            {/* CHANGED: Progress bar from orange to blue */}
             <input
               type="range"
               min="0"
@@ -1125,13 +1255,12 @@ const BeeBuzzSoundsPlayer = ({
               onChange={handleSeek}
               className="w-full h-1 mb-3 bg-gray-600 rounded-lg appearance-none cursor-pointer slider"
               style={{
-                background: `linear-gradient(to right, #f97316 0%, #f97316 ${(currentTime / duration) * 100}%, #4b5563 ${(currentTime / duration) * 100}%, #4b5563 100%)`
+                background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${(currentTime / duration) * 100}%, #4b5563 ${(currentTime / duration) * 100}%, #4b5563 100%)`
               }}
             />
 
             <div className="flex items-center justify-between text-white">
               <div className="flex items-center gap-3">
-                {/* Play/Pause */}
                 <button onClick={togglePlay} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
                   {isPlaying ? (
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -1144,12 +1273,10 @@ const BeeBuzzSoundsPlayer = ({
                   )}
                 </button>
 
-                {/* Time */}
                 <span className="text-sm font-medium">
                   {formatTime(currentTime)} / {formatTime(duration)}
                 </span>
 
-                {/* Volume */}
                 <div className="flex items-center gap-2">
                   <button onClick={toggleMute} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
                     {isMuted || volume === 0 ? (
@@ -1175,14 +1302,13 @@ const BeeBuzzSoundsPlayer = ({
               </div>
 
               <div className="flex items-center gap-2">
-                {/* Current Sound Title */}
                 <span className="text-sm font-medium mr-4">{currentSound.title}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Recording Library - Grid Layout Matching Video Library */}
+        {/* Recording Library */}
         <div className="space-y-3">
           <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Recording Library ({sounds.length})</h4>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-h-48 overflow-y-auto">
@@ -1192,12 +1318,12 @@ const BeeBuzzSoundsPlayer = ({
                 onClick={() => selectAudio(index)}
                 className={`group relative aspect-video rounded-lg overflow-hidden transition-all duration-300 ${
                   selectedAudio === index
-                    ? 'ring-4 ring-orange-500 shadow-lg scale-105'
-                    : 'ring-2 ring-gray-200 hover:ring-orange-300 hover:shadow-md'
+                    ? 'ring-4 ring-blue-500 shadow-lg scale-105'
+                    : 'ring-2 ring-gray-200 hover:ring-blue-300 hover:shadow-md'
                 }`}
               >
-                {/* Thumbnail or waveform placeholder */}
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-700 to-amber-900 flex items-center justify-center">
+                {/* CHANGED: Background from orange/amber to slate/blue */}
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-700 to-blue-900 flex items-center justify-center">
                   {sound.thumbnail ? (
                     <img 
                       src={sound.thumbnail} 
@@ -1205,12 +1331,12 @@ const BeeBuzzSoundsPlayer = ({
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    // Default waveform visual if no thumbnail
                     <div className="flex items-center justify-center gap-0.5 h-full px-2">
+                      {/* CHANGED: Waveform from orange to blue/slate */}
                       {[...Array(12)].map((_, i) => (
                         <div
                           key={i}
-                          className="bg-orange-300/60 rounded-full transition-all"
+                          className="bg-blue-300/60 rounded-full transition-all"
                           style={{
                             width: '3px',
                             height: `${20 + Math.random() * 40}%`,
@@ -1224,7 +1350,6 @@ const BeeBuzzSoundsPlayer = ({
                   )}
                 </div>
 
-                {/* Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                   <div className="absolute bottom-0 left-0 right-0 p-2">
                     <p className="text-white text-xs font-medium truncate">{sound.title}</p>
@@ -1232,19 +1357,19 @@ const BeeBuzzSoundsPlayer = ({
                   </div>
                 </div>
 
-                {/* Playing indicator */}
+                {/* CHANGED: Playing indicator from orange to blue */}
                 {selectedAudio === index && isPlaying && (
                   <div className="absolute top-2 right-2">
-                    <div className="flex items-center gap-1 bg-orange-500 text-white text-xs font-bold px-2 py-1 rounded">
+                    <div className="flex items-center gap-1 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">
                       <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
                       PLAYING
                     </div>
                   </div>
                 )}
 
-                {/* Audio number badge */}
+                {/* CHANGED: Badge from orange to blue */}
                 <div className={`absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                  selectedAudio === index ? 'bg-orange-500 text-white' : 'bg-white/90 text-orange-700'
+                  selectedAudio === index ? 'bg-blue-500 text-white' : 'bg-white/90 text-slate-700'
                 }`}>
                   {index + 1}
                 </div>
@@ -1258,16 +1383,11 @@ const BeeBuzzSoundsPlayer = ({
 };
 
 
-const [selectedAudio, setSelectedAudio] = useState(0);
-const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-const [audioCurrentTime, setAudioCurrentTime] = useState(0);
-const [audioDuration, setAudioDuration] = useState(0);
-const [audioVolume, setAudioVolume] = useState(0.7);
-const [isAudioMuted, setIsAudioMuted] = useState(false);
 
 
 
-  const fetchUserAccessAndContainers = useCallback(async () => {
+
+ const fetchUserAccessAndContainers = useCallback(async () => {
     if (!isMountedRef.current) return;
     
     setAuthChecking(true);
@@ -1667,27 +1787,47 @@ const [isAudioMuted, setIsAudioMuted] = useState(false);
     return () => clearInterval(interval);
   }, [selectedContainer, containerLoading, fetchLatestData, fetchHistoricalData]);
 
+  useEffect(() => {
+    if (selectedHive !== null) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [selectedHive]);
+
+  useEffect(() => {
+  // Load dark mode preference from localStorage
+  const savedDarkMode = localStorage.getItem('darkMode');
+  if (savedDarkMode) {
+    setIsDarkMode(savedDarkMode === 'true');
+  }
+}, []);
 
 useEffect(() => {
-  if (selectedHive !== null) {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Apply dark mode class to document
+  if (isDarkMode) {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
   }
-}, [selectedHive]);
+  // Save preference
+  localStorage.setItem('darkMode', isDarkMode.toString());
+}, [isDarkMode]);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        {/* CHANGED: Background gradient simplified to blue/slate */}
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-indigo-100 via-purple-100 to-pink-100"></div>
-          <div className="absolute inset-0 bg-gradient-to-tr from-blue-300/40 via-indigo-300/30 via-purple-300/40 to-pink-200/30 animate-pulse"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50"></div>
+<div className="absolute inset-0 bg-gradient-to-tr from-yellow-300/20 via-transparent to-amber-200/20 animate-pulse"></div>
         </div>
         
         <div className="text-center relative z-10">
           <div className="relative mb-6">
-            <div className="animate-spin rounded-full h-20 w-20 border-4 border-indigo-200 border-t-indigo-600 mx-auto"></div>
+            {/* CHANGED: Spinner border colors from indigo to blue */}
+            <div className="animate-spin rounded-full h-20 w-20 border-4 border-blue-200 border-t-blue-600 mx-auto"></div>
           </div>
-          <p className="text-xl text-indigo-900 font-semibold mb-2">Loading Smart Hive Dashboard</p>
-          <p className="text-indigo-700/80 text-sm">Preparing your sensor data...</p>
+          <p className="text-xl text-blue-900 font-semibold mb-2">Loading Smart Hive Dashboard</p>
+          <p className="text-blue-700/80 text-sm">Preparing your sensor data...</p>
         </div>
       </div>
     );
@@ -1761,22 +1901,23 @@ useEffect(() => {
   const inactiveHives = hiveNumbers.filter(num => !isHiveActive(num));
   const inactiveHiveNames = inactiveHives.map(num => getHiveName(num));
 
+  // Auth checking or loading state
   if (authChecking || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
         <div className="absolute inset-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-indigo-100 via-purple-100 to-pink-100"></div>
-          <div className="absolute inset-0 bg-gradient-to-tr from-blue-300/40 via-indigo-300/30 via-purple-300/40 to-pink-200/30 animate-pulse"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50"></div>
+          <div className="absolute inset-0 bg-gradient-to-tr from-blue-300/20 via-transparent to-blue-200/20 animate-pulse"></div>
         </div>
         
         <div className="text-center relative z-10">
           <div className="relative mb-6">
-            <div className="animate-spin rounded-full h-20 w-20 border-4 border-indigo-200 border-t-indigo-600 mx-auto"></div>
+            <div className="animate-spin rounded-full h-20 w-20 border-4 border-blue-200 border-t-blue-600 mx-auto"></div>
           </div>
-          <p className="text-xl text-indigo-900 font-semibold mb-2">
+          <p className="text-xl text-blue-900 font-semibold mb-2">
             {authError ? 'Redirecting...' : authChecking ? 'Verifying Access...' : 'Loading Dashboard...'}
           </p>
-          <p className="text-indigo-700/80 text-sm">
+          <p className="text-blue-700/80 text-sm">
             {authError || (authChecking ? 'Please wait while we check your credentials' : 'Preparing your sensor data...')}
           </p>
         </div>
@@ -1784,6 +1925,7 @@ useEffect(() => {
     );
   }
 
+  // Auth error state - Keep red for errors
   if (authError && !authChecking) {
     return (
       <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -1801,6 +1943,7 @@ useEffect(() => {
             <h2 className="text-2xl font-bold text-gray-800 mb-4">Access Error</h2>
             <p className="text-gray-600 mb-6">{authError}</p>
             <div className="space-y-3">
+              {/* CHANGED: Buttons simplified to blue/slate */}
               <button
                 onClick={() => {
                   setAuthError(null);
@@ -1813,7 +1956,7 @@ useEffect(() => {
               </button>
               <button
                 onClick={() => router.push('/login')}
-                className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-colors"
+                className="w-full px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-medium transition-colors"
               >
                 Go to Login
               </button>
@@ -1824,6 +1967,7 @@ useEffect(() => {
     );
   }
 
+  // Pending access state - Keep yellow for warnings
   if (!hasAccess && !authChecking && containerError) {
     return (
       <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -1853,13 +1997,13 @@ useEffect(() => {
               </button>
               <button
                 onClick={() => router.push('/welcome')}
-                className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-colors"
+                className="w-full px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-medium transition-colors"
               >
                 Go to Home
               </button>
               <button
                 onClick={handleLogout}
-                className="w-full px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg font-medium transition-colors text-sm"
+                className="w-full px-6 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-medium transition-colors text-sm"
               >
                 Logout
               </button>
@@ -1871,10 +2015,19 @@ useEffect(() => {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      <div className="fixed inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50"></div>
-      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-100/40 via-transparent to-transparent"></div>
-      
+    <div className={`min-h-screen relative overflow-hidden ${isDarkMode ? 'bg-slate-900' : ''}`}>
+      {/* CHANGED: Background simplified to blue/slate */}
+      <div className={`fixed inset-0 ${
+  isDarkMode 
+    ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900' 
+    : 'bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50'
+}`}></div>
+<div className={`fixed inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] ${
+  isDarkMode 
+    ? 'from-yellow-900/20 via-transparent to-transparent' 
+    : 'from-yellow-100/40 via-transparent to-transparent'
+}`}></div>
+      {/* Edit Hive Name Modal - No color changes needed */}
       {editingHive !== null && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
@@ -1901,7 +2054,7 @@ useEffect(() => {
               </button>
               <button
                 onClick={() => setEditingHive(null)}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
               >
                 <XCircle className="w-4 h-4" />
                 Cancel
@@ -1911,6 +2064,7 @@ useEffect(() => {
         </div>
       )}
 
+      {/* Edit Apiary Name Modal */}
       {editingApiary !== null && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
@@ -1937,7 +2091,7 @@ useEffect(() => {
               </button>
               <button
                 onClick={() => setEditingApiary(null)}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
               >
                 <XCircle className="w-4 h-4" />
                 Cancel
@@ -1946,13 +2100,15 @@ useEffect(() => {
           </div>
         </div>
       )}
-      
+
+      {/* SIDEBAR - CHANGED: Colors simplified to blue/slate */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-72 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out shadow-2xl`}>
-        <div className="h-full bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex flex-col">
+        <div className="h-full bg-slate-900 flex flex-col">
           <div className="p-6 border-b border-slate-700/50">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
+                {/* CHANGED: Text gradient simplified to blue */}
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-blue-500 bg-clip-text text-transparent">
                   Smart Hive
                 </h2>
                 <p className="text-sm text-slate-400 mt-1">Monitoring System</p>
@@ -1978,12 +2134,13 @@ useEffect(() => {
               <span className="font-medium">Home</span>
             </button>
 
+            {/* CHANGED: Active button gradient simplified to blue */}
             <button
               onClick={() => {
                 router.push('/dashboard');
                 setSidebarOpen(false);
               }}
-              className="w-full flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg shadow-lg shadow-blue-500/20"
+              className="w-full flex items-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg shadow-lg shadow-blue-500/20"
             >
               <LayoutDashboard className="w-5 h-5" />
               <span className="font-medium">Dashboard</span>
@@ -1996,7 +2153,7 @@ useEffect(() => {
               }}
               className="w-full flex items-center gap-3 px-4 py-3 text-slate-300 hover:bg-slate-800/50 rounded-lg transition-all duration-200 group"
             >
-              <ShoppingCart className="w-5 h-5 text-slate-400 group-hover:text-purple-400 transition-colors" />
+              <ShoppingCart className="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors" />
               <span className="font-medium">Purchase Smart Hive</span>
             </button>
           </nav>
@@ -2031,178 +2188,276 @@ useEffect(() => {
         />
       )}
 
-      <div className="relative z-10">
-        <header className="relative bg-white/90 backdrop-blur-xl p-5 rounded-3xl shadow-2xl border border-white/50 text-black overflow-hidden mx-4 mt-4">
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-indigo-500/5 to-purple-500/5"></div>
-          
-          <div className="relative z-10 flex justify-between items-center">
-            <div className="flex items-center">
-              <button 
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="mr-4 p-2.5 rounded-xl hover:bg-blue-100/50 transition-all duration-300 hover:scale-110"
-              >
-                <Menu className="h-5 w-5 text-gray-700" />
-              </button>
-              <button
-                onClick={() => router.push('/welcome')}
-                className="mr-4 flex items-center gap-2 px-4 py-2 bg-white/80 rounded-xl border border-blue-200/50 shadow-sm hover:shadow-md transition-all text-sm font-medium text-gray-700 hover:text-blue-600"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <div className="flex items-center">
-                <div className="mr-3 bg-gradient-to-br from-blue-500 to-indigo-500 p-2.5 rounded-xl shadow-lg">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                    <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="white"/>
-                    <path d="M2 17L12 22L22 17M2 12L12 17L22 12" stroke="white" strokeWidth="2"/>
-                  </svg>
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                    Smart Hive Dashboard
-                  </h1>
-                  {purchaseInfo && (
-                    <p className="text-gray-600 text-xs mt-0.5">
-                      Monitoring <span className="font-semibold text-blue-600">{purchaseInfo.masterHives + purchaseInfo.normalHives}</span> hives
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <div className="flex items-center gap-2 px-4 py-2 bg-white/80 rounded-xl border border-blue-200/50 shadow-sm">
-                <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-                <span className={`text-sm font-medium ${isOnline ? 'text-green-700' : 'text-red-700'}`}>
-                  {isOnline ? 'Connected' : 'Offline'}
-                </span>
-              </div>
-
-              <button
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="group relative overflow-hidden px-5 py-2.5 rounded-xl font-medium text-sm shadow-lg transform transition-all duration-500 flex items-center bg-gradient-to-r from-blue-600 to-indigo-500 text-white hover:from-blue-500 hover:to-indigo-400 hover:scale-105 active:scale-95 disabled:opacity-50"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 transition-all duration-300 ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
-                <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
-              </button>
-
-              <button
-                onClick={handleLogout}
-                className="group relative overflow-hidden px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-500 text-white rounded-xl font-medium text-sm shadow-lg transform transition-all duration-500 hover:scale-105 active:scale-95 flex items-center"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                <span>Logout</span>
-              </button>
-            </div>
-          </div>
-          
-          <p className="text-gray-600 text-xs mt-3 relative z-10 opacity-75">
-            Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleString() : 'Awaiting data...'}
-          </p>
-          
-          {error && (
-            <div className="mt-3 p-3 bg-red-100/80 backdrop-blur-2xl border border-red-300/50 text-red-800 rounded-xl flex items-start gap-3 shadow-lg">
-              <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-              </svg>
-              <span>{error}</span>
-            </div>
+       <div className="relative z-10">
+        {/* HEADER */}
+        {/* CHANGED: Overlay gradient simplified to blue */}
+        <header className={`relative backdrop-blur-xl p-5 rounded-3xl shadow-2xl border overflow-hidden mx-4 mt-4 ${
+  isDarkMode 
+    ? 'bg-slate-800/90 border-slate-700/50 text-white' 
+    : 'bg-white/90 border-white/50 text-black'
+}`}>
+  <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/5 to-amber-600/5"></div>
+  
+  <div className="relative z-10 flex justify-between items-center">
+    <div className="flex items-center">
+      <button 
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        className={`mr-4 p-2.5 rounded-xl transition-all duration-300 hover:scale-110 ${
+          isDarkMode ? 'hover:bg-slate-700' : 'hover:bg-blue-100/50'
+        }`}
+      >
+        <Menu className={`h-5 w-5 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`} />
+      </button>
+      <button
+        onClick={() => router.push('/welcome')}
+        className={`mr-4 flex items-center gap-2 px-4 py-2 rounded-xl border shadow-sm hover:shadow-md transition-all text-sm font-medium ${
+          isDarkMode 
+            ? 'bg-slate-700/80 border-slate-600/50 text-slate-300 hover:text-slate-100' 
+            : 'bg-white/80 border-blue-200/50 text-gray-700 hover:text-blue-600'
+        }`}
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+      <div className="flex items-center">
+        <div className="mr-3 bg-gradient-to-br from-yellow-500 to-amber-600 p-2.5 rounded-xl shadow-lg">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" fill="white"/>
+            <path d="M2 17L12 22L22 17M2 12L12 17L22 12" stroke="white" strokeWidth="2"/>
+          </svg>
+        </div>
+        <div>
+          <h1 className={`text-2xl font-bold ${
+            isDarkMode 
+              ? 'bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent' 
+              : 'bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent'
+          }`}>
+            Smart Hive Dashboard
+          </h1>
+          {purchaseInfo && (
+            <p className={`text-xs mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+              Monitoring <span className={`font-semibold ${isDarkMode ? 'text-yellow-400' : 'text-blue-600'}`}>{purchaseInfo.masterHives + purchaseInfo.normalHives}</span> hives
+            </p>
           )}
-        </header>
+        </div>
+      </div>
+    </div>
+
+    <div className="flex items-center space-x-3">
+      <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border shadow-sm ${
+        isDarkMode 
+          ? 'bg-slate-700/80 border-slate-600/50' 
+          : 'bg-white/80 border-blue-200/50'
+      }`}>
+        <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+        <span className={`text-sm font-medium ${isOnline ? 'text-green-500' : 'text-red-500'}`}>
+          {isOnline ? 'Connected' : 'Offline'}
+        </span>
+      </div>
+
+      <button
+        onClick={handleRefresh}
+        disabled={isRefreshing}
+        className="group relative overflow-hidden px-5 py-2.5 rounded-xl font-medium text-sm shadow-lg transform transition-all duration-500 flex items-center bg-gradient-to-r from-yellow-500 to-amber-600 text-white hover:from-yellow-600 hover:to-amber-700 hover:scale-105 active:scale-95 disabled:opacity-50"
+      >
+        <RefreshCw className={`h-4 w-4 mr-2 transition-all duration-300 ${isRefreshing ? 'animate-spin' : 'group-hover:rotate-180'}`} />
+        <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+      </button>
+
+      <button
+        onClick={handleLogout}
+        className={`group relative overflow-hidden px-5 py-2.5 rounded-xl font-medium text-sm shadow-lg transform transition-all duration-500 hover:scale-105 active:scale-95 flex items-center ${
+          isDarkMode 
+            ? 'bg-slate-700 text-white hover:bg-slate-600' 
+            : 'bg-slate-600 text-white hover:bg-slate-700'
+        }`}
+      >
+        <LogOut className="w-4 h-4 mr-2" />
+        <span>Logout</span>
+      </button>
+
+      <button
+        onClick={() => setIsDarkMode(!isDarkMode)}
+        className={`p-2.5 rounded-xl font-medium text-sm shadow-lg transform transition-all duration-300 hover:scale-105 ${
+          isDarkMode 
+            ? 'bg-yellow-500 text-slate-900 hover:bg-yellow-400' 
+            : 'bg-slate-700 text-white hover:bg-slate-600'
+        }`}
+        title="Toggle dark mode"
+      >
+        {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+      </button>
+    </div>
+  </div>
+  
+  <p className={`text-xs mt-3 relative z-10 opacity-75 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+    Last updated: {lastUpdated ? new Date(lastUpdated).toLocaleString() : 'Awaiting data...'}
+  </p>
+  
+  {error && (
+    <div className="mt-3 p-3 bg-red-100/80 backdrop-blur-2xl border border-red-300/50 text-red-800 rounded-xl flex items-start gap-3 shadow-lg">
+      <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+      </svg>
+      <span>{error}</span>
+    </div>
+  )}
+</header>
 
         <div className="px-4 sm:px-6 lg:px-8 py-6">
           <div className="max-w-[1600px] mx-auto">
+            {/* STATS CARDS SECTION */}
             {purchaseInfo && (
-              <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-5 mb-6">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl p-4 border border-blue-200/50 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="text-xs font-semibold text-blue-800 mb-1 uppercase tracking-wider">Total Hives</p>
-                      <p className="text-3xl font-bold text-blue-600">{totalHives}</p>
-                    </div>
-                    <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 rounded-xl p-4 border border-indigo-200/50 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="text-xs font-semibold text-indigo-800 mb-1 uppercase tracking-wider">Hives Active</p>
-                      <p className="text-3xl font-bold text-indigo-600">{activatedHives}</p>
-                      <p className="text-[10px] text-indigo-600 mt-1">of {totalHives} hives</p>
-                    </div>
-                    <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl p-4 border border-purple-200/50 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="text-xs font-semibold text-purple-800 mb-1 uppercase tracking-wider">Select View</p>
-                      <select
-                        value={selectedHive || ''}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setSelectedHive(value ? parseInt(value) : null);
-                        }}
-                        className="w-full px-3 py-2 bg-white border border-purple-300 rounded-lg text-purple-900 font-medium focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent cursor-pointer text-sm"
-                      >
-                        <option value="">View All Hives</option>
-                        {hiveNumbers.map((hiveNum) => (
-                          <option key={hiveNum} value={hiveNum}>
-                            {getHiveName(hiveNum)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+              <div className={`backdrop-blur-xl rounded-2xl shadow-xl border p-5 mb-6 ${
+  isDarkMode 
+    ? 'bg-slate-800/90 border-slate-700/50' 
+    : 'bg-white/90 border-white/50'
+}`}>
+  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+      {/* Total Hives - Yellow Theme */}
+      <div className={`rounded-xl p-4 border shadow-sm hover:shadow-md transition-shadow ${
+        isDarkMode 
+          ? 'bg-yellow-900/20 border-yellow-700/50' 
+          : 'bg-yellow-50 border-yellow-200'
+      }`}>
+        <p className={`text-xs font-semibold mb-1 uppercase tracking-wider ${
+          isDarkMode ? 'text-yellow-400' : 'text-yellow-800'
+        }`}>Total Hives</p>
+        <p className={`text-3xl font-bold ${
+          isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
+        }`}>{totalHives}</p>
+      </div>
+      
+      {/* Hives Active - Amber Theme */}
+      <div className={`rounded-xl p-4 border shadow-sm hover:shadow-md transition-shadow ${
+        isDarkMode 
+          ? 'bg-amber-900/20 border-amber-700/50' 
+          : 'bg-amber-50 border-amber-200'
+      }`}>
+        <p className={`text-xs font-semibold mb-1 uppercase tracking-wider ${
+          isDarkMode ? 'text-amber-400' : 'text-amber-800'
+        }`}>Hives Active</p>
+        <p className={`text-3xl font-bold ${
+          isDarkMode ? 'text-amber-400' : 'text-amber-700'
+        }`}>{activatedHives}</p>
+        <p className={`text-[10px] mt-1 ${
+          isDarkMode ? 'text-amber-500/80' : 'text-amber-600'
+        }`}>of {totalHives} hives</p>
+      </div>
+      
+      {/* Select View - Yellow Theme */}
+      <div className={`rounded-xl p-4 border shadow-sm hover:shadow-md transition-shadow ${
+        isDarkMode 
+          ? 'bg-yellow-900/20 border-yellow-700/50' 
+          : 'bg-yellow-50 border-yellow-200'
+      }`}>
+        <p className={`text-xs font-semibold mb-1 uppercase tracking-wider ${
+          isDarkMode ? 'text-yellow-400' : 'text-yellow-800'
+        }`}>Select View</p>
+        <select
+          value={selectedHive || ''}
+          onChange={(e) => {
+            const value = e.target.value;
+            setSelectedHive(value ? parseInt(value) : null);
+          }}
+          className={`w-full px-3 py-2 border rounded-lg font-medium focus:outline-none focus:ring-2 focus:border-transparent cursor-pointer text-sm ${
+            isDarkMode 
+              ? 'bg-slate-800 border-yellow-600 text-yellow-400 focus:ring-yellow-500' 
+              : 'bg-white border-yellow-300 text-yellow-900 focus:ring-yellow-500'
+          }`}
+        >
+          <option value="">View All Hives</option>
+          {hiveNumbers.map((hiveNum) => (
+            <option key={hiveNum} value={hiveNum}>
+              {getHiveName(hiveNum)}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
 
+
+                  {/* Inactive Hives Warning - Keep yellow */}
                   {inactiveHives.length > 0 && (
-                    <div className="mt-4 p-4 bg-yellow-50/90 backdrop-blur-xl border-l-4 border-yellow-500 rounded-xl shadow-lg">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0">
-                          <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-sm font-bold text-yellow-800 mb-1">
-                            ⚠️ {inactiveHives.length} {inactiveHives.length === 1 ? 'Hive' : 'Hives'} Inactive
-                          </h3>
-                          <p className="text-sm text-yellow-700 mb-2">
-                            The following {inactiveHives.length === 1 ? 'hive has' : 'hives have'} not sent data in the last 4 hours:
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {inactiveHiveNames.map((name, idx) => (
-                              <span 
-                                key={idx}
-                                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-yellow-200 text-yellow-800"
-                              >
-                                {name}
-                              </span>
-                            ))}
-                          </div>
-                          <p className="text-xs text-yellow-600 mt-2">
-                            Please check sensor connections and battery levels.
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => {}}
-                          className="flex-shrink-0 text-yellow-600 hover:text-yellow-800 transition-colors"
-                          title="Dismiss"
-                        >
-                          <XCircle className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
+  <div className={`mt-4 p-4 border-l-4 rounded-xl shadow-lg ${
+    isDarkMode 
+      ? 'bg-yellow-900/20 border-yellow-600 backdrop-blur-xl' 
+      : 'bg-yellow-50/90 border-yellow-500 backdrop-blur-xl'
+  }`}>
+    <div className="flex items-start gap-3">
+      <div className="flex-shrink-0">
+        <svg className={`w-6 h-6 ${isDarkMode ? 'text-yellow-500' : 'text-yellow-600'}`} fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+      </div>
+      <div className="flex-1">
+        <h3 className={`text-sm font-bold mb-1 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-800'}`}>
+          ⚠️ {inactiveHives.length} {inactiveHives.length === 1 ? 'Hive' : 'Hives'} Inactive
+        </h3>
+        <p className={`text-sm mb-2 ${isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>
+          The following {inactiveHives.length === 1 ? 'hive has' : 'hives have'} not sent data in the last 4 hours:
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {inactiveHiveNames.map((name, idx) => (
+            <span 
+              key={idx}
+              className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                isDarkMode 
+                  ? 'bg-yellow-700/50 text-yellow-300' 
+                  : 'bg-yellow-200 text-yellow-800'
+              }`}
+            >
+              {name}
+            </span>
+          ))}
+        </div>
+        <p className={`text-xs mt-2 ${isDarkMode ? 'text-yellow-400/80' : 'text-yellow-600'}`}>
+          Please check sensor connections and battery levels.
+        </p>
+      </div>
+      <button
+        onClick={() => {}}
+        className={`flex-shrink-0 transition-colors ${
+          isDarkMode 
+            ? 'text-yellow-400 hover:text-yellow-300' 
+            : 'text-yellow-600 hover:text-yellow-800'
+        }`}
+        title="Dismiss"
+      >
+        <XCircle className="w-5 h-5" />
+      </button>
+    </div>
+  </div>
+)}
 
+                  {/* CHANGED: Filter button to slate */}
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-1">
-                      <button
-                        onClick={() => setFilterStatus('all')}
-                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                          filterStatus === 'inactive'
-                            ? 'bg-yellow-600 text-white'
-                            : 'text-gray-600 hover:bg-gray-100'
-                        }`}
-                      >
-                        Inactive ({inactiveHives.length})
-                      </button>
-                    </div>
-                  </div>
+  <div className={`flex items-center gap-2 rounded-lg border p-1 ${
+    isDarkMode 
+      ? 'bg-slate-800 border-slate-700' 
+      : 'bg-white border-gray-200'
+  }`}>
+    <button
+      onClick={() => setFilterStatus('inactive')}
+      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+        filterStatus === 'inactive'
+          ? isDarkMode
+            ? 'bg-yellow-600 text-white'
+            : 'bg-yellow-600 text-white'
+          : isDarkMode
+            ? 'text-slate-300 hover:bg-slate-700'
+            : 'text-gray-600 hover:bg-gray-100'
+      }`}
+    >
+      Inactive ({inactiveHives.length})
+    </button>
+  </div>
+</div>
                 </div>
               </div>
             )}
 
+            {/* Empty state - No color changes needed */}
             {latestData.length === 0 && !loading ? (
               <div className="flex items-center justify-center min-h-[400px]">
                 <div className="text-center">
@@ -2222,122 +2477,148 @@ useEffect(() => {
               </div>
             ) : selectedHive === null ? (
               <div className="flex gap-6">
+                {/* APIARY SELECTOR SIDEBAR */}
                 {purchaseInfo && purchaseInfo.assignedContainers && purchaseInfo.assignedContainers.length > 1 && (
                   <div className="w-80 flex-shrink-0">
-                    <div className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-xl border border-white/50 p-5 sticky top-4">
-                      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <Filter className="w-5 h-5 text-blue-600" />
-                        Select Apiary
-                      </h3>
-                      
-                      <div className="mb-4">
-                        <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="Search apiary..."
-                            value={apiarySearchQuery}
-                            onChange={(e) => setApiarySearchQuery(e.target.value)}
-                            className="w-full px-4 py-3 pl-11 bg-white border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm shadow-sm"
-                          />
-                          <Search className="absolute left-4 top-3.5 w-4 h-4 text-gray-400" />
-                        </div>
-                      </div>
+                    <div className={`backdrop-blur-xl rounded-2xl shadow-xl border p-5 sticky top-4 ${
+  isDarkMode 
+    ? 'bg-slate-800/90 border-slate-700/50' 
+    : 'bg-white/90 border-white/50'
+}`}>
+  <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${
+  isDarkMode ? 'text-slate-200' : 'text-gray-800'
+}`}>
+  <Filter className={`w-5 h-5 ${isDarkMode ? 'text-yellow-400' : 'text-blue-600'}`} />
+  Select Apiary
+</h3>
+  
+  <div className="mb-4">
+    <div className="relative">
+      <input
+        type="text"
+        placeholder="Search apiary..."
+        value={apiarySearchQuery}
+        onChange={(e) => setApiarySearchQuery(e.target.value)}
+        className={`w-full px-4 py-3 pl-11 border rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent text-sm shadow-sm ${
+          isDarkMode 
+            ? 'bg-slate-700 border-slate-600 text-slate-200 focus:ring-yellow-500' 
+            : 'bg-white border-gray-300 text-gray-800 focus:ring-blue-500'
+        }`}
+      />
+      <Search className={`absolute left-4 top-3.5 w-4 h-4 ${isDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+    </div>
+  </div>
 
-                      <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {purchaseInfo.assignedContainers
-                          .filter(container => 
-                            getApiaryName(container).toLowerCase().includes(apiarySearchQuery.toLowerCase()) ||
-                            container.toLowerCase().includes(apiarySearchQuery.toLowerCase())
-                          )
-                          .map((container) => (
-                            <div key={container} className="relative group">
-                              <div
-                                onClick={() => {
-                                  handleContainerChange(container);
-                                  setApiarySearchQuery('');
-                                }}
-                                className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer ${
-                                  selectedContainer === container
-                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30'
-                                    : 'text-gray-700 hover:bg-gray-100 border border-gray-200'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    <div className={`p-2 rounded-lg ${selectedContainer === container ? 'bg-white/20' : 'bg-blue-100'}`}>
-                                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M12 2L2 7L12 12L22 7L12 2Z"/>
-                                        <path d="M2 17L12 22L22 17M2 12L12 17L22 12" strokeWidth="2"/>
-                                      </svg>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <span className="font-semibold text-sm block truncate">{getApiaryName(container)}</span>
-                                      <span className={`text-xs ${selectedContainer === container ? 'text-white/80' : 'text-gray-500'}`}>
-                                        {totalHives} hives
-                                      </span>
-                                    </div>
-                                  </div>
-                                  {selectedContainer === container && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleApiaryNameEdit(container);
-                                      }}
-                                      className="ml-2 p-2 hover:bg-white/20 rounded-lg transition-colors flex-shrink-0"
-                                      title="Rename apiary"
-                                    >
-                                      <Edit2 className="w-4 h-4" />
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
+  <div className="space-y-2 max-h-96 overflow-y-auto">
+    {purchaseInfo.assignedContainers
+      .filter(container => 
+        getApiaryName(container).toLowerCase().includes(apiarySearchQuery.toLowerCase()) ||
+        container.toLowerCase().includes(apiarySearchQuery.toLowerCase())
+      )
+      .map((container) => (
+        <div key={container} className="relative group">
+          <div
+  onClick={() => {
+    handleContainerChange(container);
+    setApiarySearchQuery('');
+  }}
+  className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer ${
+    selectedContainer === container
+      ? isDarkMode
+        ? 'bg-yellow-600 text-white shadow-lg shadow-yellow-500/30'
+        : 'bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 shadow-lg shadow-yellow-400/40'
+      : isDarkMode
+        ? 'text-slate-300 hover:bg-slate-700 border border-slate-600'
+        : 'text-gray-900 hover:bg-gray-100 border border-gray-200'
+  }`}
+>
+  <div className="flex items-center justify-between">
+    <div className="flex items-center gap-3 flex-1 min-w-0">
+      <div className={`p-2 rounded-lg ${
+        selectedContainer === container 
+          ? 'bg-white/20' 
+          : isDarkMode ? 'bg-yellow-900/30' : 'bg-yellow-50'
+      }`}>
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2L2 7L12 12L22 7L12 2Z"/>
+                    <path d="M2 17L12 22L22 17M2 12L12 17L22 12" strokeWidth="2"/>
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="font-semibold text-sm block truncate">{getApiaryName(container)}</span>
+                  <span className={`text-xs ${
+                    selectedContainer === container 
+                      ? 'text-white/80' 
+                      : isDarkMode ? 'text-slate-400' : 'text-gray-500'
+                  }`}>
+                    {totalHives} hives
+                  </span>
+                </div>
+              </div>
+              {selectedContainer === container && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleApiaryNameEdit(container);
+                  }}
+                  className="ml-2 p-2 hover:bg-white/20 rounded-lg transition-colors flex-shrink-0"
+                  title="Rename apiary"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+  </div>
+</div>
                   </div>
                 )}
 
+                {/* ALL HIVES GRID */}
                 <div className="flex-1">
-  <AnimatePresence mode="wait">
-    <motion.div
-      key="all-hives"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{ duration: 0.3, ease: "easeInOut" }}
-    >
-      <div className="text-center mb-10">
-        <h2 className="text-4xl font-bold text-gray-800 mb-3 flex items-center justify-center gap-3">
-          <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            All Hives
-          </span>
-        </h2>
-        <p className="text-gray-600 text-base">
-          Click on any hive to view detailed analytics and insights
-        </p>
-      </div>
-      
-      <div className="flex flex-wrap justify-center gap-x-16 gap-y-20 px-4">
-        {hiveNumbers
-          .filter((hiveNumber) => {
-            if (filterStatus === 'active') return isHiveActive(hiveNumber);
-            if (filterStatus === 'inactive') return !isHiveActive(hiveNumber);
-            return true;
-          })
-          .map((hiveNumber, index) => (
-            <motion.div
-              key={hiveNumber}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ 
-                duration: 0.4, 
-                delay: index * 0.1,
-                ease: "easeOut"
-              }}
-              className="flex justify-center"
-            >
-              <HiveCircle
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key="all-hives"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.3, ease: "easeInOut" }}
+                    >
+                      <div className="text-center mb-10">
+  <h2 className={`text-4xl font-bold mb-3 flex items-center justify-center gap-3 ${
+  isDarkMode ? 'text-slate-200' : 'text-gray-900'
+}`}>
+  <span className={isDarkMode ? 'bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent' : 'text-gray-900'}>
+    All Hives
+  </span>
+</h2>
+  <p className={`text-base ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+    Click on any hive to view detailed analytics and insights
+  </p>
+</div>
+                      
+                      <div className="flex flex-wrap justify-center gap-x-16 gap-y-20 px-4">
+                        {hiveNumbers
+                          .filter((hiveNumber) => {
+                            if (filterStatus === 'active') return isHiveActive(hiveNumber);
+                            if (filterStatus === 'inactive') return !isHiveActive(hiveNumber);
+                            return true;
+                          })
+                          .map((hiveNumber, index) => (
+                            <motion.div
+                              key={hiveNumber}
+                              initial={{ opacity: 0, scale: 0.8 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              transition={{ 
+                                duration: 0.4, 
+                                delay: index * 0.1,
+                                ease: "easeOut"
+                              }}
+                              className="flex justify-center"
+                            >
+                              <HiveCircle
   hiveNumber={hiveNumber}
   data={latestData}
   historicalData={historicalData}
@@ -2346,7 +2627,6 @@ useEffect(() => {
     setIsTransitioning(true);
     setTimeout(() => {
       setSelectedHive(hiveNumber);
-      // Show video for Master Hive (Hive 1) - or any hive with videos
       if (HIVE_VIDEOS[hiveNumber] && HIVE_VIDEOS[hiveNumber].length > 0) {
         setShowVideo(true);
       }
@@ -2356,238 +2636,247 @@ useEffect(() => {
   isSelected={false}
   onEditName={() => handleHiveNameEdit(hiveNumber)}
   hiveName={getHiveName(hiveNumber)}
+  isDarkMode={isDarkMode}
 />
-            </motion.div>
-          ))}
-      </div>
-    </motion.div>
-  </AnimatePresence>
-</div>
+                            </motion.div>
+                          ))}
+                      </div>
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
               </div>
             ) : (
   <div>
-    <button
-      onClick={() => {
-        if (isTransitioning) return;
-        setIsTransitioning(true);
-        setTimeout(() => {
-          setSelectedHive(null);
-          setShowVideo(false);
-          setSelectedVideoIndex(0);
-          setIsTransitioning(false);
-        }, 300);
-      }}
-      className="mb-6 flex items-center gap-2 px-5 py-3 bg-white/90 backdrop-blur-xl rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 text-gray-700 hover:text-gray-900 border border-gray-200 hover:border-blue-300"
-    >
-      <ChevronLeft className="w-5 h-5" />
-      <span className="font-medium">Back to All Hives</span>
-    </button>
-
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={`hive-${selectedHive}`}
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ duration: 0.3, ease: "easeInOut" }}
-      >
-        {/* Hive Data Summary Card (replaces the circle) */}
-        {selectedHive && (
-          <HiveDataSummaryCard
-            hiveNumber={selectedHive}
-            data={latestData}
-            historicalData={historicalData}
-            hiveName={getHiveName(selectedHive)}
-            onEditName={() => handleHiveNameEdit(selectedHive)}
-          />
-        )}
-
-        {/* Temperature & Humidity Charts Grid */}
-        <motion.div 
-          className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <motion.div 
-            className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/30 transition-all duration-500"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.4, delay: 0.3 }}
-          >
-            <TemperatureChart 
-              data={historicalData}
-              containerId={selectedContainer}
-              title={`Temperature Trends`}
-              selectedHiveOnly={selectedHive}
-            />
-          </motion.div>
-      
-      <motion.div 
-        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-indigo-200/50 overflow-hidden hover:shadow-indigo-500/30 transition-all duration-500"
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.4, delay: 0.4 }}
-      >
-        <HumidityChart 
-          data={historicalData} 
-          containerId={selectedContainer}
-          title={`Humidity Trends`}
-          selectedHiveOnly={selectedHive}
-        />
-      </motion.div>
-      
-      <motion.div 
-        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-purple-200/50 overflow-hidden hover:shadow-purple-500/30 transition-all duration-500"
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.4, delay: 0.5 }}
-      >
-        <WeightChart 
-          data={historicalData}
-          containerId={selectedContainer}
-          selectedHiveOnly={selectedHive}
-          title={`Weight Monitoring`}
-          height={400}
-          showTrend={true}
-          timeRange="all"
-        />
-      </motion.div>
-      
-      <motion.div 
-        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-pink-200/50 overflow-hidden hover:shadow-pink-500/30 transition-all duration-500"
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.4, delay: 0.6 }}
-      >
-        <BatteryChart 
-          data={historicalData}
-          containerId={selectedContainer}
-          selectedHiveOnly={selectedHive}
-          title={`Battery Levels`} 
-        />
-      </motion.div>
-    </motion.div>
-
-    {/* Gas Monitoring Section - ONLY FOR MASTER HIVE (Hive 1) */}
-{selectedHive === 1 && (
-  <motion.div 
-    className="mb-8"
-    initial={{ opacity: 0 }}
-    animate={{ opacity: 1 }}
-    transition={{ duration: 0.5, delay: 0.7 }}
-  >
-    <motion.div 
-      className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/30 transition-all duration-500"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: 0.7 }}
-    >
-      <GasSensorChart 
-        data={latestData}
-        containerId={selectedContainer}
-        selectedHiveOnly={selectedHive}
-        title="Gas Monitoring"
-        height={500}
-        gasType="all"
-      />
-    </motion.div>
-  </motion.div>
-)}
-
-    {/* Health Index and Location Map Grid - SIDE BY SIDE */}
-    <motion.div 
-      className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.5, delay: 0.8 }}
-    >
-      {/* Hive Health Index - LEFT SIDE */}
-      <motion.div 
-        className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-purple-500/30 transition-all duration-500"
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.4, delay: 0.85 }}
-      >
-        <HiveHealthIndex 
-          data={latestData}
-          historicalData={historicalData}
-          containerId={selectedContainer}
-          selectedHiveOnly={selectedHive}
-          title="Hive Health Index"
-          height={600}
-        />
-      </motion.div>
-
-      {/* Location Map - RIGHT SIDE */}
-      <motion.div 
-        className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-blue-500/30 transition-all duration-500 h-full"
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.4, delay: 0.85 }}
-      >
-        <div className="h-full">
-          <LocationMap 
-            data={latestData} 
-            title={`${getApiaryName(selectedContainer)} - All Hive Locations`}
-            containerId={selectedContainer}
-            height={600}
-          />
-        </div>
-      </motion.div>
-    </motion.div>
-    {/* NEW BOTTOM SECTION: Video Gallery (Left) & Buzz Sounds (Right) */}
-        <motion.div 
-  className={`grid gap-6 mb-8 ${
-    selectedHive === 1 && HIVE_BUZZ_SOUNDS[1] && HIVE_BUZZ_SOUNDS[1].length > 0
-      ? 'grid-cols-1 lg:grid-cols-2'  // Two columns when Master Hive
-      : 'grid-cols-1'  // Single column for other hives
+                {/* BACK BUTTON */}
+                <button
+  onClick={() => {
+    if (isTransitioning) return;
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setSelectedHive(null);
+      setShowVideo(false);
+      setSelectedVideoIndex(0);
+      setIsTransitioning(false);
+    }, 300);
+  }}
+  className={`mb-6 flex items-center gap-2 px-5 py-3 backdrop-blur-xl rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 border ${
+    isDarkMode 
+      ? 'bg-slate-800/90 text-slate-200 hover:text-slate-100 border-slate-700 hover:border-yellow-500/50' 
+      : 'bg-white/90 text-gray-700 hover:text-gray-900 border-gray-200 hover:border-blue-300'
   }`}
-  initial={{ opacity: 0 }}
-  animate={{ opacity: 1 }}
-  transition={{ duration: 0.5, delay: 0.9 }}
 >
-  {/* Video Gallery - Always shows if videos exist */}
-  {selectedHive && (() => {
-    const hiveVideos = HIVE_VIDEOS[selectedHive as keyof typeof HIVE_VIDEOS];
-    return hiveVideos && hiveVideos.length > 0;
-  })() && (
-    <motion.div 
-      className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-red-500/30 transition-all duration-500"
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.4, delay: 0.95 }}
-    >
-      <HiveVideoPlayer 
-        hiveNumber={selectedHive}
-        onClose={() => {}}
-        layout="top"
-      />
-    </motion.div>
-  )}
+  <ChevronLeft className="w-5 h-5" />
+  <span className="font-medium">Back to All Hives</span>
+</button>
 
-  {/* Bee Buzz Sounds - ONLY FOR MASTER HIVE (Hive 1) */}
-  {selectedHive === 1 && HIVE_BUZZ_SOUNDS[1] && HIVE_BUZZ_SOUNDS[1].length > 0 && (
-    <motion.div 
-      className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-orange-500/30 transition-all duration-500"
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.4, delay: 0.95 }}
-    >
-      <BeeBuzzSoundsPlayer 
-        hiveNumber={selectedHive}
-      />
-    </motion.div>
-  )}
-</motion.div>
-      </motion.div>
-    </AnimatePresence>
-  </div>
-)}
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={`hive-${selectedHive}`}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                  >
+                    {/* Hive Data Summary Card */}
+                    {selectedHive && (
+                      <HiveDataSummaryCard
+                        hiveNumber={selectedHive}
+                        data={latestData}
+                        historicalData={historicalData}
+                        hiveName={getHiveName(selectedHive)}
+                        onEditName={() => handleHiveNameEdit(selectedHive)}
+                      />
+                    )}
+
+                    {/* TEMPERATURE & HUMIDITY CHARTS GRID */}
+                    {/* CHANGED: All borders and shadows simplified to blue */}
+                    <motion.div 
+                      className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.5, delay: 0.2 }}
+                    >
+                      <motion.div 
+                        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/20 transition-all duration-500"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.4, delay: 0.3 }}
+                      >
+                        <TemperatureChart 
+                          data={historicalData}
+                          containerId={selectedContainer}
+                          title={`Temperature Trends`}
+                          selectedHiveOnly={selectedHive}
+                        />
+                      </motion.div>
+                  
+                      <motion.div 
+                        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/20 transition-all duration-500"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.4, delay: 0.4 }}
+                      >
+                        <HumidityChart 
+                          data={historicalData} 
+                          containerId={selectedContainer}
+                          title={`Humidity Trends`}
+                          selectedHiveOnly={selectedHive}
+                        />
+                      </motion.div>
+                  
+                      <motion.div 
+                        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/20 transition-all duration-500"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.4, delay: 0.5 }}
+                      >
+                        <WeightChart 
+                          data={historicalData}
+                          containerId={selectedContainer}
+                          selectedHiveOnly={selectedHive}
+                          title={`Weight Monitoring`}
+                          height={400}
+                          showTrend={true}
+                          timeRange="all"
+                        />
+                      </motion.div>
+                  
+                      <motion.div 
+                        className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/20 transition-all duration-500"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.4, delay: 0.6 }}
+                      >
+                        <BatteryChart 
+                          data={historicalData}
+                          containerId={selectedContainer}
+                          selectedHiveOnly={selectedHive}
+                          title={`Battery Levels`} 
+                        />
+                      </motion.div>
+                    </motion.div>
+
+                    {/* GAS MONITORING - ONLY FOR MASTER HIVE (Hive 1) */}
+                    {selectedHive === 1 && (
+                      <motion.div 
+                        className="mb-8"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.5, delay: 0.7 }}
+                      >
+                        <motion.div 
+                          className="bg-white/60 backdrop-blur-2xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden hover:shadow-blue-500/20 transition-all duration-500"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.4, delay: 0.7 }}
+                        >
+                          <GasSensorChart 
+                            data={latestData}
+                            containerId={selectedContainer}
+                            selectedHiveOnly={selectedHive}
+                            title="Gas Monitoring"
+                            height={500}
+                            gasType="all"
+                          />
+                        </motion.div>
+                      </motion.div>
+                    )}
+
+                    {/* HEALTH INDEX AND LOCATION MAP GRID */}
+                    {/* CHANGED: All borders simplified to blue */}
+                    <motion.div 
+                      className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.5, delay: 0.8 }}
+                    >
+                      <motion.div 
+                        className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-blue-500/20 transition-all duration-500"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.4, delay: 0.85 }}
+                      >
+                        <HiveHealthIndex 
+                          data={latestData}
+                          historicalData={historicalData}
+                          containerId={selectedContainer}
+                          selectedHiveOnly={selectedHive}
+                          title="Hive Health Index"
+                          height={600}
+                        />
+                      </motion.div>
+
+                      <motion.div 
+                        className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-blue-500/20 transition-all duration-500 h-full"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.4, delay: 0.85 }}
+                      >
+                        <div className="h-full">
+                          <LocationMap 
+                            data={latestData} 
+                            title={`${getApiaryName(selectedContainer)} - All Hive Locations`}
+                            containerId={selectedContainer}
+                            height={600}
+                          />
+                        </div>
+                      </motion.div>
+                    </motion.div>
+
+                    {/* VIDEO AND AUDIO PLAYERS SECTION */}
+                    {/* CHANGED: Hover shadows simplified to blue */}
+                    <motion.div 
+                      className={`grid gap-6 mb-8 ${
+                        selectedHive === 1 && HIVE_BUZZ_SOUNDS[1] && HIVE_BUZZ_SOUNDS[1].length > 0
+                          ? 'grid-cols-1 lg:grid-cols-2'
+                          : 'grid-cols-1'
+                      }`}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.5, delay: 0.9 }}
+                    >
+                      {/* Video Gallery */}
+                      {selectedHive && (() => {
+                        const hiveVideos = HIVE_VIDEOS[selectedHive as keyof typeof HIVE_VIDEOS];
+                        return hiveVideos && hiveVideos.length > 0;
+                      })() && (
+                        <motion.div 
+                          className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-blue-500/20 transition-all duration-500"
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.4, delay: 0.95 }}
+                        >
+                          <HiveVideoPlayer 
+                            hiveNumber={selectedHive}
+                            onClose={() => {}}
+                            layout="top"
+                          />
+                        </motion.div>
+                      )}
+
+                      {/* Bee Buzz Sounds - ONLY FOR MASTER HIVE */}
+                      {selectedHive === 1 && HIVE_BUZZ_SOUNDS[1] && HIVE_BUZZ_SOUNDS[1].length > 0 && (
+                        <motion.div 
+                          className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-slate-500/20 transition-all duration-500"
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.4, delay: 0.95 }}
+                        >
+                          <BeeBuzzSoundsPlayer 
+                            hiveNumber={selectedHive}
+                          />
+                        </motion.div>
+                      )}
+                    </motion.div>
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
+      {/* AI ASSISTANT - No color changes needed */}
       {!loading && (
         <SmartHiveAIAssistant
           latestData={latestData}
@@ -2600,4 +2889,3 @@ useEffect(() => {
     </div>
   );
 }
-                          

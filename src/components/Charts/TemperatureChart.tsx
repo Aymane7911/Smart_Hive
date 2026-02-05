@@ -342,8 +342,8 @@ export default function TemperatureChart({
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-slate-900/95 backdrop-blur-xl p-4 border border-purple-500/30 rounded-xl shadow-2xl">
-          <p className="text-sm font-semibold text-white mb-3 pb-2 border-b border-purple-500/30">
+        <div className="bg-white border-2 border-gray-200 p-4 rounded-xl shadow-2xl">
+          <p className="text-sm font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-200">
             {new Date(label).toLocaleString()}
           </p>
           
@@ -362,9 +362,9 @@ export default function TemperatureChart({
                       className="w-3 h-3 rounded-full" 
                       style={{ backgroundColor: entry.color }}
                     ></div>
-                    <p className="text-sm font-medium text-white">
+                    <p className="text-sm font-medium text-gray-900">
                       Hive {hiveNumber} - {tempType}
-                      {hasCalibration && <span className="ml-1 text-green-400 text-xs">✓</span>}
+                      {hasCalibration && <span className="ml-1 text-green-600 text-xs">✓</span>}
                     </p>
                   </div>
                   <p className="text-lg font-bold ml-5" style={{ color: entry.color }}>
@@ -443,9 +443,9 @@ export default function TemperatureChart({
   if (!data || data.length === 0) {
     return (
       <div className="w-full p-6">
-        <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
-        <div className="flex items-center justify-center h-64 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
-          <p className="text-white/60">No data available</p>
+        <h3 className="text-xl font-bold text-gray-900 mb-4">{title}</h3>
+        <div className="flex items-center justify-center h-64 bg-gray-50 rounded-xl border border-gray-200">
+          <p className="text-gray-500">No data available</p>
         </div>
       </div>
     );
@@ -454,9 +454,9 @@ export default function TemperatureChart({
   if (chartData.length === 0) {
     return (
       <div className="w-full p-6">
-        <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
-        <div className="flex items-center justify-center h-64 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
-          <p className="text-white/60">No valid temperature readings found for selected time range</p>
+        <h3 className="text-xl font-bold text-gray-900 mb-4">{title}</h3>
+        <div className="flex items-center justify-center h-64 bg-gray-50 rounded-xl border border-gray-200">
+          <p className="text-gray-500">No valid temperature readings found for selected time range</p>
         </div>
       </div>
     );
@@ -510,7 +510,7 @@ export default function TemperatureChart({
 
     return (
       <LineChart {...commonProps}>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
         <XAxis 
           dataKey="timestamp"
           ticks={getXAxisTicks}
@@ -519,16 +519,16 @@ export default function TemperatureChart({
           textAnchor="end"
           height={80}
           fontSize={11}
-          stroke="rgba(255,255,255,0.6)"
-          tick={{ fill: 'rgba(255,255,255,0.6)' }}
+          stroke="rgba(0,0,0,0.6)"
+          tick={{ fill: 'rgba(0,0,0,0.6)' }}
           interval={0}
         />
         <YAxis 
           domain={yAxisDomain}
-          label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft', fill: 'rgba(255,255,255,0.6)' }}
+          label={{ value: 'Temperature (°C)', angle: -90, position: 'insideLeft', fill: 'rgba(0,0,0,0.6)' }}
           fontSize={11}
-          stroke="rgba(255,255,255,0.6)"
-          tick={{ fill: 'rgba(255,255,255,0.6)' }}
+          stroke="rgba(0,0,0,0.6)"
+          tick={{ fill: 'rgba(0,0,0,0.6)' }}
         />
         <Tooltip content={<CustomTooltip />} />
         {React.createElement(ReferenceLine as any, { y: 20, stroke: "#10b981", strokeDasharray: "3 3", strokeOpacity: 0.5 })}
@@ -542,14 +542,14 @@ export default function TemperatureChart({
   const calibratedCount = Array.from(calibrations.keys()).filter(h => selectedHives.includes(h)).length;
 
   return (
-    <div className="w-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
+    <div className="w-full bg-white rounded-xl shadow-xl p-6 border border-gray-200">
       <div className="flex flex-col gap-4 mb-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold text-white">{title}</h3>
+          <h3 className="text-xl font-bold text-gray-900">{title}</h3>
           {calibratedCount > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/20 border border-green-500/30 rounded-lg">
-              <div className="w-2 h-2 rounded-full bg-green-400"></div>
-              <span className="text-sm text-green-300 font-medium">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+              <span className="text-sm text-green-700 font-medium">
                 {calibratedCount} {calibratedCount === 1 ? 'hive' : 'hives'} calibrated
               </span>
             </div>
@@ -558,43 +558,42 @@ export default function TemperatureChart({
         
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-white/80">Time:</label>
+            <label className="text-sm font-medium text-gray-700">Time:</label>
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value as any)}
-              className="px-3 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-sm text-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
+              className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
             >
-              <option value="24h" className="bg-slate-900">Last 24 Hours</option>
-              <option value="7d" className="bg-slate-900">Last 7 Days</option>
-              <option value="30d" className="bg-slate-900">Last 30 Days</option>
-              <option value="all" className="bg-slate-900">All Data</option>
+              <option value="24h">Last 24 Hours</option>
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="all">All Data</option>
             </select>
           </div>
 
-          <div className="ml-auto flex items-center gap-4 text-sm text-white/60">
+          <div className="ml-auto flex items-center gap-4 text-sm text-gray-600">
             <span className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-green-400"></div>
+              <div className="w-2 h-2 rounded-full bg-green-500"></div>
               {chartData.length} points
             </span>
-            
           </div>
         </div>
       </div>
 
-      <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
         <ResponsiveContainer width="100%" height={height}>
           {renderChart()}
         </ResponsiveContainer>
         
         {legendItems.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-4 mt-6 pt-4 border-t border-white/10">
+          <div className="flex flex-wrap justify-center gap-4 mt-6 pt-4 border-t border-gray-200">
             {legendItems.map((item, index) => (
               <div key={index} className="flex items-center gap-2">
                 <div 
                   className="w-3 h-3 rounded-full" 
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="text-xs text-white/80">{item.label}</span>
+                <span className="text-xs text-gray-700">{item.label}</span>
               </div>
             ))}
           </div>

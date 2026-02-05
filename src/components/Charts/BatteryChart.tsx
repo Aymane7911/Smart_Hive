@@ -251,7 +251,7 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
     return filtered.slice(0, 10);
   }, [hives, selectedHives, showLowBatteryOnly, chartData]);
 
-  // Dark theme colors for different hives
+  // Colors for different hives
   const getColorForHive = (index: number): string => {
     const colors = [
       '#60A5FA', '#34D399', '#FBBF24', '#F87171', '#22D3EE',
@@ -277,8 +277,8 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-slate-900/95 backdrop-blur-xl p-4 border border-blue-500/30 rounded-xl shadow-2xl">
-          <p className="text-sm font-semibold text-white mb-3 pb-2 border-b border-blue-500/30">
+        <div className="bg-white border-2 border-gray-200 p-4 rounded-xl shadow-2xl">
+          <p className="text-sm font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-200">
             {new Date(label).toLocaleString()}
           </p>
           {payload
@@ -295,10 +295,10 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
                       className="w-3 h-3 rounded-full" 
                       style={{ backgroundColor: entry.color }}
                     ></div>
-                    <p className="text-sm font-medium text-white">
+                    <p className="text-sm font-medium text-gray-900">
                       Hive {hiveNumber}
-                      {hasCalibration && <span className="ml-1 text-green-400 text-xs">✓</span>}
-                      {!hasBatteryData && <span className="ml-1 text-blue-400 text-xs">(simulated)</span>}
+                      {hasCalibration && <span className="ml-1 text-green-600 text-xs">✓</span>}
+                      {!hasBatteryData && <span className="ml-1 text-blue-600 text-xs">(simulated)</span>}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 ml-5">
@@ -306,12 +306,12 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
                       {batteryLevel.toFixed(1)}%
                     </p>
                     {batteryLevel < 20 && (
-                      <span className="text-xs text-red-400 font-bold px-2 py-0.5 bg-red-500/20 rounded">
+                      <span className="text-xs text-red-600 font-bold px-2 py-0.5 bg-red-50 border border-red-200 rounded">
                         ⚠️ Critical
                       </span>
                     )}
                     {batteryLevel >= 20 && batteryLevel < 30 && (
-                      <span className="text-xs text-orange-400 font-bold px-2 py-0.5 bg-orange-500/20 rounded">
+                      <span className="text-xs text-orange-600 font-bold px-2 py-0.5 bg-orange-50 border border-orange-200 rounded">
                         ⚠️ Low
                       </span>
                     )}
@@ -400,13 +400,13 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
 
   if (!data || data.length === 0) {
     return (
-      <div className="w-full h-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700 flex flex-col">
-        <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
+      <div className="w-full h-full bg-white rounded-xl shadow-xl p-6 border border-gray-200 flex flex-col">
+        <h3 className="text-xl font-bold text-gray-900 mb-4">{title}</h3>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
             <div className="text-4xl mb-4">🔋</div>
-            <p className="text-white/60 mb-2">No battery data available</p>
-            <p className="text-white/40 text-sm">Battery levels will appear here once data is collected</p>
+            <p className="text-gray-500 mb-2">No battery data available</p>
+            <p className="text-gray-400 text-sm">Battery levels will appear here once data is collected</p>
           </div>
         </div>
       </div>
@@ -415,12 +415,12 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
 
   if (chartData.length === 0) {
     return (
-      <div className="w-full h-full bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700 flex flex-col">
-        <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
+      <div className="w-full h-full bg-white rounded-xl shadow-xl p-6 border border-gray-200 flex flex-col">
+        <h3 className="text-xl font-bold text-gray-900 mb-4">{title}</h3>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-white/60 mb-2">No battery data for selected time range</p>
-            <p className="text-white/40 text-sm">Time range: {timeRange}</p>
+            <p className="text-gray-500 mb-2">No battery data for selected time range</p>
+            <p className="text-gray-400 text-sm">Time range: {timeRange}</p>
           </div>
         </div>
       </div>
@@ -431,21 +431,21 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
   const calibratedCount = Array.from(calibrations.keys()).filter(h => visibleHives.includes(h)).length;
 
   return (
-    <div className="w-full h-full bg-slate-800 rounded-xl shadow-xl border border-slate-700 flex flex-col">
+    <div className="w-full h-full bg-white rounded-xl shadow-xl border border-gray-200 flex flex-col">
       {/* Header */}
-      <div className="p-6 border-b border-slate-700">
+      <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-2xl font-bold text-white">{title}</h3>
+          <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
           <div className="flex items-center gap-3">
-            <div className="flex items-center space-x-2 text-sm text-white/60">
+            <div className="flex items-center space-x-2 text-sm text-gray-600">
               {visibleHives.length !== hives.length && (
-                <span className="text-white/40">({visibleHives.length} shown)</span>
+                <span className="text-gray-500">({visibleHives.length} shown)</span>
               )}
             </div>
             {calibratedCount > 0 && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/20 border border-green-500/30 rounded-lg">
-                <div className="w-2 h-2 rounded-full bg-green-400"></div>
-                <span className="text-sm text-green-300 font-medium">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
+                <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                <span className="text-sm text-green-700 font-medium">
                   {calibratedCount} {calibratedCount === 1 ? 'hive' : 'hives'} calibrated
                 </span>
               </div>
@@ -458,50 +458,50 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
           <div className="flex flex-wrap items-center gap-3">
             {/* Time Range */}
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-white/80">Time:</label>
+              <label className="text-sm font-medium text-gray-700">Time:</label>
               <select
                 value={timeRange}
                 onChange={(e) => setTimeRange(e.target.value as any)}
-                className="px-3 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               >
-                <option value="24h" className="bg-slate-900">Last 24 Hours</option>
-                <option value="7d" className="bg-slate-900">Last 7 Days</option>
-                <option value="30d" className="bg-slate-900">Last 30 Days</option>
-                <option value="all" className="bg-slate-900">All Data</option>
+                <option value="24h">Last 24 Hours</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+                <option value="all">All Data</option>
               </select>
             </div>
 
             {/* Low Battery Filter */}
-            <label className="flex items-center gap-2 px-3 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg cursor-pointer hover:bg-white/15 transition-all">
+            <label className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-100 transition-all">
               <input
                 type="checkbox"
                 checked={showLowBatteryOnly}
                 onChange={(e) => setShowLowBatteryOnly(e.target.checked)}
-                className="rounded border-slate-500 bg-slate-600 text-blue-500 focus:ring-blue-500"
+                className="rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-white/80">Low battery only (&lt; 30%)</span>
+              <span className="text-sm text-gray-700">Low battery only (&lt; 30%)</span>
             </label>
 
             {/* Selection Controls */}
             <div className="flex items-center gap-2 ml-auto">
               <button
                 onClick={selectAllHives}
-                className="px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all shadow-lg"
+                className="px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all shadow-md"
               >
                 Select All
               </button>
               <button
                 onClick={clearSelection}
-                className="px-3 py-2 text-sm bg-white/10 border border-white/20 text-white/80 rounded-lg hover:bg-white/15 transition-all"
+                className="px-3 py-2 text-sm bg-gray-100 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-200 transition-all"
               >
                 Clear
               </button>
             </div>
 
             {/* Stats */}
-            <div className="flex items-center gap-4 text-sm text-white/60 w-full sm:w-auto">
+            <div className="flex items-center gap-4 text-sm text-gray-600 w-full sm:w-auto">
               <span className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                 {chartData.length} points
               </span>
             </div>
@@ -512,22 +512,22 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
         {selectedHiveOnly !== null && (
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-white/80">Time:</label>
+              <label className="text-sm font-medium text-gray-700">Time:</label>
               <select
                 value={timeRange}
                 onChange={(e) => setTimeRange(e.target.value as any)}
-                className="px-3 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-sm text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
               >
-                <option value="24h" className="bg-slate-900">Last 24 Hours</option>
-                <option value="7d" className="bg-slate-900">Last 7 Days</option>
-                <option value="30d" className="bg-slate-900">Last 30 Days</option>
-                <option value="all" className="bg-slate-900">All Data</option>
+                <option value="24h">Last 24 Hours</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+                <option value="all">All Data</option>
               </select>
             </div>
             
-            <div className="ml-auto flex items-center gap-4 text-sm text-white/60">
+            <div className="ml-auto flex items-center gap-4 text-sm text-gray-600">
               <span className="flex items-center gap-1">
-                <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
                 {chartData.length} points
               </span>
             </div>
@@ -539,7 +539,7 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
       <div className="flex-1 p-6">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
             <XAxis 
               dataKey="timestamp"
               ticks={getXAxisTicks}
@@ -548,15 +548,15 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
               textAnchor="end"
               height={80}
               fontSize={11}
-              stroke="rgba(255,255,255,0.6)"
-              tick={{ fill: 'rgba(255,255,255,0.6)' }}
+              stroke="rgba(0,0,0,0.6)"
+              tick={{ fill: 'rgba(0,0,0,0.6)' }}
               interval={0}
             />
             <YAxis 
-              label={{ value: 'Battery Level (%)', angle: -90, position: 'insideLeft', fill: 'rgba(255,255,255,0.6)' }}
+              label={{ value: 'Battery Level (%)', angle: -90, position: 'insideLeft', fill: 'rgba(0,0,0,0.6)' }}
               fontSize={11}
-              stroke="rgba(255,255,255,0.6)"
-              tick={{ fill: 'rgba(255,255,255,0.6)' }}
+              stroke="rgba(0,0,0,0.6)"
+              tick={{ fill: 'rgba(0,0,0,0.6)' }}
               domain={[0, 100]}
             />
             <Tooltip content={<CustomTooltip />} />
@@ -589,14 +589,14 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
         
         {/* Legend */}
         {legendItems.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-4 mt-4 pt-4 border-t border-white/10">
+          <div className="flex flex-wrap justify-center gap-4 mt-4 pt-4 border-t border-gray-200">
             {legendItems.map((item, index) => (
               <div key={index} className="flex items-center gap-2">
                 <div 
                   className="w-3 h-3 rounded-full" 
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="text-xs text-white/80">Battery</span>
+                <span className="text-xs text-gray-700">Battery</span>
               </div>
             ))}
           </div>
@@ -616,8 +616,8 @@ const BatteryChart: React.FC<BatteryChartProps> = ({
                   key={hiveNumber}
                   className={`text-xs px-3 py-1 rounded-lg font-medium ${
                     batteryLevel < 20
-                      ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                      : 'bg-orange-500/20 text-orange-400 border border-orange-500/40'
+                      ? 'bg-red-50 text-red-600 border border-red-200'
+                      : 'bg-orange-50 text-orange-600 border border-orange-200'
                   }`}
                 >
                   H{hiveNumber}: {batteryLevel.toFixed(0)}% {batteryLevel < 20 ? '⚠️' : '⚡'}
