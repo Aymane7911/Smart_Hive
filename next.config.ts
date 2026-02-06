@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
   
+  // Enable Turbopack (required for Next.js 16)
+  turbopack: {},
+  
   // Add headers for audio files
   async headers() {
     return [
@@ -43,19 +46,25 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-    ];
-  },
-  
-  // Ensure webpack doesn't transform audio files
-  webpack: (config) => {
-    config.module.rules.push({
-      test: /\.(mp3|wav|ogg)$/,
-      type: 'asset/resource',
-      generator: {
-        filename: 'static/media/[name].[hash][ext]',
+      {
+        // Also handle video files
+        source: '/videos/:path*',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'video/mp4',
+          },
+          {
+            key: 'Accept-Ranges',
+            value: 'bytes',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
       },
-    });
-    return config;
+    ];
   },
 };
 
