@@ -1181,7 +1181,106 @@ const BeeBuzzSoundsPlayer = ({
   };
 }, [currentSound.path, selectedAudio, sounds.length]);
 
-  
+// Add this temporarily to your component to diagnose the issue
+// This will run in production and show you exactly what's wrong
+
+useEffect(() => {
+  const diagnoseAudio = async () => {
+    const audioFiles = [
+      '/voice/buzz1.mp3',
+      '/voice/buzz2.mp3', 
+      '/voice/buzz3.mp3'
+    ];
+
+    console.log('🔍 Starting audio diagnostics...');
+    console.log('📍 Current location:', window.location.origin);
+
+    for (const file of audioFiles) {
+      const fullUrl = `${window.location.origin}${file}`;
+      console.log(`\n🎵 Testing: ${fullUrl}`);
+
+      try {
+        // Test 1: HEAD request to check if file exists
+        const headResponse = await fetch(fullUrl, { method: 'HEAD' });
+        console.log('📊 HEAD Response:', {
+          status: headResponse.status,
+          statusText: headResponse.statusText,
+          contentType: headResponse.headers.get('Content-Type'),
+          contentLength: headResponse.headers.get('Content-Length'),
+          acceptRanges: headResponse.headers.get('Accept-Ranges'),
+          cacheControl: headResponse.headers.get('Cache-Control'),
+        });
+
+        if (!headResponse.ok) {
+          console.error(`❌ File not found: ${headResponse.status}`);
+          continue;
+        }
+
+        // Test 2: Try to actually fetch the file
+        const getResponse = await fetch(fullUrl);
+        const blob = await getResponse.blob();
+        console.log('📦 File blob:', {
+          size: blob.size,
+          type: blob.type
+        });
+
+        // Test 3: Check if it's a valid audio file
+        const arrayBuffer = await blob.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        const header = Array.from(uint8Array.slice(0, 4))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join(' ');
+        
+        console.log('🔬 File header (first 4 bytes):', header);
+        
+        // MP3 files should start with:
+        // - ID3: 49 44 33
+        // - FF FB or FF FA (MP3 frame sync)
+        const isValidMP3 = header.startsWith('49 44 33') || 
+                          header.startsWith('ff fb') || 
+                          header.startsWith('ff fa');
+        
+        console.log(isValidMP3 ? '✅ Valid MP3 header' : '❌ Invalid MP3 header');
+
+        // Test 4: Try creating an audio element
+        const audio = new Audio(fullUrl);
+        
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Timeout loading audio'));
+          }, 5000);
+
+          audio.addEventListener('canplay', () => {
+            clearTimeout(timeout);
+            console.log('✅ Audio can play!');
+            resolve(true);
+          });
+
+          audio.addEventListener('error', (e) => {
+            clearTimeout(timeout);
+            console.error('❌ Audio error:', {
+              code: audio.error?.code,
+              message: audio.error?.message
+            });
+            reject(audio.error);
+          });
+
+          audio.load();
+        }).catch(err => {
+          console.error('Failed to load audio:', err);
+        });
+
+      } catch (error) {
+        console.error('❌ Test failed:', error);
+      }
+    }
+
+    console.log('\n🏁 Diagnostics complete');
+  };
+
+  // Run diagnostics after component mounts
+  diagnoseAudio();
+}, []);  
 
   const togglePlay = () => {
     if (audioRef.current) {
