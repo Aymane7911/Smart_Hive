@@ -1097,18 +1097,33 @@ const BeeBuzzSoundsPlayer = ({
   audio.pause();
   audio.currentTime = 0;
   
+  // IMPORTANT: Use absolute path with origin for production
+  const audioPath = currentSound.path.startsWith('http') 
+    ? currentSound.path 
+    : `${window.location.origin}${currentSound.path}`;
+  
+  console.log('🎵 Loading audio from:', audioPath);
+  
   // Set the source
-  audio.src = currentSound.path;
+  audio.src = audioPath;
   
   const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
   const handleDurationChange = () => {
     if (isFinite(audio.duration)) {
       setDuration(audio.duration);
+      console.log('✅ Audio duration:', audio.duration);
     }
   };
-  const handlePlay = () => setIsPlaying(true);
-  const handlePause = () => setIsPlaying(false);
+  const handlePlay = () => {
+    console.log('▶️ Audio playing');
+    setIsPlaying(true);
+  };
+  const handlePause = () => {
+    console.log('⏸️ Audio paused');
+    setIsPlaying(false);
+  };
   const handleEnded = () => {
+    console.log('⏹️ Audio ended');
     if (selectedAudio < sounds.length - 1) {
       setSelectedAudio(selectedAudio + 1);
     } else {
@@ -1116,7 +1131,11 @@ const BeeBuzzSoundsPlayer = ({
     }
   };
   const handleLoadedMetadata = () => {
-    console.log('✅ Audio loaded:', currentSound.path);
+    console.log('✅ Audio metadata loaded:', {
+      duration: audio.duration,
+      src: audio.src,
+      readyState: audio.readyState
+    });
     if (isFinite(audio.duration)) {
       setDuration(audio.duration);
     }
@@ -1124,11 +1143,18 @@ const BeeBuzzSoundsPlayer = ({
   const handleError = (e: Event) => {
     console.error('❌ Audio error:', {
       src: audio.src,
-      error: audio.error?.code,
-      message: audio.error?.message,
+      errorCode: audio.error?.code,
+      errorMessage: audio.error?.message,
       networkState: audio.networkState,
-      readyState: audio.readyState
+      readyState: audio.readyState,
+      error: audio.error
     });
+    
+    // Show user-friendly error
+    alert(`Failed to load audio: ${currentSound.title || 'Unknown'}. Please check if the file exists.`);
+  };
+  const handleCanPlay = () => {
+    console.log('✅ Audio can play:', audio.src);
   };
 
   audio.addEventListener('timeupdate', handleTimeUpdate);
@@ -1138,6 +1164,7 @@ const BeeBuzzSoundsPlayer = ({
   audio.addEventListener('ended', handleEnded);
   audio.addEventListener('loadedmetadata', handleLoadedMetadata);
   audio.addEventListener('error', handleError);
+  audio.addEventListener('canplay', handleCanPlay);
   
   // Load the audio
   audio.load();
@@ -1150,6 +1177,7 @@ const BeeBuzzSoundsPlayer = ({
     audio.removeEventListener('ended', handleEnded);
     audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
     audio.removeEventListener('error', handleError);
+    audio.removeEventListener('canplay', handleCanPlay);
   };
 }, [currentSound.path, selectedAudio, sounds.length]);
 
