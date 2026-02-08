@@ -199,10 +199,13 @@ const HiveCircle = ({
   
   const batteryColor = getBatteryColor(battery);
   
-  // UPDATED: Blue colors for the main circle ring
+  // NEW COLOR SCHEME:
+  // Dark mode: White ring with slate-900 background
+  // Light mode: Darker slate ring (slate-800) with amber-50 background for better visibility
   const circleColors = {
-    ring: '#3b82f6', // Blue
-    ringBg: 'rgba(59, 130, 246, 0.1)', // Light blue background
+    ring: isDarkMode ? '#ffffff' : '#1e293b', // white in dark, slate-800 in light (darker for better visibility)
+    ringBg: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(30, 41, 59, 0.1)', // subtle background
+    centerBg: isDarkMode ? '#0f172a' : '#fffbeb', // slate-900 in dark, amber-50 in light
   };
   
   const getLastReadingTime = (): string | null => {
@@ -266,33 +269,40 @@ const HiveCircle = ({
         isSelected ? 'scale-110' : ''
       }`}
     >
-      {/* UPDATED: Glow effect with blue */}
+      {/* GLOW EFFECT - Updated for new scheme */}
       <div className={`absolute inset-0 rounded-full transition-all duration-500 ${
         isSelected 
-          ? 'bg-gradient-to-br from-blue-400/40 to-blue-500/40 blur-2xl scale-125'
-          : 'bg-gradient-to-br from-blue-300/20 to-blue-400/20 blur-xl group-hover:blur-2xl group-hover:scale-110'
+          ? isDarkMode
+            ? 'bg-gradient-to-br from-white/40 to-white/30 blur-2xl scale-125'
+            : 'bg-gradient-to-br from-slate-400/40 to-slate-500/30 blur-2xl scale-125'
+          : isDarkMode
+            ? 'bg-gradient-to-br from-white/20 to-white/10 blur-xl group-hover:blur-2xl group-hover:scale-110'
+            : 'bg-gradient-to-br from-slate-300/20 to-slate-400/10 blur-xl group-hover:blur-2xl group-hover:scale-110'
       }`}></div>
       
       <div className={`relative w-72 h-72 rounded-full overflow-visible transition-all duration-500 ${
         isSelected 
-          ? 'shadow-2xl ring-4 ring-blue-400/50' 
+          ? isDarkMode
+            ? 'shadow-2xl ring-4 ring-white/50'
+            : 'shadow-2xl ring-4 ring-slate-400/50'
           : 'shadow-xl group-hover:shadow-2xl'
       }`}>
-        {/* BACKGROUND - UPDATED TO YELLOW */}
-        <div className={`absolute inset-0 rounded-full ${
-  isDarkMode 
-    ? 'bg-gradient-to-br from-yellow-600 via-yellow-500 to-yellow-400' 
-    : 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900'
-}`}></div>
+        {/* BACKGROUND - Using background color */}
+        <div 
+          className={`absolute inset-0 rounded-full`}
+          style={{ backgroundColor: circleColors.centerBg }}
+        ></div>
         
         {/* HOVER OVERLAY */}
-        <div className={`absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-full ${
-          'from-blue-500/10 to-blue-600/10'
+        <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-full ${
+          isDarkMode 
+            ? 'bg-gradient-to-br from-white/5 to-white/10' 
+            : 'bg-gradient-to-br from-slate-600/5 to-slate-700/10'
         }`}></div>
         
-        {/* UPDATED: Main circle ring (blue) and battery ring (green) - HIDE BLUE CIRCLE IF BATTERY IS 0 */}
+        {/* MAIN CIRCLE RING (white in dark, dark in light) and BATTERY RING (green) */}
         <svg className="absolute inset-0 w-full h-full -rotate-90">
-          {/* Blue outer ring background - only show if battery is NOT 0 */}
+          {/* Main outer ring background - only show if battery is NOT 0 */}
           {battery !== 0 && (
             <>
               <circle 
@@ -301,11 +311,13 @@ const HiveCircle = ({
                 r="44%" 
                 fill="none" 
                 stroke={circleColors.ringBg}
-                strokeWidth="2.5" 
+                strokeWidth="3" 
               />
-              {/* Blue outer ring */}
+              {/* Main outer ring - thicker for better visibility */}
               <circle
-                cx="50%" cy="50%" r="44%" fill="none" stroke={circleColors.ring} strokeWidth="2.5"
+                cx="50%" cy="50%" r="44%" fill="none" 
+                stroke={circleColors.ring} 
+                strokeWidth="3"
                 strokeDasharray={`${2 * Math.PI * 126}`}
                 className="transition-all duration-1000"
               />
@@ -318,52 +330,58 @@ const HiveCircle = ({
             r="44%" 
             fill="none" 
             stroke="rgba(34, 197, 94, 0.15)"
-            strokeWidth="2.5" 
+            strokeWidth="3" 
           />
           {/* Green battery progress ring */}
           <circle
             cx="50%" cy="50%" r="44%" fill="none" 
             stroke="#22c55e"
-            strokeWidth="2.5"
+            strokeWidth="3"
             strokeDasharray={`${2 * Math.PI * 126 * (battery / 100)} ${2 * Math.PI * 126}`}
             className="transition-all duration-1000"
           />
         </svg>
         
         {/* CENTER CONTENT */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-900">
+        <div className={`absolute inset-0 flex flex-col items-center justify-center ${
+          isDarkMode ? 'text-white' : 'text-gray-900'
+        }`}>
           <div className="text-center">
             <div className={`mb-3 text-[9px] transition-colors ${
-  isDarkMode 
-    ? 'text-gray-600 group-hover:text-gray-800' 
-    : 'text-yellow-500 group-hover:text-yellow-300'
-}`}>
-  Click for details
-</div>
+              isDarkMode ? 'text-slate-200 group-hover:text-white' : 'text-gray-600 group-hover:text-gray-800'
+            }`}>
+              Click for details
+            </div>
             
-            {/* Hive name - BLACK */}
-            <div className={`text-3xl font-bold mb-2 ${
-  isDarkMode ? 'text-gray-900' : 'text-yellow-400'
-}`}>
-  {hiveName}
-</div>
+            {/* Hive name */}
+            <div className={`text-3xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              {hiveName}
+            </div>
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onEditName();
               }}
-              className="text-gray-600 hover:text-gray-900 transition-colors p-1 mb-2"
+              className={`p-1 mb-2 transition-colors ${
+                isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-900'
+              }`}
               title="Rename hive"
             >
               <Edit2 className="w-3 h-3" />
             </button>
             
-            <div className={`pt-2 border-t ${isDarkMode ? 'border-gray-300' : 'border-yellow-600/30'}`}>
-  <div className={`text-[9px] mb-1 ${isDarkMode ? 'text-gray-600' : 'text-yellow-500'}`}>Last Reading</div>
-  <div className={`text-xs font-semibold ${isDarkMode ? 'text-gray-900' : 'text-yellow-400'}`}>
-    {historicalData.length === 0 ? 'Loading...' : formatTimeAgo(lastReadingTime)}
-  </div>
-</div>
+            <div className={`pt-2 border-t ${
+              isDarkMode ? 'border-slate-700/50' : 'border-slate-300/50'
+            }`}>
+              <div className={`text-[9px] mb-1 ${
+                isDarkMode ? 'text-slate-300' : 'text-gray-600'
+              }`}>Last Reading</div>
+              <div className={`text-xs font-semibold ${
+                isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
+                {historicalData.length === 0 ? 'Loading...' : formatTimeAgo(lastReadingTime)}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -490,13 +508,15 @@ const HiveDataSummaryCard = ({
   data,
   historicalData,
   hiveName,
-  onEditName
+  onEditName,
+  isDarkMode = false
 }: {
   hiveNumber: number;
   data: SensorData[];
   historicalData: SensorData[];
   hiveName: string;
   onEditName: () => void;
+  isDarkMode?: boolean;
 }) => {
   const hiveIndex = hiveNumber - 1;
   
@@ -584,11 +604,14 @@ const HiveDataSummaryCard = ({
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 p-6 mb-8"
+      className={`backdrop-blur-xl rounded-3xl shadow-2xl border p-6 mb-8 ${
+        isDarkMode 
+          ? 'bg-slate-800/90 border-slate-700/50' 
+          : 'bg-white/90 border-white/50'
+      }`}
     >
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          {/* CHANGED: Icon background simplified to solid blue */}
           <div className="p-4 bg-blue-600 rounded-2xl shadow-lg">
             <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 2L2 7L12 12L22 7L12 2Z"/>
@@ -596,16 +619,23 @@ const HiveDataSummaryCard = ({
             </svg>
           </div>
           <div>
-            {/* CHANGED: Text gradient simplified to blue */}
-            <h2 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
+            <h2 className={`text-3xl font-bold ${
+              isDarkMode ? 'text-white' : 'bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent'
+            }`}>
               {hiveName}
             </h2>
-            <p className="text-sm text-gray-600 mt-1">Real-time Monitoring Dashboard</p>
+            <p className={`text-sm mt-1 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+              Real-time Monitoring Dashboard
+            </p>
           </div>
         </div>
         <button
           onClick={onEditName}
-          className="px-4 py-2 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors flex items-center gap-2 text-gray-700"
+          className={`px-4 py-2 border rounded-xl transition-colors flex items-center gap-2 ${
+            isDarkMode 
+              ? 'bg-slate-700 border-slate-600 hover:bg-slate-600 text-slate-300' 
+              : 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'
+          }`}
         >
           <Edit2 className="w-4 h-4" />
           <span className="text-sm font-medium">Rename</span>
@@ -613,22 +643,28 @@ const HiveDataSummaryCard = ({
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {/* Temperature - Keep Blue */}
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-4 border border-blue-200/50">
+        {/* Temperature */}
+        <div className={`rounded-2xl p-4 border ${
+          isDarkMode 
+            ? 'bg-slate-700/50 border-slate-600/50' 
+            : 'bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200/50'
+        }`}>
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-blue-500 rounded-lg">
+            <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-blue-600' : 'bg-blue-500'}`}>
               <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C8.69 2 6 4.69 6 8c0 1.89.87 3.58 2.24 4.7C7.45 13.36 7 14.14 7 15v4c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2v-4c0-.86-.45-1.64-1.24-2.3C17.13 11.58 18 9.89 18 8c0-3.31-2.69-6-6-6zm4 13h-1v-2h1v2zm-6 0v-2h1v2H10zm4-5.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
               </svg>
             </div>
-            <span className="text-xs font-semibold text-blue-800 uppercase tracking-wider">Temperature</span>
+            <span className={`text-xs font-semibold uppercase tracking-wider ${
+              isDarkMode ? 'text-slate-300' : 'text-blue-800'
+            }`}>Temperature</span>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-blue-600">
+            <span className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-blue-600'}`}>
               {tempInternal !== null ? `${tempInternal.toFixed(1)}°C` : 'N/A'}
             </span>
             {tempChange !== null && Math.abs(tempChange) > 0.1 && (
-              <span className={`text-xs flex items-center ${tempChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <span className={`text-xs flex items-center ${tempChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {tempChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                 {Math.abs(tempChange).toFixed(1)}
               </span>
@@ -636,37 +672,49 @@ const HiveDataSummaryCard = ({
           </div>
         </div>
 
-        {/* CHANGED: Humidity - Changed from indigo to slate */}
-        <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-2xl p-4 border border-slate-200/50">
+        {/* Humidity */}
+        <div className={`rounded-2xl p-4 border ${
+          isDarkMode 
+            ? 'bg-slate-700/50 border-slate-600/50' 
+            : 'bg-gradient-to-br from-slate-50 to-slate-100/50 border-slate-200/50'
+        }`}>
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-slate-500 rounded-lg">
+            <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-slate-500' : 'bg-slate-500'}`}>
               <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
               </svg>
             </div>
-            <span className="text-xs font-semibold text-slate-800 uppercase tracking-wider">Humidity</span>
+            <span className={`text-xs font-semibold uppercase tracking-wider ${
+              isDarkMode ? 'text-slate-300' : 'text-slate-800'
+            }`}>Humidity</span>
           </div>
-          <div className="text-2xl font-bold text-slate-600">
+          <div className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-600'}`}>
             {humInternal !== null ? `${humInternal.toFixed(0)}%` : 'N/A'}
           </div>
         </div>
 
-        {/* CHANGED: Weight - Changed from purple to blue-700 */}
-        <div className="bg-gradient-to-br from-blue-100 to-blue-200/50 rounded-2xl p-4 border border-blue-300/50">
+        {/* Weight */}
+        <div className={`rounded-2xl p-4 border ${
+          isDarkMode 
+            ? 'bg-slate-700/50 border-slate-600/50' 
+            : 'bg-gradient-to-br from-blue-100 to-blue-200/50 border-blue-300/50'
+        }`}>
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-blue-700 rounded-lg">
+            <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-blue-600' : 'bg-blue-700'}`}>
               <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 3L2 12h3v8h14v-8h3L12 3zm0 2.5L18.5 12H17v6H7v-6H5.5L12 5.5z"/>
               </svg>
             </div>
-            <span className="text-xs font-semibold text-blue-800 uppercase tracking-wider">Weight</span>
+            <span className={`text-xs font-semibold uppercase tracking-wider ${
+              isDarkMode ? 'text-slate-300' : 'text-blue-800'
+            }`}>Weight</span>
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-blue-700">
+            <span className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-blue-700'}`}>
               {weight !== null ? `${weight.toFixed(1)}kg` : 'N/A'}
             </span>
             {weightChange !== null && Math.abs(weightChange) > 0.1 && (
-              <span className={`text-xs flex items-center ${weightChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <span className={`text-xs flex items-center ${weightChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                 {weightChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                 {Math.abs(weightChange).toFixed(1)}
               </span>
@@ -674,39 +722,56 @@ const HiveDataSummaryCard = ({
           </div>
         </div>
 
-        {/* Battery - Keep dynamic color */}
-        <div className="bg-gradient-to-br from-green-50 to-green-100/50 rounded-2xl p-4 border border-green-200/50" style={{
-          backgroundImage: `linear-gradient(to bottom right, ${batteryColor}15, ${batteryColor}25)`
-        }}>
+        {/* Battery */}
+        <div className={`rounded-2xl p-4 border ${
+          isDarkMode 
+            ? 'bg-slate-700/50 border-slate-600/50' 
+            : ''
+        }`}
+        style={{
+          backgroundImage: !isDarkMode ? `linear-gradient(to bottom right, ${batteryColor}15, ${batteryColor}25)` : undefined,
+          borderColor: !isDarkMode ? `${batteryColor}50` : undefined
+        }}
+        >
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 rounded-lg" style={{ backgroundColor: batteryColor }}>
+            <div className="p-2 rounded-lg" style={{ backgroundColor: isDarkMode ? '#10b981' : batteryColor }}>
               <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4z"/>
               </svg>
             </div>
-            <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: `${batteryColor}dd` }}>Battery</span>
+            <span className={`text-xs font-semibold uppercase tracking-wider ${
+              isDarkMode ? 'text-slate-300' : 'text-slate-800'
+            }`}>
+              Battery
+            </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-2xl font-bold" style={{ color: batteryColor }}>
+            <span className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-700'}`}>
               {Math.round(battery)}%
             </span>
             {batteryRaw === null && (
-              <span className="text-[9px] text-gray-400" title="Simulated data">*</span>
+              <span className={`text-[9px] ${isDarkMode ? 'text-slate-500' : 'text-gray-400'}`} title="Simulated data">*</span>
             )}
           </div>
         </div>
 
-        {/* CHANGED: Last Reading - Changed from gray to slate */}
-        <div className="bg-gradient-to-br from-slate-50 to-slate-100/50 rounded-2xl p-4 border border-slate-200/50">
+        {/* Last Reading */}
+        <div className={`rounded-2xl p-4 border ${
+          isDarkMode 
+            ? 'bg-slate-700/50 border-slate-600/50' 
+            : 'bg-gradient-to-br from-slate-50 to-slate-100/50 border-slate-200/50'
+        }`}>
           <div className="flex items-center gap-2 mb-2">
-            <div className="p-2 bg-slate-500 rounded-lg">
+            <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-slate-500' : 'bg-slate-500'}`}>
               <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/>
               </svg>
             </div>
-            <span className="text-xs font-semibold text-slate-800 uppercase tracking-wider">Last Reading</span>
+            <span className={`text-xs font-semibold uppercase tracking-wider ${
+              isDarkMode ? 'text-slate-300' : 'text-slate-800'
+            }`}>Last Reading</span>
           </div>
-          <div className="text-sm font-bold text-slate-600">
+          <div className={`text-sm font-bold ${isDarkMode ? 'text-white' : 'text-slate-600'}`}>
             {historicalData.length === 0 ? 'Loading...' : formatTimeAgo(lastReadingTime)}
           </div>
         </div>
@@ -764,11 +829,13 @@ const HIVE_VIDEOS: HiveVideos ={
 const HiveVideoPlayer = ({ 
   hiveNumber, 
   onClose,
-  layout = 'side'
+  layout = 'side',
+  isDarkMode = false
 }: { 
   hiveNumber: number;
   onClose: () => void;
   layout?: 'side' | 'top';
+  isDarkMode?: boolean;
 }) => {
   const [selectedVideo, setSelectedVideo] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -872,12 +939,16 @@ const HiveVideoPlayer = ({
 
   if (videos.length === 0) {
     return (
-      <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-blue-200/50 p-6">
+      <div className={`backdrop-blur-xl rounded-3xl shadow-2xl border p-6 ${
+        isDarkMode 
+          ? 'bg-slate-800/90 border-slate-700/50' 
+          : 'bg-white/90 border-blue-200/50'
+      }`}>
         <div className="text-center py-12">
-          <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-16 h-16 mx-auto mb-4 ${isDarkMode ? 'text-slate-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
           </svg>
-          <p className="text-gray-600">No videos available for this hive</p>
+          <p className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>No videos available for this hive</p>
         </div>
       </div>
     );
@@ -889,30 +960,33 @@ const HiveVideoPlayer = ({
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       ref={containerRef}
-      className={`bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-blue-200/50 overflow-hidden ${
-        layout === 'side' ? 'h-full' : 'w-full'
-      }`}
+      className={`backdrop-blur-xl rounded-3xl shadow-2xl border overflow-hidden ${
+        isDarkMode 
+          ? 'bg-slate-800/90 border-slate-700/50' 
+          : 'bg-white/90 border-blue-200/50'
+      } ${layout === 'side' ? 'h-full' : 'w-full'}`}
     >
       <div className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            {/* CHANGED: Icon background from red/pink gradient to solid blue */}
-            <div className="p-2 bg-blue-600 rounded-lg">
+            <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-blue-600' : 'bg-blue-600'}`}>
               <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M15 8v8H5V8h10m1-2H4a1 1 0 00-1 1v10a1 1 0 001 1h12a1 1 0 001-1V7a1 1 0 00-1-1zm4 4l4-4v12l-4-4z"/>
               </svg>
             </div>
             <div>
-              <h3 className="text-xl font-bold text-gray-800">Video Gallery</h3>
-              <p className="text-sm text-gray-600">Master Hive {hiveNumber} - {videos.length} Videos</p>
+              <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Video Gallery</h3>
+              <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>Master Hive {hiveNumber} - {videos.length} Videos</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className={`p-2 rounded-lg transition-colors ${
+              isDarkMode ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-gray-100 text-gray-600'
+            }`}
             title="Close video"
           >
-            <XCircle className="w-6 h-6 text-gray-600" />
+            <XCircle className="w-6 h-6" />
           </button>
         </div>
 
@@ -943,7 +1017,6 @@ const HiveVideoPlayer = ({
 
           {/* Video Controls */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4">
-            {/* CHANGED: Progress bar color to blue */}
             <input
               type="range"
               min="0"
@@ -1013,7 +1086,9 @@ const HiveVideoPlayer = ({
 
         {/* Video Thumbnails Gallery */}
         <div className="space-y-3">
-          <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Video Library ({videos.length})</h4>
+          <h4 className={`text-sm font-bold uppercase tracking-wider ${
+            isDarkMode ? 'text-slate-300' : 'text-gray-700'
+          }`}>VIDEO LIBRARY ({videos.length})</h4>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-h-48 overflow-y-auto">
             {videos.map((video, index) => (
               <button
@@ -1022,7 +1097,9 @@ const HiveVideoPlayer = ({
                 className={`group relative aspect-video rounded-lg overflow-hidden transition-all duration-300 ${
                   selectedVideo === index
                     ? 'ring-4 ring-blue-500 shadow-lg scale-105'
-                    : 'ring-2 ring-gray-200 hover:ring-blue-300 hover:shadow-md'
+                    : isDarkMode
+                      ? 'ring-2 ring-slate-600 hover:ring-blue-400 hover:shadow-md'
+                      : 'ring-2 ring-gray-200 hover:ring-blue-300 hover:shadow-md'
                 }`}
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
@@ -1046,7 +1123,6 @@ const HiveVideoPlayer = ({
                   </div>
                 </div>
 
-                {/* CHANGED: Playing indicator to blue */}
                 {selectedVideo === index && isPlaying && (
                   <div className="absolute top-2 right-2">
                     <div className="flex items-center gap-1 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">
@@ -1056,7 +1132,6 @@ const HiveVideoPlayer = ({
                   </div>
                 )}
 
-                {/* CHANGED: Selection badge to blue */}
                 <div className={`absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                   selectedVideo === index ? 'bg-blue-500 text-white' : 'bg-white/90 text-gray-700'
                 }`}>
@@ -1074,9 +1149,11 @@ const HiveVideoPlayer = ({
 
 
 const BeeBuzzSoundsPlayer = ({ 
-  hiveNumber
+  hiveNumber,
+  isDarkMode = false
 }: { 
   hiveNumber: number;
+  isDarkMode?: boolean;
 }) => {
   const [selectedAudio, setSelectedAudio] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -1090,197 +1167,92 @@ const BeeBuzzSoundsPlayer = ({
   const currentSound = sounds[selectedAudio];
 
   useEffect(() => {
-  const audio = audioRef.current;
-  if (!audio) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
-  // Reset audio element
-  audio.pause();
-  audio.currentTime = 0;
-  
-  // IMPORTANT: Use absolute path with origin for production
-  const audioPath = currentSound.path.startsWith('http') 
-    ? currentSound.path 
-    : `${window.location.origin}${currentSound.path}`;
-  
-  console.log('🎵 Loading audio from:', audioPath);
-  
-  // Set the source
-  audio.src = audioPath;
-  
-  const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-  const handleDurationChange = () => {
-    if (isFinite(audio.duration)) {
-      setDuration(audio.duration);
-      console.log('✅ Audio duration:', audio.duration);
-    }
-  };
-  const handlePlay = () => {
-    console.log('▶️ Audio playing');
-    setIsPlaying(true);
-  };
-  const handlePause = () => {
-    console.log('⏸️ Audio paused');
-    setIsPlaying(false);
-  };
-  const handleEnded = () => {
-    console.log('⏹️ Audio ended');
-    if (selectedAudio < sounds.length - 1) {
-      setSelectedAudio(selectedAudio + 1);
-    } else {
-      setIsPlaying(false);
-    }
-  };
-  const handleLoadedMetadata = () => {
-    console.log('✅ Audio metadata loaded:', {
-      duration: audio.duration,
-      src: audio.src,
-      readyState: audio.readyState
-    });
-    if (isFinite(audio.duration)) {
-      setDuration(audio.duration);
-    }
-  };
-  const handleError = (e: Event) => {
-    console.error('❌ Audio error:', {
-      src: audio.src,
-      errorCode: audio.error?.code,
-      errorMessage: audio.error?.message,
-      networkState: audio.networkState,
-      readyState: audio.readyState,
-      error: audio.error
-    });
+    // Reset audio element
+    audio.pause();
+    audio.currentTime = 0;
     
-    // Show user-friendly error
-    alert(`Failed to load audio: ${currentSound.title || 'Unknown'}. Please check if the file exists.`);
-  };
-  const handleCanPlay = () => {
-    console.log('✅ Audio can play:', audio.src);
-  };
-
-  audio.addEventListener('timeupdate', handleTimeUpdate);
-  audio.addEventListener('durationchange', handleDurationChange);
-  audio.addEventListener('play', handlePlay);
-  audio.addEventListener('pause', handlePause);
-  audio.addEventListener('ended', handleEnded);
-  audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-  audio.addEventListener('error', handleError);
-  audio.addEventListener('canplay', handleCanPlay);
-  
-  // Load the audio
-  audio.load();
-
-  return () => {
-    audio.removeEventListener('timeupdate', handleTimeUpdate);
-    audio.removeEventListener('durationchange', handleDurationChange);
-    audio.removeEventListener('play', handlePlay);
-    audio.removeEventListener('pause', handlePause);
-    audio.removeEventListener('ended', handleEnded);
-    audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.removeEventListener('error', handleError);
-    audio.removeEventListener('canplay', handleCanPlay);
-  };
-}, [currentSound.path, selectedAudio, sounds.length]);
-
-// Add this temporarily to your component to diagnose the issue
-// This will run in production and show you exactly what's wrong
-
-useEffect(() => {
-  const diagnoseAudio = async () => {
-    const audioFiles = [
-      '/voice/buzz1.mp3',
-      '/voice/buzz2.mp3', 
-      '/voice/buzz3.mp3'
-    ];
-
-    console.log('🔍 Starting audio diagnostics...');
-    console.log('📍 Current location:', window.location.origin);
-
-    for (const file of audioFiles) {
-      const fullUrl = `${window.location.origin}${file}`;
-      console.log(`\n🎵 Testing: ${fullUrl}`);
-
-      try {
-        // Test 1: HEAD request to check if file exists
-        const headResponse = await fetch(fullUrl, { method: 'HEAD' });
-        console.log('📊 HEAD Response:', {
-          status: headResponse.status,
-          statusText: headResponse.statusText,
-          contentType: headResponse.headers.get('Content-Type'),
-          contentLength: headResponse.headers.get('Content-Length'),
-          acceptRanges: headResponse.headers.get('Accept-Ranges'),
-          cacheControl: headResponse.headers.get('Cache-Control'),
-        });
-
-        if (!headResponse.ok) {
-          console.error(`❌ File not found: ${headResponse.status}`);
-          continue;
-        }
-
-        // Test 2: Try to actually fetch the file
-        const getResponse = await fetch(fullUrl);
-        const blob = await getResponse.blob();
-        console.log('📦 File blob:', {
-          size: blob.size,
-          type: blob.type
-        });
-
-        // Test 3: Check if it's a valid audio file
-        const arrayBuffer = await blob.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        const header = Array.from(uint8Array.slice(0, 4))
-          .map(b => b.toString(16).padStart(2, '0'))
-          .join(' ');
-        
-        console.log('🔬 File header (first 4 bytes):', header);
-        
-        // MP3 files should start with:
-        // - ID3: 49 44 33
-        // - FF FB or FF FA (MP3 frame sync)
-        const isValidMP3 = header.startsWith('49 44 33') || 
-                          header.startsWith('ff fb') || 
-                          header.startsWith('ff fa');
-        
-        console.log(isValidMP3 ? '✅ Valid MP3 header' : '❌ Invalid MP3 header');
-
-        // Test 4: Try creating an audio element
-        const audio = new Audio(fullUrl);
-        
-        await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            reject(new Error('Timeout loading audio'));
-          }, 5000);
-
-          audio.addEventListener('canplay', () => {
-            clearTimeout(timeout);
-            console.log('✅ Audio can play!');
-            resolve(true);
-          });
-
-          audio.addEventListener('error', (e) => {
-            clearTimeout(timeout);
-            console.error('❌ Audio error:', {
-              code: audio.error?.code,
-              message: audio.error?.message
-            });
-            reject(audio.error);
-          });
-
-          audio.load();
-        }).catch(err => {
-          console.error('Failed to load audio:', err);
-        });
-
-      } catch (error) {
-        console.error('❌ Test failed:', error);
+    const audioPath = currentSound.path.startsWith('http') 
+      ? currentSound.path 
+      : `${window.location.origin}${currentSound.path}`;
+    
+    console.log('🎵 Loading audio from:', audioPath);
+    
+    audio.src = audioPath;
+    
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const handleDurationChange = () => {
+      if (isFinite(audio.duration)) {
+        setDuration(audio.duration);
+        console.log('✅ Audio duration:', audio.duration);
       }
-    }
+    };
+    const handlePlay = () => {
+      console.log('▶️ Audio playing');
+      setIsPlaying(true);
+    };
+    const handlePause = () => {
+      console.log('⏸️ Audio paused');
+      setIsPlaying(false);
+    };
+    const handleEnded = () => {
+      console.log('⏹️ Audio ended');
+      if (selectedAudio < sounds.length - 1) {
+        setSelectedAudio(selectedAudio + 1);
+      } else {
+        setIsPlaying(false);
+      }
+    };
+    const handleLoadedMetadata = () => {
+      console.log('✅ Audio metadata loaded:', {
+        duration: audio.duration,
+        src: audio.src,
+        readyState: audio.readyState
+      });
+      if (isFinite(audio.duration)) {
+        setDuration(audio.duration);
+      }
+    };
+    const handleError = (e: Event) => {
+      console.error('❌ Audio error:', {
+        src: audio.src,
+        errorCode: audio.error?.code,
+        errorMessage: audio.error?.message,
+        networkState: audio.networkState,
+        readyState: audio.readyState,
+        error: audio.error
+      });
+      
+      alert(`Failed to load audio: ${currentSound.title || 'Unknown'}. Please check if the file exists.`);
+    };
+    const handleCanPlay = () => {
+      console.log('✅ Audio can play:', audio.src);
+    };
 
-    console.log('\n🏁 Diagnostics complete');
-  };
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('durationchange', handleDurationChange);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('error', handleError);
+    audio.addEventListener('canplay', handleCanPlay);
+    
+    audio.load();
 
-  // Run diagnostics after component mounts
-  diagnoseAudio();
-}, []);  
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('durationchange', handleDurationChange);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('error', handleError);
+      audio.removeEventListener('canplay', handleCanPlay);
+    };
+  }, [currentSound.path, selectedAudio, sounds.length]);
 
   const togglePlay = () => {
     if (audioRef.current) {
@@ -1330,12 +1302,16 @@ useEffect(() => {
 
   if (sounds.length === 0) {
     return (
-      <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/50 p-6">
+      <div className={`backdrop-blur-xl rounded-3xl shadow-2xl border p-6 ${
+        isDarkMode 
+          ? 'bg-slate-800/90 border-slate-700/50' 
+          : 'bg-white/90 border-slate-200/50'
+      }`}>
         <div className="text-center py-12">
-          <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-16 h-16 mx-auto mb-4 ${isDarkMode ? 'text-slate-600' : 'text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
           </svg>
-          <p className="text-gray-600">No buzz sounds available for this hive</p>
+          <p className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>No buzz sounds available for this hive</p>
         </div>
       </div>
     );
@@ -1346,45 +1322,54 @@ useEffect(() => {
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
-      className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/50 overflow-hidden h-full"
+      className={`backdrop-blur-xl rounded-3xl shadow-2xl border overflow-hidden h-full ${
+        isDarkMode 
+          ? 'bg-slate-800/90 border-slate-700/50' 
+          : 'bg-white/90 border-slate-200/50'
+      }`}
     >
       <div className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            {/* CHANGED: Icon background from orange/amber to slate */}
-            <div className="p-2 bg-slate-600 rounded-lg">
+            <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-slate-600' : 'bg-slate-600'}`}>
               <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
               </svg>
             </div>
             <div>
-              <h3 className="text-xl font-bold text-gray-800">Bee Buzz Sounds</h3>
-              <p className="text-sm text-gray-600">Colony Audio Recordings - {sounds.length} files</p>
+              <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-800'}`}>Bee Buzz Sounds</h3>
+              <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>Colony Audio Recordings - {sounds.length} files</p>
             </div>
           </div>
         </div>
 
         {/* Main Audio Player */}
-        {/* CHANGED: Background from amber/orange gradient to slate/blue gradient */}
-        <div className="relative bg-gradient-to-br from-slate-100 to-blue-100 rounded-2xl overflow-hidden aspect-video mb-4">
+        <div className={`relative rounded-2xl overflow-hidden aspect-video mb-4 ${
+          isDarkMode 
+            ? 'bg-gradient-to-br from-slate-700 to-slate-900' 
+            : 'bg-gradient-to-br from-slate-100 to-blue-100'
+        }`}>
           <audio
-  key={currentSound.id}
-  ref={audioRef}
-  preload="metadata"
-  crossOrigin="anonymous"
->
-  <source src={currentSound.path} type="audio/mpeg" />
-  Your browser does not support the audio element.
-</audio>
+            key={currentSound.id}
+            ref={audioRef}
+            preload="metadata"
+            crossOrigin="anonymous"
+          >
+            <source src={currentSound.path} type="audio/mpeg" />
+            Your browser does not support the audio element.
+          </audio>
 
           {/* Waveform Visualization */}
-          {/* CHANGED: Waveform colors from orange/amber to blue/slate */}
           <div className="absolute inset-0 flex items-center justify-center p-8">
             <div className="flex items-center justify-center gap-1 h-full w-full">
               {[...Array(40)].map((_, i) => (
                 <div
                   key={i}
-                  className="bg-gradient-to-t from-blue-600 to-slate-500 rounded-full transition-all duration-150"
+                  className={`rounded-full transition-all duration-150 ${
+                    isDarkMode 
+                      ? 'bg-gradient-to-t from-blue-400 to-slate-300' 
+                      : 'bg-gradient-to-t from-blue-600 to-slate-500'
+                  }`}
                   style={{
                     width: '2%',
                     height: `${isPlaying ? Math.random() * 60 + 20 : 30}px`,
@@ -1401,7 +1386,6 @@ useEffect(() => {
               className="absolute inset-0 flex items-center justify-center bg-black/20 cursor-pointer"
               onClick={togglePlay}
             >
-              {/* CHANGED: Play button color from orange to blue */}
               <div className="w-20 h-20 bg-white/90 rounded-full flex items-center justify-center shadow-2xl hover:scale-110 transition-transform">
                 <svg className="w-10 h-10 text-blue-600 ml-1" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z"/>
@@ -1412,7 +1396,6 @@ useEffect(() => {
 
           {/* Audio Controls */}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-4">
-            {/* CHANGED: Progress bar from orange to blue */}
             <input
               type="range"
               min="0"
@@ -1476,7 +1459,9 @@ useEffect(() => {
 
         {/* Recording Library */}
         <div className="space-y-3">
-          <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Recording Library ({sounds.length})</h4>
+          <h4 className={`text-sm font-bold uppercase tracking-wider ${
+            isDarkMode ? 'text-slate-300' : 'text-gray-700'
+          }`}>RECORDING LIBRARY ({sounds.length})</h4>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 max-h-48 overflow-y-auto">
             {sounds.map((sound, index) => (
               <button
@@ -1485,11 +1470,16 @@ useEffect(() => {
                 className={`group relative aspect-video rounded-lg overflow-hidden transition-all duration-300 ${
                   selectedAudio === index
                     ? 'ring-4 ring-blue-500 shadow-lg scale-105'
-                    : 'ring-2 ring-gray-200 hover:ring-blue-300 hover:shadow-md'
+                    : isDarkMode
+                      ? 'ring-2 ring-slate-600 hover:ring-blue-400 hover:shadow-md'
+                      : 'ring-2 ring-gray-200 hover:ring-blue-300 hover:shadow-md'
                 }`}
               >
-                {/* CHANGED: Background from orange/amber to slate/blue */}
-                <div className="absolute inset-0 bg-gradient-to-br from-slate-700 to-blue-900 flex items-center justify-center">
+                <div className={`absolute inset-0 flex items-center justify-center ${
+                  isDarkMode 
+                    ? 'bg-gradient-to-br from-slate-600 to-blue-800' 
+                    : 'bg-gradient-to-br from-slate-700 to-blue-900'
+                }`}>
                   {sound.thumbnail ? (
                     <img 
                       src={sound.thumbnail} 
@@ -1498,11 +1488,12 @@ useEffect(() => {
                     />
                   ) : (
                     <div className="flex items-center justify-center gap-0.5 h-full px-2">
-                      {/* CHANGED: Waveform from orange to blue/slate */}
                       {[...Array(12)].map((_, i) => (
                         <div
                           key={i}
-                          className="bg-blue-300/60 rounded-full transition-all"
+                          className={`rounded-full transition-all ${
+                            isDarkMode ? 'bg-blue-400/60' : 'bg-blue-300/60'
+                          }`}
                           style={{
                             width: '3px',
                             height: `${20 + Math.random() * 40}%`,
@@ -1523,7 +1514,6 @@ useEffect(() => {
                   </div>
                 </div>
 
-                {/* CHANGED: Playing indicator from orange to blue */}
                 {selectedAudio === index && isPlaying && (
                   <div className="absolute top-2 right-2">
                     <div className="flex items-center gap-1 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded">
@@ -1533,7 +1523,6 @@ useEffect(() => {
                   </div>
                 )}
 
-                {/* CHANGED: Badge from orange to blue */}
                 <div className={`absolute top-2 left-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                   selectedAudio === index ? 'bg-blue-500 text-white' : 'bg-white/90 text-slate-700'
                 }`}>
@@ -1547,7 +1536,6 @@ useEffect(() => {
     </motion.div>
   );
 };
-
 
 
 
@@ -2392,17 +2380,13 @@ useEffect(() => {
           </svg>
         </div>
         <div>
-          <h1 className={`text-2xl font-bold ${
-            isDarkMode 
-              ? 'bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent' 
-              : 'bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent'
-          }`}>
-            Smart Hive Dashboard
-          </h1>
+          <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-700'}`}>
+  Smart Hive Dashboard
+</h1>
           {purchaseInfo && (
-            <p className={`text-xs mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
-              Monitoring <span className={`font-semibold ${isDarkMode ? 'text-yellow-400' : 'text-blue-600'}`}>{purchaseInfo.masterHives + purchaseInfo.normalHives}</span> hives
-            </p>
+            <p className={`text-xs mt-0.5 ${isDarkMode ? 'text-slate-300' : 'text-gray-600'}`}>
+  Monitoring <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-blue-600'}`}>{purchaseInfo.masterHives + purchaseInfo.normalHives}</span> hives
+</p>
           )}
         </div>
       </div>
@@ -2482,55 +2466,55 @@ useEffect(() => {
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
       {/* Total Hives - Yellow Theme */}
       <div className={`rounded-xl p-4 border shadow-sm hover:shadow-md transition-shadow ${
-        isDarkMode 
-          ? 'bg-yellow-900/20 border-yellow-700/50' 
-          : 'bg-yellow-50 border-yellow-200'
-      }`}>
-        <p className={`text-xs font-semibold mb-1 uppercase tracking-wider ${
-          isDarkMode ? 'text-yellow-400' : 'text-yellow-800'
-        }`}>Total Hives</p>
-        <p className={`text-3xl font-bold ${
-          isDarkMode ? 'text-yellow-400' : 'text-yellow-600'
-        }`}>{totalHives}</p>
-      </div>
+  isDarkMode 
+    ? 'bg-slate-700/50 border-slate-600/50' 
+    : 'bg-yellow-50 border-yellow-200'
+}`}>
+  <p className={`text-xs font-semibold mb-1 uppercase tracking-wider ${
+    isDarkMode ? 'text-white' : 'text-yellow-800'
+  }`}>Total Hives</p>
+  <p className={`text-3xl font-bold ${
+    isDarkMode ? 'text-white' : 'text-yellow-600'
+  }`}>{totalHives}</p>
+</div>
       
       {/* Hives Active - Amber Theme */}
       <div className={`rounded-xl p-4 border shadow-sm hover:shadow-md transition-shadow ${
-        isDarkMode 
-          ? 'bg-amber-900/20 border-amber-700/50' 
-          : 'bg-amber-50 border-amber-200'
-      }`}>
-        <p className={`text-xs font-semibold mb-1 uppercase tracking-wider ${
-          isDarkMode ? 'text-amber-400' : 'text-amber-800'
-        }`}>Hives Active</p>
-        <p className={`text-3xl font-bold ${
-          isDarkMode ? 'text-amber-400' : 'text-amber-700'
-        }`}>{activatedHives}</p>
-        <p className={`text-[10px] mt-1 ${
-          isDarkMode ? 'text-amber-500/80' : 'text-amber-600'
-        }`}>of {totalHives} hives</p>
-      </div>
+  isDarkMode 
+    ? 'bg-slate-700/50 border-slate-600/50' 
+    : 'bg-amber-50 border-amber-200'
+}`}>
+  <p className={`text-xs font-semibold mb-1 uppercase tracking-wider ${
+    isDarkMode ? 'text-white' : 'text-amber-800'
+  }`}>Hives Active</p>
+  <p className={`text-3xl font-bold ${
+    isDarkMode ? 'text-white' : 'text-amber-700'
+  }`}>{activatedHives}</p>
+  <p className={`text-[10px] mt-1 ${
+    isDarkMode ? 'text-slate-300' : 'text-amber-600'
+  }`}>of {totalHives} hives</p>
+</div>
       
       {/* Select View - Yellow Theme */}
       <div className={`rounded-xl p-4 border shadow-sm hover:shadow-md transition-shadow ${
-        isDarkMode 
-          ? 'bg-yellow-900/20 border-yellow-700/50' 
-          : 'bg-yellow-50 border-yellow-200'
-      }`}>
-        <p className={`text-xs font-semibold mb-1 uppercase tracking-wider ${
-          isDarkMode ? 'text-yellow-400' : 'text-yellow-800'
-        }`}>Select View</p>
-        <select
-          value={selectedHive || ''}
-          onChange={(e) => {
-            const value = e.target.value;
-            setSelectedHive(value ? parseInt(value) : null);
-          }}
-          className={`w-full px-3 py-2 border rounded-lg font-medium focus:outline-none focus:ring-2 focus:border-transparent cursor-pointer text-sm ${
-            isDarkMode 
-              ? 'bg-slate-800 border-yellow-600 text-yellow-400 focus:ring-yellow-500' 
-              : 'bg-white border-yellow-300 text-yellow-900 focus:ring-yellow-500'
-          }`}
+  isDarkMode 
+    ? 'bg-slate-700/50 border-slate-600/50' 
+    : 'bg-yellow-50 border-yellow-200'
+}`}>
+  <p className={`text-xs font-semibold mb-1 uppercase tracking-wider ${
+    isDarkMode ? 'text-white' : 'text-yellow-800'
+  }`}>Select View</p>
+  <select
+    value={selectedHive || ''}
+    onChange={(e) => {
+      const value = e.target.value;
+      setSelectedHive(value ? parseInt(value) : null);
+    }}
+    className={`w-full px-3 py-2 border rounded-lg font-medium focus:outline-none focus:ring-2 focus:border-transparent cursor-pointer text-sm ${
+      isDarkMode 
+        ? 'bg-slate-800 border-slate-600 text-white focus:ring-slate-500' 
+        : 'bg-white border-slate-300 text-slate-700 focus:ring-slate-500'
+    }`}
         >
           <option value="">View All Hives</option>
           {hiveNumbers.map((hiveNum) => (
@@ -2547,20 +2531,20 @@ useEffect(() => {
                   {inactiveHives.length > 0 && (
   <div className={`mt-4 p-4 border-l-4 rounded-xl shadow-lg ${
     isDarkMode 
-      ? 'bg-yellow-900/20 border-yellow-600 backdrop-blur-xl' 
+      ? 'bg-slate-700/90 border-slate-500 backdrop-blur-xl' 
       : 'bg-yellow-50/90 border-yellow-500 backdrop-blur-xl'
   }`}>
     <div className="flex items-start gap-3">
       <div className="flex-shrink-0">
-        <svg className={`w-6 h-6 ${isDarkMode ? 'text-yellow-500' : 'text-yellow-600'}`} fill="currentColor" viewBox="0 0 20 20">
+        <svg className={`w-6 h-6 ${isDarkMode ? 'text-white' : 'text-yellow-600'}`} fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
       </div>
       <div className="flex-1">
-        <h3 className={`text-sm font-bold mb-1 ${isDarkMode ? 'text-yellow-400' : 'text-yellow-800'}`}>
+        <h3 className={`text-sm font-bold mb-1 ${isDarkMode ? 'text-white' : 'text-yellow-800'}`}>
           ⚠️ {inactiveHives.length} {inactiveHives.length === 1 ? 'Hive' : 'Hives'} Inactive
         </h3>
-        <p className={`text-sm mb-2 ${isDarkMode ? 'text-yellow-300' : 'text-yellow-700'}`}>
+        <p className={`text-sm mb-2 ${isDarkMode ? 'text-slate-200' : 'text-yellow-700'}`}>
           The following {inactiveHives.length === 1 ? 'hive has' : 'hives have'} not sent data in the last 4 hours:
         </p>
         <div className="flex flex-wrap gap-2">
@@ -2569,7 +2553,7 @@ useEffect(() => {
               key={idx}
               className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
                 isDarkMode 
-                  ? 'bg-yellow-700/50 text-yellow-300' 
+                  ? 'bg-slate-600 text-white' 
                   : 'bg-yellow-200 text-yellow-800'
               }`}
             >
@@ -2577,7 +2561,7 @@ useEffect(() => {
             </span>
           ))}
         </div>
-        <p className={`text-xs mt-2 ${isDarkMode ? 'text-yellow-400/80' : 'text-yellow-600'}`}>
+        <p className={`text-xs mt-2 ${isDarkMode ? 'text-slate-300' : 'text-yellow-600'}`}>
           Please check sensor connections and battery levels.
         </p>
       </div>
@@ -2585,7 +2569,7 @@ useEffect(() => {
         onClick={() => {}}
         className={`flex-shrink-0 transition-colors ${
           isDarkMode 
-            ? 'text-yellow-400 hover:text-yellow-300' 
+            ? 'text-slate-300 hover:text-white' 
             : 'text-yellow-600 hover:text-yellow-800'
         }`}
         title="Dismiss"
@@ -2649,12 +2633,12 @@ useEffect(() => {
                     <div className={`backdrop-blur-xl rounded-2xl shadow-xl border p-5 sticky top-4 ${
   isDarkMode 
     ? 'bg-slate-800/90 border-slate-700/50' 
-    : 'bg-white/90 border-white/50'
+    : 'bg-slate-100/90 border-slate-300/50'
 }`}>
   <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${
-  isDarkMode ? 'text-slate-200' : 'text-gray-800'
+  isDarkMode ? 'text-slate-200' : 'text-slate-700'
 }`}>
-  <Filter className={`w-5 h-5 ${isDarkMode ? 'text-yellow-400' : 'text-blue-600'}`} />
+  <Filter className={`w-5 h-5 ${isDarkMode ? 'text-white' : 'text-slate-600'}`} />
   Select Apiary
 </h3>
   
@@ -2666,10 +2650,10 @@ useEffect(() => {
         value={apiarySearchQuery}
         onChange={(e) => setApiarySearchQuery(e.target.value)}
         className={`w-full px-4 py-3 pl-11 border rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent text-sm shadow-sm ${
-          isDarkMode 
-            ? 'bg-slate-700 border-slate-600 text-slate-200 focus:ring-yellow-500' 
-            : 'bg-white border-gray-300 text-gray-800 focus:ring-blue-500'
-        }`}
+  isDarkMode 
+    ? 'bg-slate-700 border-slate-600 text-slate-200 focus:ring-yellow-500' 
+    : 'bg-white border-slate-300 text-slate-700 focus:ring-slate-500'
+}`}
       />
       <Search className={`absolute left-4 top-3.5 w-4 h-4 ${isDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
     </div>
@@ -2694,8 +2678,8 @@ useEffect(() => {
         ? 'bg-yellow-600 text-white shadow-lg shadow-yellow-500/30'
         : 'bg-gradient-to-r from-yellow-400 to-amber-500 text-gray-900 shadow-lg shadow-yellow-400/40'
       : isDarkMode
-        ? 'text-slate-300 hover:bg-slate-700 border border-slate-600'
-        : 'text-gray-900 hover:bg-gray-100 border border-gray-200'
+  ? 'text-slate-300 hover:bg-slate-700 border border-slate-600'
+  : 'text-slate-700 hover:bg-slate-200 border border-slate-300'
   }`}
 >
   <div className="flex items-center justify-between">
@@ -2754,13 +2738,11 @@ useEffect(() => {
                     >
                       <div className="text-center mb-10">
   <h2 className={`text-4xl font-bold mb-3 flex items-center justify-center gap-3 ${
-  isDarkMode ? 'text-slate-200' : 'text-gray-900'
-}`}>
-  <span className={isDarkMode ? 'bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent' : 'text-gray-900'}>
+    isDarkMode ? 'text-white' : 'text-gray-900'
+  }`}>
     All Hives
-  </span>
-</h2>
-  <p className={`text-base ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+  </h2>
+  <p className={`text-base ${isDarkMode ? 'text-slate-300' : 'text-gray-600'}`}>
     Click on any hive to view detailed analytics and insights
   </p>
 </div>
@@ -2844,15 +2826,16 @@ useEffect(() => {
                     transition={{ duration: 0.3, ease: "easeInOut" }}
                   >
                     {/* Hive Data Summary Card */}
-                    {selectedHive && (
-                      <HiveDataSummaryCard
-                        hiveNumber={selectedHive}
-                        data={latestData}
-                        historicalData={historicalData}
-                        hiveName={getHiveName(selectedHive)}
-                        onEditName={() => handleHiveNameEdit(selectedHive)}
-                      />
-                    )}
+{selectedHive && (
+  <HiveDataSummaryCard
+    hiveNumber={selectedHive}
+    data={latestData}
+    historicalData={historicalData}
+    hiveName={getHiveName(selectedHive)}
+    onEditName={() => handleHiveNameEdit(selectedHive)}
+    isDarkMode={isDarkMode}
+  />
+)}
 
                     {/* TEMPERATURE & HUMIDITY CHARTS GRID */}
                     {/* CHANGED: All borders and shadows simplified to blue */}
@@ -2869,11 +2852,12 @@ useEffect(() => {
                         transition={{ duration: 0.4, delay: 0.3 }}
                       >
                         <TemperatureChart 
-                          data={historicalData}
-                          containerId={selectedContainer}
-                          title={`Temperature Trends`}
-                          selectedHiveOnly={selectedHive}
-                        />
+  data={historicalData}
+  containerId={selectedContainer}
+  title={`Temperature Trends`}
+  selectedHiveOnly={selectedHive}
+  isDarkMode={isDarkMode}
+/>
                       </motion.div>
                   
                       <motion.div 
@@ -2883,11 +2867,12 @@ useEffect(() => {
                         transition={{ duration: 0.4, delay: 0.4 }}
                       >
                         <HumidityChart 
-                          data={historicalData} 
-                          containerId={selectedContainer}
-                          title={`Humidity Trends`}
-                          selectedHiveOnly={selectedHive}
-                        />
+  data={historicalData} 
+  containerId={selectedContainer}
+  title={`Humidity Trends`}
+  selectedHiveOnly={selectedHive}
+  isDarkMode={isDarkMode}
+/>
                       </motion.div>
                   
                       <motion.div 
@@ -2897,14 +2882,15 @@ useEffect(() => {
                         transition={{ duration: 0.4, delay: 0.5 }}
                       >
                         <WeightChart 
-                          data={historicalData}
-                          containerId={selectedContainer}
-                          selectedHiveOnly={selectedHive}
-                          title={`Weight Monitoring`}
-                          height={400}
-                          showTrend={true}
-                          timeRange="all"
-                        />
+  data={historicalData}
+  containerId={selectedContainer}
+  selectedHiveOnly={selectedHive}
+  title={`Weight Monitoring`}
+  height={400}
+  showTrend={true}
+  timeRange="all"
+  isDarkMode={isDarkMode}
+/>
                       </motion.div>
                   
                       <motion.div 
@@ -2914,11 +2900,12 @@ useEffect(() => {
                         transition={{ duration: 0.4, delay: 0.6 }}
                       >
                         <BatteryChart 
-                          data={historicalData}
-                          containerId={selectedContainer}
-                          selectedHiveOnly={selectedHive}
-                          title={`Battery Levels`} 
-                        />
+  data={historicalData}
+  containerId={selectedContainer}
+  selectedHiveOnly={selectedHive}
+  title={`Battery Levels`}
+  isDarkMode={isDarkMode}
+/>
                       </motion.div>
                     </motion.div>
 
@@ -2937,13 +2924,14 @@ useEffect(() => {
                           transition={{ duration: 0.4, delay: 0.7 }}
                         >
                           <GasSensorChart 
-                            data={latestData}
-                            containerId={selectedContainer}
-                            selectedHiveOnly={selectedHive}
-                            title="Gas Monitoring"
-                            height={500}
-                            gasType="all"
-                          />
+  data={latestData}
+  containerId={selectedContainer}
+  selectedHiveOnly={selectedHive}
+  title="Gas Monitoring"
+  height={500}
+  gasType="all"
+  isDarkMode={isDarkMode}
+/>
                         </motion.div>
                       </motion.div>
                     )}
@@ -2963,13 +2951,14 @@ useEffect(() => {
                         transition={{ duration: 0.4, delay: 0.85 }}
                       >
                         <HiveHealthIndex 
-                          data={latestData}
-                          historicalData={historicalData}
-                          containerId={selectedContainer}
-                          selectedHiveOnly={selectedHive}
-                          title="Hive Health Index"
-                          height={600}
-                        />
+  data={latestData}
+  historicalData={historicalData}
+  containerId={selectedContainer}
+  selectedHiveOnly={selectedHive}
+  title="Hive Health Index"
+  height={600}
+  isDarkMode={isDarkMode}
+/>
                       </motion.div>
 
                       <motion.div 
@@ -2980,11 +2969,12 @@ useEffect(() => {
                       >
                         <div className="h-full">
                           <LocationMap 
-                            data={latestData} 
-                            title={`${getApiaryName(selectedContainer)} - All Hive Locations`}
-                            containerId={selectedContainer}
-                            height={600}
-                          />
+  data={latestData} 
+  title={`${getApiaryName(selectedContainer)} - All Hive Locations`}
+  containerId={selectedContainer}
+  height={600}
+  isDarkMode={isDarkMode}
+/>
                         </div>
                       </motion.div>
                     </motion.div>
@@ -3002,36 +2992,38 @@ useEffect(() => {
                       transition={{ duration: 0.5, delay: 0.9 }}
                     >
                       {/* Video Gallery */}
-                      {selectedHive && (() => {
-                        const hiveVideos = HIVE_VIDEOS[selectedHive as keyof typeof HIVE_VIDEOS];
-                        return hiveVideos && hiveVideos.length > 0;
-                      })() && (
-                        <motion.div 
-                          className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-blue-500/20 transition-all duration-500"
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.4, delay: 0.95 }}
-                        >
-                          <HiveVideoPlayer 
-                            hiveNumber={selectedHive}
-                            onClose={() => {}}
-                            layout="top"
-                          />
-                        </motion.div>
-                      )}
+{selectedHive && (() => {
+  const hiveVideos = HIVE_VIDEOS[selectedHive as keyof typeof HIVE_VIDEOS];
+  return hiveVideos && hiveVideos.length > 0;
+})() && (
+  <motion.div 
+    className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-blue-500/20 transition-all duration-500"
+    initial={{ opacity: 0, x: -20 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ duration: 0.4, delay: 0.95 }}
+  >
+    <HiveVideoPlayer 
+      hiveNumber={selectedHive}
+      onClose={() => {}}
+      layout="top"
+      isDarkMode={isDarkMode}
+    />
+  </motion.div>
+)}
 
-                      {/* Bee Buzz Sounds - ONLY FOR MASTER HIVE */}
-                      {selectedHive === 1 && HIVE_BUZZ_SOUNDS[1] && HIVE_BUZZ_SOUNDS[1].length > 0 && (
-                        <motion.div 
-                          className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-slate-500/20 transition-all duration-500"
-                          initial={{ opacity: 0, x: 20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.4, delay: 0.95 }}
-                        >
-                          <BeeBuzzSoundsPlayer 
-                            hiveNumber={selectedHive}
-                          />
-                        </motion.div>
+{/* Bee Buzz Sounds - ONLY FOR MASTER HIVE */}
+{selectedHive === 1 && HIVE_BUZZ_SOUNDS[1] && HIVE_BUZZ_SOUNDS[1].length > 0 && (
+  <motion.div 
+    className="rounded-3xl shadow-2xl overflow-hidden hover:shadow-slate-500/20 transition-all duration-500"
+    initial={{ opacity: 0, x: 20 }}
+    animate={{ opacity: 1, x: 0 }}
+    transition={{ duration: 0.4, delay: 0.95 }}
+  >
+    <BeeBuzzSoundsPlayer 
+      hiveNumber={selectedHive}
+      isDarkMode={isDarkMode}
+    />
+  </motion.div>
                       )}
                     </motion.div>
                   </motion.div>

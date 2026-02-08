@@ -33,6 +33,25 @@ export default function SmartHiveAIAssistant({
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+useEffect(() => {
+  // Check if dark mode is active
+  const checkDarkMode = () => {
+    setIsDarkMode(document.documentElement.classList.contains('dark'));
+  };
+  
+  checkDarkMode();
+  
+  // Watch for dark mode changes
+  const observer = new MutationObserver(checkDarkMode);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class']
+  });
+  
+  return () => observer.disconnect();
+}, []);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -224,11 +243,11 @@ Focus on practical beekeeping advice based on the sensor data.`;
     <>
       {/* Floating Chat Button */}
       {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 rounded-full shadow-2xl hover:shadow-blue-500/50 transition-all duration-300 hover:scale-110 group"
-          title="Open AI Assistant"
-        >
+  <button
+    onClick={() => setIsOpen(true)}
+    className="fixed bottom-6 right-6 z-50 bg-slate-600 hover:bg-slate-700 text-white p-4 rounded-full shadow-2xl hover:shadow-slate-500/50 transition-all duration-300 hover:scale-110 group"
+    title="Open AI Assistant"
+  >
           <MessageSquare className="w-6 h-6" />
           <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></span>
           
@@ -241,9 +260,17 @@ Focus on practical beekeeping advice based on the sensor data.`;
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-96 h-[600px] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200">
+  <div className={`fixed bottom-6 right-6 z-50 w-96 h-[600px] rounded-2xl shadow-2xl flex flex-col overflow-hidden ${
+    isDarkMode
+      ? 'bg-slate-900 border border-slate-700'
+      : 'bg-white border border-slate-200'
+  }`}>
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between">
+          <div className={`p-4 flex items-center justify-between ${
+  isDarkMode
+    ? 'bg-slate-600 text-white p-4 flex items-center justify-between'
+    : 'bg-slate-600 text-white'
+}`}>
             <div className="flex items-center gap-2">
               <div className="bg-white/20 p-2 rounded-lg">
                 <Sparkles className="w-5 h-5" />
@@ -263,15 +290,23 @@ Focus on practical beekeeping advice based on the sensor data.`;
 
           {/* Quick Actions */}
           {messages.length <= 1 && (
-            <div className="p-3 bg-slate-50 border-b border-slate-200">
+  <div className={`p-3 border-b ${
+    isDarkMode
+      ? 'bg-slate-800 border-slate-700'
+      : 'bg-slate-50 border-slate-200'
+  }`}>
               <p className="text-xs text-slate-600 mb-2 font-medium">Quick Actions:</p>
               <div className="grid grid-cols-2 gap-2">
                 {quickActions.map((action, index) => (
                   <button
-                    key={index}
-                    onClick={() => handleQuickAction(action.prompt)}
-                    className="text-xs px-3 py-2 bg-white border border-slate-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all text-slate-700"
-                  >
+  key={index}
+  onClick={() => handleQuickAction(action.prompt)}
+  className={`text-xs px-3 py-2 border rounded-lg transition-all ${
+    isDarkMode
+      ? 'bg-slate-700 border-slate-600 text-slate-200 hover:border-slate-500 hover:bg-slate-600'
+      : 'bg-white border-slate-200 text-slate-700 hover:border-slate-400 hover:bg-slate-50'
+  }`}
+>
                     {action.label}
                   </button>
                 ))}
@@ -280,27 +315,39 @@ Focus on practical beekeeping advice based on the sensor data.`;
           )}
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+          <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${
+  isDarkMode ? 'bg-slate-800' : 'bg-slate-50'
+}`}>
             {messages.map((message) => (
               <div
                 key={message.id}
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
-                      : 'bg-white border border-slate-200 text-slate-800'
-                  }`}
-                >
+  className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+    message.role === 'user'
+      ? isDarkMode
+        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
+        : 'bg-slate-600 text-white'
+      : isDarkMode
+        ? 'bg-slate-700 border border-slate-600 text-slate-100'
+        : 'bg-white border border-slate-200 text-slate-800'
+  }`}
+>
                   {message.role === 'assistant' && (
-                    <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-200">
-                      <Sparkles className="w-4 h-4 text-blue-600" />
-                      <span className="text-xs font-semibold text-blue-600">AI Assistant</span>
-                    </div>
-                  )}
+  <div className={`flex items-center gap-2 mb-2 pb-2 border-b ${
+    isDarkMode ? 'border-slate-600' : 'border-slate-200'
+  }`}>
+    <Sparkles className={`w-4 h-4 ${isDarkMode ? 'text-blue-400' : 'text-slate-600'}`} />
+    <span className={`text-xs font-semibold ${isDarkMode ? 'text-blue-400' : 'text-slate-600'}`}>AI Assistant</span>
+  </div>
+)}
                   <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-                  <p className={`text-xs mt-2 ${message.role === 'user' ? 'text-white/70' : 'text-slate-500'}`}>
+                  <p className={`text-xs mt-2 ${
+  message.role === 'user' 
+    ? 'text-white/70' 
+    : isDarkMode ? 'text-slate-400' : 'text-slate-500'
+}`}>
                     {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
@@ -308,37 +355,53 @@ Focus on practical beekeeping advice based on the sensor data.`;
             ))}
             
             {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-                    <span className="text-sm text-slate-600">Analyzing your hives...</span>
-                  </div>
-                </div>
-              </div>
-            )}
+  <div className="flex justify-start">
+    <div className={`rounded-2xl px-4 py-3 ${
+      isDarkMode
+        ? 'bg-slate-700 border border-slate-600'
+        : 'bg-white border border-slate-200'
+    }`}>
+      <div className="flex items-center gap-2">
+        <Loader2 className={`w-4 h-4 animate-spin ${isDarkMode ? 'text-blue-400' : 'text-slate-600'}`} />
+        <span className={`text-sm ${isDarkMode ? 'text-slate-200' : 'text-slate-600'}`}>Analyzing your hives...</span>
+      </div>
+    </div>
+  </div>
+)}
             
             <div ref={messagesEndRef} />
           </div>
 
           {/* Input */}
-          <div className="p-4 bg-white border-t border-slate-200">
+          <div className={`p-4 border-t ${
+  isDarkMode
+    ? 'bg-slate-900 border-slate-700'
+    : 'bg-white border-slate-200'
+}`}>
             <div className="flex gap-2">
               <input
-                ref={inputRef}
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                placeholder="Ask about your hives..."
-                disabled={isLoading}
-                className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 placeholder-slate-400 disabled:opacity-50"
-              />
+  ref={inputRef}
+  type="text"
+  value={inputMessage}
+  onChange={(e) => setInputMessage(e.target.value)}
+  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+  placeholder="Ask about your hives..."
+  disabled={isLoading}
+  className={`flex-1 px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:border-transparent disabled:opacity-50 ${
+    isDarkMode
+      ? 'bg-slate-800 border-slate-600 text-slate-100 placeholder-slate-500 focus:ring-slate-500'
+      : 'bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400 focus:ring-slate-500'
+  }`}
+/>
               <button
-                onClick={sendMessage}
-                disabled={!inputMessage.trim() || isLoading}
-                className="px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+  onClick={sendMessage}
+  disabled={!inputMessage.trim() || isLoading}
+  className={`px-4 py-3 text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+    isDarkMode
+      ? 'bg-gradient-to-r from-blue-600 to-purple-600'
+      : 'bg-slate-600 hover:bg-slate-700'
+  }`}
+>
                 {isLoading ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
@@ -347,9 +410,11 @@ Focus on practical beekeeping advice based on the sensor data.`;
               </button>
             </div>
             
-            <p className="text-xs text-slate-500 mt-2 text-center">
-              AI responses may take a few seconds
-            </p>
+            <p className={`text-xs mt-2 text-center ${
+  isDarkMode ? 'text-slate-400' : 'text-slate-500'
+}`}>
+  AI responses may take a few seconds
+</p>
           </div>
         </div>
       )}

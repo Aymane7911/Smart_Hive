@@ -48,6 +48,7 @@ interface LocationMapProps {
   selectedSensors?: number[];
   onSensorSelect?: (sensorIds: number[]) => void;
   containerId?: string;
+  isDarkMode?: boolean;
 }
 
 // Helper to safely convert to number
@@ -119,7 +120,8 @@ function LocationMapComponent({
   height = 500,
   selectedSensors = [],
   onSensorSelect,
-  containerId
+  containerId,
+  isDarkMode = false
 }: LocationMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -466,17 +468,23 @@ function LocationMapComponent({
   // Show error if load failed
   if (loadError) {
     return (
-      <div className="w-full h-full bg-white rounded-xl shadow-xl border border-gray-200 flex flex-col">
-        <div className="p-4 border-b border-gray-200">
-          <h3 className="text-xl font-bold text-gray-900">{title}</h3>
+      <div className={`w-full h-full rounded-xl shadow-xl border flex flex-col ${
+        isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+      }`}>
+        <div className={`p-4 border-b ${isDarkMode ? 'border-slate-700' : 'border-gray-200'}`}>
+          <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{title}</h3>
         </div>
-        <div className="flex-1 flex items-center justify-center bg-red-50">
+        <div className={`flex-1 flex items-center justify-center ${isDarkMode ? 'bg-red-900/20' : 'bg-red-50'}`}>
           <div className="text-center">
             <div className="text-4xl mb-4">❌</div>
-            <p className="text-red-600 mb-2 font-semibold">{loadError}</p>
+            <p className={`mb-2 font-semibold ${isDarkMode ? 'text-red-400' : 'text-red-600'}`}>{loadError}</p>
             <button 
               onClick={() => window.location.reload()}
-              className="mt-4 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+              className={`mt-4 px-4 py-2 rounded-lg transition-colors ${
+                isDarkMode 
+                  ? 'bg-red-600 hover:bg-red-700 text-white' 
+                  : 'bg-red-500 hover:bg-red-600 text-white'
+              }`}
             >
               Reload Page
             </button>
@@ -489,15 +497,19 @@ function LocationMapComponent({
   // Early return for no location set
   if (!apiaryLocation) {
     return (
-      <div className="w-full h-full bg-white rounded-xl shadow-xl border border-gray-200 flex flex-col">
-        <div className="p-4 border-b border-gray-200">
-          <h3 className="text-xl font-bold text-gray-900">{title}</h3>
+      <div className={`w-full h-full rounded-xl shadow-xl border flex flex-col ${
+        isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+      }`}>
+        <div className={`p-4 border-b ${isDarkMode ? 'border-slate-700' : 'border-gray-200'}`}>
+          <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{title}</h3>
         </div>
-        <div className="flex-1 flex items-center justify-center bg-gray-50">
+        <div className={`flex-1 flex items-center justify-center ${isDarkMode ? 'bg-slate-900/50' : 'bg-gray-50'}`}>
           <div className="text-center p-6">
             <div className="text-4xl mb-4">📍</div>
-            <p className="text-gray-600 mb-2">No apiary location set</p>
-            <p className="text-gray-500 text-sm">Please set the GPS coordinates for this apiary in the Access Management page</p>
+            <p className={`mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-600'}`}>No apiary location set</p>
+            <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+              Please set the GPS coordinates for this apiary in the Access Management page
+            </p>
           </div>
         </div>
       </div>
@@ -507,15 +519,17 @@ function LocationMapComponent({
   // Early return for no data
   if (validLocationData.length === 0) {
     return (
-      <div className="w-full h-full bg-white rounded-xl shadow-xl border border-gray-200 flex flex-col">
-        <div className="p-4 border-b border-gray-200">
-          <h3 className="text-xl font-bold text-gray-900">{title}</h3>
+      <div className={`w-full h-full rounded-xl shadow-xl border flex flex-col ${
+        isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+      }`}>
+        <div className={`p-4 border-b ${isDarkMode ? 'border-slate-700' : 'border-gray-200'}`}>
+          <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{title}</h3>
         </div>
-        <div className="flex-1 flex items-center justify-center bg-gray-50">
+        <div className={`flex-1 flex items-center justify-center ${isDarkMode ? 'bg-slate-900/50' : 'bg-gray-50'}`}>
           <div className="text-center p-6">
             <div className="text-4xl mb-4">📍</div>
-            <p className="text-gray-600 mb-2">No hive data available</p>
-            <p className="text-gray-500 text-sm">Waiting for sensor data...</p>
+            <p className={`mb-2 ${isDarkMode ? 'text-slate-300' : 'text-gray-600'}`}>No hive data available</p>
+            <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>Waiting for sensor data...</p>
           </div>
         </div>
       </div>
@@ -523,14 +537,18 @@ function LocationMapComponent({
   }
 
   return (
-    <div className="w-full h-full bg-white rounded-xl shadow-xl border border-gray-200 flex flex-col">
+    <div className={`w-full h-full rounded-xl shadow-xl border flex flex-col ${
+      isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
+    }`}>
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
-        <h3 className="text-xl font-bold text-gray-900">{title}</h3>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+      <div className={`flex items-center justify-between p-4 border-b ${
+        isDarkMode ? 'border-slate-700' : 'border-gray-200'
+      }`}>
+        <h3 className={`text-xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{title}</h3>
+        <div className={`flex items-center gap-2 text-sm ${isDarkMode ? 'text-slate-300' : 'text-gray-600'}`}>
           <span>📍 {validLocationData.length} hive{validLocationData.length !== 1 ? 's' : ''}</span>
           {apiaryLocation.address && (
-            <span className="text-gray-500">• {apiaryLocation.address}</span>
+            <span className={isDarkMode ? 'text-slate-400' : 'text-gray-500'}>• {apiaryLocation.address}</span>
           )}
         </div>
       </div>
@@ -542,11 +560,17 @@ function LocationMapComponent({
         style={{ minHeight: '400px' }}
       >
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-50">
+          <div className={`absolute inset-0 flex items-center justify-center z-50 ${
+            isDarkMode ? 'bg-slate-900' : 'bg-gray-100'
+          }`}>
             <div className="text-center">
               <div className="text-4xl mb-4">🗺️</div>
-              <p className="text-gray-600">Loading map...</p>
-              <div className="mt-4 w-8 h-8 border-4 border-gray-200 border-t-gray-900 rounded-full animate-spin mx-auto"></div>
+              <p className={isDarkMode ? 'text-slate-300' : 'text-gray-600'}>Loading map...</p>
+              <div className={`mt-4 w-8 h-8 border-4 rounded-full animate-spin mx-auto ${
+                isDarkMode 
+                  ? 'border-slate-700 border-t-slate-400' 
+                  : 'border-gray-200 border-t-gray-900'
+              }`}></div>
             </div>
           </div>
         )}

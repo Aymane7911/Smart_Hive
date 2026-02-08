@@ -28,6 +28,7 @@ interface GasSensorChartProps {
   height?: number;
   selectedHiveOnly?: number | null;
   gasType?: 'all' | 'toxic' | 'air-quality' | 'greenhouse';
+  isDarkMode?: boolean;
 }
 
 // Gas configuration type
@@ -134,7 +135,8 @@ export default function GasSensorChart({
   title = "Gas Sensor Monitoring",
   height = 400,
   selectedHiveOnly = null,
-  gasType = 'all'
+  gasType = 'all',
+  isDarkMode = false
 }: GasSensorChartProps) {
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('24h');
   const [selectedGases, setSelectedGases] = useState<string[]>(Object.keys(GAS_CONFIGS));
@@ -341,8 +343,16 @@ export default function GasSensorChart({
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white border-2 border-gray-200 p-4 rounded-xl shadow-2xl max-w-xs">
-          <p className="text-sm font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-200">
+        <div className={`p-4 rounded-xl shadow-2xl max-w-xs border-2 ${
+          isDarkMode 
+            ? 'bg-slate-800 border-slate-600' 
+            : 'bg-white border-gray-200'
+        }`}>
+          <p className={`text-sm font-semibold mb-3 pb-2 border-b ${
+            isDarkMode 
+              ? 'text-white border-slate-600' 
+              : 'text-gray-900 border-gray-200'
+          }`}>
             {new Date(label).toLocaleString()}
           </p>
           
@@ -367,7 +377,9 @@ export default function GasSensorChart({
                       className="w-3 h-3 rounded-full" 
                       style={{ backgroundColor: entry.color }}
                     ></div>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className={`text-sm font-medium ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
                       Hive {hiveNumber} - {config.name}
                       {isDanger && <span className="ml-1 text-red-600">⚠️</span>}
                       {isWarning && <span className="ml-1 text-yellow-600">⚡</span>}
@@ -421,9 +433,17 @@ export default function GasSensorChart({
   if (!dataToUse || dataToUse.length === 0) {
     return (
       <div className="w-full p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">{title}</h3>
-        <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-xl border border-gray-200">
-          <p className="text-gray-500 mb-4">No gas sensor data available</p>
+        <h3 className={`text-xl font-bold mb-4 ${
+          isDarkMode ? 'text-white' : 'text-gray-900'
+        }`}>{title}</h3>
+        <div className={`flex flex-col items-center justify-center h-64 rounded-xl border ${
+          isDarkMode 
+            ? 'bg-slate-800 border-slate-600' 
+            : 'bg-gray-50 border-gray-200'
+        }`}>
+          <p className={`mb-4 ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+            No gas sensor data available
+          </p>
           <button
             onClick={() => setUseSampleData(true)}
             className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-all"
@@ -438,13 +458,25 @@ export default function GasSensorChart({
   if (chartData.length === 0) {
     return (
       <div className="w-full p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">{title}</h3>
-        <div className="flex items-center justify-center h-64 bg-gray-50 rounded-xl border border-gray-200">
-          <p className="text-gray-500">No valid gas readings found for selected time range</p>
+        <h3 className={`text-xl font-bold mb-4 ${
+          isDarkMode ? 'text-white' : 'text-gray-900'
+        }`}>{title}</h3>
+        <div className={`flex items-center justify-center h-64 rounded-xl border ${
+          isDarkMode 
+            ? 'bg-slate-800 border-slate-600' 
+            : 'bg-gray-50 border-gray-200'
+        }`}>
+          <p className={isDarkMode ? 'text-slate-400' : 'text-gray-500'}>
+            No valid gas readings found for selected time range
+          </p>
         </div>
       </div>
     );
   }
+
+  // Dynamic colors based on dark mode
+  const gridColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+  const axisColor = isDarkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
 
   const renderChart = () => {
     return (
@@ -452,7 +484,7 @@ export default function GasSensorChart({
         data={chartData}
         margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
       >
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
         <XAxis 
           dataKey="timestamp"
           tickFormatter={formatXAxisLabel}
@@ -460,14 +492,14 @@ export default function GasSensorChart({
           textAnchor="end"
           height={80}
           fontSize={11}
-          stroke="rgba(0,0,0,0.6)"
-          tick={{ fill: 'rgba(0,0,0,0.6)' }}
+          stroke={axisColor}
+          tick={{ fill: axisColor }}
         />
         <YAxis 
-          label={{ value: 'Concentration', angle: -90, position: 'insideLeft', fill: 'rgba(0,0,0,0.6)' }}
+          label={{ value: 'Concentration', angle: -90, position: 'insideLeft', fill: axisColor }}
           fontSize={11}
-          stroke="rgba(0,0,0,0.6)"
-          tick={{ fill: 'rgba(0,0,0,0.6)' }}
+          stroke={axisColor}
+          tick={{ fill: axisColor }}
         />
         <Tooltip content={<CustomTooltip />} />
         
@@ -491,20 +523,31 @@ export default function GasSensorChart({
   };
 
   return (
-    <div className="w-full bg-white rounded-xl shadow-xl p-6 border border-gray-200">
+    <div className={`w-full rounded-xl shadow-xl p-6 border ${
+      isDarkMode 
+        ? 'bg-slate-800 border-slate-700' 
+        : 'bg-white border-gray-200'
+    }`}>
       <div className="flex flex-col gap-4 mb-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold text-gray-900">{title}</h3>
-          
+          <h3 className={`text-xl font-bold ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>{title}</h3>
         </div>
         
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Time:</label>
+            <label className={`text-sm font-medium ${
+              isDarkMode ? 'text-slate-300' : 'text-gray-700'
+            }`}>Time:</label>
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value as any)}
-              className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
+              className={`px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all ${
+                isDarkMode 
+                  ? 'bg-slate-700 border-slate-600 text-white' 
+                  : 'bg-white border-gray-300 text-gray-900'
+              }`}
             >
               <option value="24h">Last 24 Hours</option>
               <option value="7d">Last 7 Days</option>
@@ -513,9 +556,9 @@ export default function GasSensorChart({
             </select>
           </div>
 
-          
-
-          <div className="ml-auto flex items-center gap-4 text-sm text-gray-600">
+          <div className={`ml-auto flex items-center gap-4 text-sm ${
+            isDarkMode ? 'text-slate-400' : 'text-gray-600'
+          }`}>
             <span className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-green-500"></div>
               {chartData.length} points
@@ -524,7 +567,9 @@ export default function GasSensorChart({
         </div>
 
         {/* Gas selection buttons */}
-        <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200">
+        <div className={`flex flex-wrap gap-2 pt-2 border-t ${
+          isDarkMode ? 'border-slate-700' : 'border-gray-200'
+        }`}>
           {availableGases.map(gasKey => {
             const config = GAS_CONFIGS[gasKey];
             const isSelected = selectedGases.includes(gasKey);
@@ -537,11 +582,15 @@ export default function GasSensorChart({
                 disabled={isOnlySelected}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                   isSelected 
-                    ? 'bg-gray-100 border-2 text-gray-900' 
-                    : 'bg-gray-50 border text-gray-500 hover:bg-gray-100'
+                    ? isDarkMode
+                      ? 'bg-slate-700 border-2 text-white'
+                      : 'bg-gray-100 border-2 text-gray-900'
+                    : isDarkMode
+                      ? 'bg-slate-900 border text-slate-400 hover:bg-slate-700'
+                      : 'bg-gray-50 border text-gray-500 hover:bg-gray-100'
                 } ${isOnlySelected ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'}`}
                 style={{ 
-                  borderColor: isSelected ? config.color : 'rgba(0,0,0,0.1)'
+                  borderColor: isSelected ? config.color : isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
                 }}
                 title={isOnlySelected ? 'At least one gas must be selected' : `Toggle ${config.name}`}
               >
@@ -558,7 +607,11 @@ export default function GasSensorChart({
         </div>
       </div>
 
-      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+      <div className={`rounded-xl p-4 border ${
+        isDarkMode 
+          ? 'bg-slate-900/50 border-slate-700' 
+          : 'bg-gray-50 border-gray-200'
+      }`}>
         <ResponsiveContainer width="100%" height={height}>
           {renderChart()}
         </ResponsiveContainer>

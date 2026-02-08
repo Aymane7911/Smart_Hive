@@ -1,5 +1,6 @@
 // app/components/Charts/HiveHealthIndex.tsx
 'use client';
+'use client';
 
 import React, { useMemo, useState } from 'react';
 import { 
@@ -32,6 +33,7 @@ interface HiveHealthIndexProps {
   selectedHiveOnly?: number | null;
   title?: string;
   height?: number;
+  isDarkMode?: boolean;
 }
 
 interface HealthScore {
@@ -56,7 +58,8 @@ export default function HiveHealthIndex({
   containerId,
   selectedHiveOnly = null,
   title = "Hive Health Index",
-  height = 400
+  height = 400,
+  isDarkMode = false
 }: HiveHealthIndexProps) {
   const [viewMode, setViewMode] = useState<'radial' | 'trend'>('radial');
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d'>('24h');
@@ -338,7 +341,9 @@ export default function HiveHealthIndex({
             <div key={hive.hiveNumber} className="w-full">
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
-                <h4 className="text-xl font-bold text-gray-900">Hive {hive.hiveNumber}</h4>
+                <h4 className={`text-xl font-bold ${
+                  isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>Hive {hive.hiveNumber}</h4>
                 <span className="text-3xl">{getStatusEmoji(hive.status)}</span>
               </div>
 
@@ -369,10 +374,14 @@ export default function HiveHealthIndex({
                     
                     {/* Center Text */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <div className="text-5xl font-bold text-gray-900">
+                      <div className={`text-5xl font-bold ${
+                        isDarkMode ? 'text-white' : 'text-gray-900'
+                      }`}>
                         {hive.overallHealth}
                       </div>
-                      <div className="text-sm text-gray-600 mt-1">Health Score</div>
+                      <div className={`text-sm mt-1 ${
+                        isDarkMode ? 'text-slate-400' : 'text-gray-600'
+                      }`}>Health Score</div>
                     </div>
                   </div>
 
@@ -392,14 +401,20 @@ export default function HiveHealthIndex({
                   {hive.scores.map((score, idx) => (
                     <div key={idx}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-gray-900 text-base font-medium">
+                        <span className={`text-base font-medium ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
                           {score.category}
                         </span>
-                        <span className="text-gray-900 font-bold text-base">
+                        <span className={`font-bold text-base ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
                           {score.score}/{score.maxScore}
                         </span>
                       </div>
-                      <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`w-full h-3 rounded-full overflow-hidden ${
+                        isDarkMode ? 'bg-slate-700' : 'bg-gray-100'
+                      }`}>
                         <div 
                           className="h-full rounded-full transition-all duration-300"
                           style={{ 
@@ -408,7 +423,9 @@ export default function HiveHealthIndex({
                           }}
                         />
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">
+                      <div className={`text-xs mt-1 ${
+                        isDarkMode ? 'text-slate-400' : 'text-gray-500'
+                      }`}>
                         {score.details}
                       </div>
                     </div>
@@ -417,7 +434,11 @@ export default function HiveHealthIndex({
               </div>
 
               {/* Last Updated */}
-              <div className="mt-6 pt-4 border-t border-gray-200 text-xs text-gray-500 text-center">
+              <div className={`mt-6 pt-4 border-t text-xs text-center ${
+                isDarkMode 
+                  ? 'border-slate-700 text-slate-500' 
+                  : 'border-gray-200 text-gray-500'
+              }`}>
                 Updated {new Date(hive.lastUpdated).toLocaleTimeString()}
               </div>
             </div>
@@ -429,23 +450,43 @@ export default function HiveHealthIndex({
 
   if (hivesHealth.length === 0) {
     return (
-      <div className="w-full h-full bg-white rounded-xl shadow-xl p-6 border border-gray-200">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">{title}</h3>
+      <div className={`w-full h-full rounded-xl shadow-xl p-6 border ${
+        isDarkMode 
+          ? 'bg-slate-800 border-slate-700' 
+          : 'bg-white border-gray-200'
+      }`}>
+        <h3 className={`text-xl font-bold mb-4 ${
+          isDarkMode ? 'text-white' : 'text-gray-900'
+        }`}>{title}</h3>
         <div className="flex items-center justify-center h-64">
-          <p className="text-gray-500">No hive data available to calculate health index</p>
+          <p className={isDarkMode ? 'text-slate-400' : 'text-gray-500'}>
+            No hive data available to calculate health index
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full bg-white rounded-xl shadow-xl border border-gray-200 flex flex-col">
-      <div className="p-6 border-b border-gray-200">
+    <div className={`w-full h-full rounded-xl shadow-xl border flex flex-col ${
+      isDarkMode 
+        ? 'bg-slate-800 border-slate-700' 
+        : 'bg-white border-gray-200'
+    }`}>
+      <div className={`p-6 border-b ${
+        isDarkMode ? 'border-slate-700' : 'border-gray-200'
+      }`}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
+          <h3 className={`text-2xl font-bold ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>{title}</h3>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Average Health:</span>
-            <span className="text-xl font-bold text-gray-900">
+            <span className={`text-sm ${
+              isDarkMode ? 'text-slate-400' : 'text-gray-600'
+            }`}>Average Health:</span>
+            <span className={`text-xl font-bold ${
+              isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>
               {Math.round(hivesHealth.reduce((sum, h) => sum + h.overallHealth, 0) / hivesHealth.length)}
             </span>
           </div>
@@ -455,19 +496,27 @@ export default function HiveHealthIndex({
         <div className="flex flex-wrap gap-3 text-xs">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-green-500"></div>
-            <span className="text-gray-600">Excellent (85-100)</span>
+            <span className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>
+              Excellent (85-100)
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-            <span className="text-gray-600">Good (70-84)</span>
+            <span className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>
+              Good (70-84)
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-            <span className="text-gray-600">Warning (50-69)</span>
+            <span className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>
+              Warning (50-69)
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-red-500"></div>
-            <span className="text-gray-600">Critical (0-49)</span>
+            <span className={isDarkMode ? 'text-slate-400' : 'text-gray-600'}>
+              Critical (0-49)
+            </span>
           </div>
         </div>
       </div>

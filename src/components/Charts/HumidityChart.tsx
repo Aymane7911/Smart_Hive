@@ -28,6 +28,7 @@ interface HumidityChartProps {
   showExternal?: boolean;
   chartType?: 'line' | 'area' | 'scatter';
   selectedHiveOnly?: number | null;
+  isDarkMode?: boolean;
 }
 
 interface CalibrationData {
@@ -52,7 +53,8 @@ export default function HumidityChart({
   showInternal = true,
   showExternal = true,
   chartType: initialChartType = 'line',
-  selectedHiveOnly = null
+  selectedHiveOnly = null,
+  isDarkMode = false
 }: HumidityChartProps) {
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('all');
   const [chartType, setChartType] = useState(initialChartType);
@@ -376,8 +378,16 @@ export default function HumidityChart({
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white border-2 border-gray-200 p-4 rounded-xl shadow-2xl">
-          <p className="text-sm font-semibold text-gray-900 mb-3 pb-2 border-b border-gray-200">
+        <div className={`p-4 rounded-xl shadow-2xl border-2 ${
+          isDarkMode 
+            ? 'bg-slate-800 border-slate-600' 
+            : 'bg-white border-gray-200'
+        }`}>
+          <p className={`text-sm font-semibold mb-3 pb-2 border-b ${
+            isDarkMode 
+              ? 'text-white border-slate-600' 
+              : 'text-gray-900 border-gray-200'
+          }`}>
             {new Date(label).toLocaleString()}
           </p>
           
@@ -396,7 +406,9 @@ export default function HumidityChart({
                       className="w-3 h-3 rounded-full" 
                       style={{ backgroundColor: entry.color }}
                     ></div>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className={`text-sm font-medium ${
+                      isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
                       Hive {hiveNumber} - {humType}
                       {hasCalibration && <span className="ml-1 text-green-600 text-xs">✓</span>}
                     </p>
@@ -477,9 +489,17 @@ export default function HumidityChart({
   if (!data || data.length === 0) {
     return (
       <div className="w-full p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">{title}</h3>
-        <div className="flex items-center justify-center h-64 bg-gray-50 rounded-xl border border-gray-200">
-          <p className="text-gray-500">No data available</p>
+        <h3 className={`text-xl font-bold mb-4 ${
+          isDarkMode ? 'text-white' : 'text-gray-900'
+        }`}>{title}</h3>
+        <div className={`flex items-center justify-center h-64 rounded-xl border ${
+          isDarkMode 
+            ? 'bg-slate-800 border-slate-600' 
+            : 'bg-gray-50 border-gray-200'
+        }`}>
+          <p className={isDarkMode ? 'text-slate-400' : 'text-gray-500'}>
+            No data available
+          </p>
         </div>
       </div>
     );
@@ -488,9 +508,17 @@ export default function HumidityChart({
   if (chartData.length === 0) {
     return (
       <div className="w-full p-6">
-        <h3 className="text-xl font-bold text-gray-900 mb-4">{title}</h3>
-        <div className="flex items-center justify-center h-64 bg-gray-50 rounded-xl border border-gray-200">
-          <p className="text-gray-500">No valid humidity readings found for selected time range</p>
+        <h3 className={`text-xl font-bold mb-4 ${
+          isDarkMode ? 'text-white' : 'text-gray-900'
+        }`}>{title}</h3>
+        <div className={`flex items-center justify-center h-64 rounded-xl border ${
+          isDarkMode 
+            ? 'bg-slate-800 border-slate-600' 
+            : 'bg-gray-50 border-gray-200'
+        }`}>
+          <p className={isDarkMode ? 'text-slate-400' : 'text-gray-500'}>
+            No valid humidity readings found for selected time range
+          </p>
         </div>
       </div>
     );
@@ -501,6 +529,10 @@ export default function HumidityChart({
       data: chartData,
       margin: { top: 20, right: 30, left: 20, bottom: 20 }
     };
+
+    // Dynamic colors based on dark mode
+    const gridColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+    const axisColor = isDarkMode ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)';
 
     const renderLines = () => {
       const lines: React.ReactNode[] = [];
@@ -614,7 +646,7 @@ export default function HumidityChart({
       case 'area':
         return (
           <AreaChart {...commonProps}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
+            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
             <XAxis 
               dataKey="timestamp"
               ticks={getXAxisTicks}
@@ -623,16 +655,16 @@ export default function HumidityChart({
               textAnchor="end"
               height={80}
               fontSize={11}
-              stroke="rgba(0,0,0,0.6)"
-              tick={{ fill: 'rgba(0,0,0,0.6)' }}
+              stroke={axisColor}
+              tick={{ fill: axisColor }}
               interval={0}
             />
             <YAxis 
               domain={yAxisDomain}
-              label={{ value: 'Humidity (%)', angle: -90, position: 'insideLeft', fill: 'rgba(0,0,0,0.6)' }}
+              label={{ value: 'Humidity (%)', angle: -90, position: 'insideLeft', fill: axisColor }}
               fontSize={11}
-              stroke="rgba(0,0,0,0.6)"
-              tick={{ fill: 'rgba(0,0,0,0.6)' }}
+              stroke={axisColor}
+              tick={{ fill: axisColor }}
             />
             <Tooltip content={<CustomTooltip />} />
             {renderAreas()}
@@ -642,7 +674,7 @@ export default function HumidityChart({
       case 'scatter':
         return (
           <ScatterChart {...commonProps}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
+            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
             <XAxis 
               dataKey="timestamp"
               ticks={getXAxisTicks}
@@ -651,16 +683,16 @@ export default function HumidityChart({
               textAnchor="end"
               height={80}
               fontSize={11}
-              stroke="rgba(0,0,0,0.6)"
-              tick={{ fill: 'rgba(0,0,0,0.6)' }}
+              stroke={axisColor}
+              tick={{ fill: axisColor }}
               interval={0}
             />
             <YAxis 
               domain={yAxisDomain}
-              label={{ value: 'Humidity (%)', angle: -90, position: 'insideLeft', fill: 'rgba(0,0,0,0.6)' }}
+              label={{ value: 'Humidity (%)', angle: -90, position: 'insideLeft', fill: axisColor }}
               fontSize={11}
-              stroke="rgba(0,0,0,0.6)"
-              tick={{ fill: 'rgba(0,0,0,0.6)' }}
+              stroke={axisColor}
+              tick={{ fill: axisColor }}
             />
             <Tooltip content={<CustomTooltip />} />
             {renderScatters()}
@@ -670,7 +702,7 @@ export default function HumidityChart({
       default:
         return (
           <LineChart {...commonProps}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
+            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
             <XAxis 
               dataKey="timestamp"
               ticks={getXAxisTicks}
@@ -679,22 +711,22 @@ export default function HumidityChart({
               textAnchor="end"
               height={80}
               fontSize={11}
-              stroke="rgba(0,0,0,0.6)"
-              tick={{ fill: 'rgba(0,0,0,0.6)' }}
+              stroke={axisColor}
+              tick={{ fill: axisColor }}
               interval={0}
             />
             <YAxis 
               domain={yAxisDomain}
-              label={{ value: 'Humidity (%)', angle: -90, position: 'insideLeft', fill: 'rgba(0,0,0,0.6)' }}
+              label={{ value: 'Humidity (%)', angle: -90, position: 'insideLeft', fill: axisColor }}
               fontSize={11}
-              stroke="rgba(0,0,0,0.6)"
-              tick={{ fill: 'rgba(0,0,0,0.6)' }}
+              stroke={axisColor}
+              tick={{ fill: axisColor }}
             />
             <Tooltip content={<CustomTooltip />} />
             {React.createElement(ReferenceLine as any, { y: 30, stroke: "#f59e0b", strokeDasharray: "3 3", strokeOpacity: 0.5 })}
-{React.createElement(ReferenceLine as any, { y: 40, stroke: "#10b981", strokeDasharray: "3 3", strokeOpacity: 0.5 })}
-{React.createElement(ReferenceLine as any, { y: 60, stroke: "#10b981", strokeDasharray: "3 3", strokeOpacity: 0.5 })}
-{React.createElement(ReferenceLine as any, { y: 70, stroke: "#f59e0b", strokeDasharray: "3 3", strokeOpacity: 0.5 })}
+            {React.createElement(ReferenceLine as any, { y: 40, stroke: "#10b981", strokeDasharray: "3 3", strokeOpacity: 0.5 })}
+            {React.createElement(ReferenceLine as any, { y: 60, stroke: "#10b981", strokeDasharray: "3 3", strokeOpacity: 0.5 })}
+            {React.createElement(ReferenceLine as any, { y: 70, stroke: "#f59e0b", strokeDasharray: "3 3", strokeOpacity: 0.5 })}
             {renderLines()}
           </LineChart>
         );
@@ -705,10 +737,16 @@ export default function HumidityChart({
   const calibratedCount = Array.from(calibrations.keys()).filter(h => selectedHives.includes(h)).length;
 
   return (
-    <div className="w-full bg-white rounded-xl shadow-xl p-6 border border-gray-200">
+    <div className={`w-full rounded-xl shadow-xl p-6 border ${
+      isDarkMode 
+        ? 'bg-slate-800 border-slate-700' 
+        : 'bg-white border-gray-200'
+    }`}>
       <div className="flex flex-col gap-4 mb-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold text-gray-900">{title}</h3>
+          <h3 className={`text-xl font-bold ${
+            isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>{title}</h3>
           {calibratedCount > 0 && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
               <div className="w-2 h-2 rounded-full bg-green-500"></div>
@@ -721,11 +759,17 @@ export default function HumidityChart({
         
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Time:</label>
+            <label className={`text-sm font-medium ${
+              isDarkMode ? 'text-slate-300' : 'text-gray-700'
+            }`}>Time:</label>
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value as any)}
-              className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all"
+              className={`px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all ${
+                isDarkMode 
+                  ? 'bg-slate-700 border-slate-600 text-white' 
+                  : 'bg-white border-gray-300 text-gray-900'
+              }`}
             >
               <option value="24h">Last 24 Hours</option>
               <option value="7d">Last 7 Days</option>
@@ -734,32 +778,39 @@ export default function HumidityChart({
             </select>
           </div>
 
-          
-
-          <div className="ml-auto flex items-center gap-4 text-sm text-gray-600">
+          <div className={`ml-auto flex items-center gap-4 text-sm ${
+            isDarkMode ? 'text-slate-400' : 'text-gray-600'
+          }`}>
             <span className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-cyan-500"></div>
               {chartData.length} points
             </span>
-            
           </div>
         </div>
       </div>
 
-      <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+      <div className={`rounded-xl p-4 border ${
+        isDarkMode 
+          ? 'bg-slate-900/50 border-slate-700' 
+          : 'bg-gray-50 border-gray-200'
+      }`}>
         <ResponsiveContainer width="100%" height={height}>
           {renderChart()}
         </ResponsiveContainer>
         
         {legendItems.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-4 mt-6 pt-4 border-t border-gray-200">
+          <div className={`flex flex-wrap justify-center gap-4 mt-6 pt-4 border-t ${
+            isDarkMode ? 'border-slate-700' : 'border-gray-200'
+          }`}>
             {legendItems.map((item, index) => (
               <div key={index} className="flex items-center gap-2">
                 <div 
                   className="w-3 h-3 rounded-full" 
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="text-xs text-gray-700">{item.label}</span>
+                <span className={`text-xs ${
+                  isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                }`}>{item.label}</span>
               </div>
             ))}
           </div>

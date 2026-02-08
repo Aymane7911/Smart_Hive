@@ -49,6 +49,16 @@ export const groupByTimestamp = (data: SensorData[]) => {
 export const getUniqueHiveNumbers = (data: SensorData[]): number[] => {
   if (!data || data.length === 0) return [];
   
+  // Check if data has hiveNumber field (new parser format)
+  const hasHiveNumberField = data.some(item => item.hiveNumber !== undefined);
+  
+  if (hasHiveNumberField) {
+    // Extract unique hive numbers from the data
+    const hiveNumbers = [...new Set(data.map(item => item.hiveNumber).filter(n => n !== undefined))];
+    return hiveNumbers.sort((a, b) => (a || 0) - (b || 0));
+  }
+  
+  // Fallback to old method
   const timestampGroups = new Map<string, number>();
   data.forEach(item => {
     const timestamp = item.timestamp || new Date().toISOString();
@@ -69,11 +79,27 @@ export const getUniqueHiveNumbers = (data: SensorData[]): number[] => {
 export const getHiveData = (data: SensorData[], hiveNumber: number): SensorData[] => {
   if (!data || data.length === 0) return [];
   
-  // Check if data has 'id' field (new format)
+  // Check if data has 'hiveNumber' field (new parser format)
+  const hasHiveNumberField = data.some(item => item.hiveNumber !== undefined);
+  
+  if (hasHiveNumberField) {
+    // 🔥 NEW PARSER FORMAT: Filter by hiveNumber field
+    return data.filter(item => {
+      // Use == for loose equality (handles string/number comparison)
+      // eslint-disable-next-line eqeqeq
+      return item.hiveNumber == hiveNumber;
+    }).sort((a, b) => {
+      const timeA = new Date(a.timestamp || a._metadata?.lastModified || 0).getTime();
+      const timeB = new Date(b.timestamp || b._metadata?.lastModified || 0).getTime();
+      return timeA - timeB;
+    });
+  }
+  
+  // Check if data has 'id' field (intermediate format)
   const hasIdField = data.some(item => item.id !== undefined);
   
   if (hasIdField) {
-    // 🔥 NEW FORMAT: Filter by ID field
+    // INTERMEDIATE FORMAT: Filter by ID field
     const hiveIndex = hiveNumber - 1; // 0-based index
     
     return data.filter(item => {
@@ -85,21 +111,21 @@ export const getHiveData = (data: SensorData[], hiveNumber: number): SensorData[
       const timeB = new Date(b.timestamp || b._metadata?.lastModified || 0).getTime();
       return timeA - timeB;
     });
-  } else {
-    // 🔥 OLD FORMAT: Use array position within timestamp groups
-    const timestampGroups = groupByTimestamp(data);
-    const hiveData: SensorData[] = [];
-    
-    timestampGroups.forEach((itemsWithIndex) => {
-      const itemIndex = hiveNumber - 1;
-      
-      if (itemsWithIndex[itemIndex]) {
-        hiveData.push(itemsWithIndex[itemIndex].item);
-      }
-    });
-
-    return hiveData;
   }
+  
+  // 🔥 OLD FORMAT: Use array position within timestamp groups
+  const timestampGroups = groupByTimestamp(data);
+  const hiveData: SensorData[] = [];
+  
+  timestampGroups.forEach((itemsWithIndex) => {
+    const itemIndex = hiveNumber - 1;
+    
+    if (itemsWithIndex[itemIndex]) {
+      hiveData.push(itemsWithIndex[itemIndex].item);
+    }
+  });
+
+  return hiveData;
 };
 
 /**
@@ -152,10 +178,11 @@ export const getTemperature = (
   let value: any;
   
   if (type === 'internal') {
-    value = item.int_temp || item.temp_internal || item.Internal_temp || 
+    // Try new parser format first
+    value = item.temp_internal || item.int_temp || item.Internal_temp || 
             item.temperature_internal || item.tempInternal || item.inte_temp;
   } else {
-    value = item.ext_temp || item.temp_external || item.external_temp || 
+    value = item.temp_external || item.ext_temp || item.external_temp || 
             item.temperature_external || item.tempExternal || item.exte_temp;
   }
   
@@ -189,10 +216,11 @@ export const getHumidity = (
   let value: any;
   
   if (type === 'internal') {
-    value = item.int_hum || item.hum_internal || item.Internal_hum || 
+    // Try new parser format first
+    value = item.hum_internal || item.int_hum || item.Internal_hum || 
             item.humidity_internal || item.humInternal || item.inte_hum;
   } else {
-    value = item.ext_hum || item.hum_external || item.external_hum || 
+    value = item.hum_external || item.ext_hum || item.external_hum || 
             item.humidity_external || item.humExternal || item.exte_hum;
   }
   
@@ -327,6 +355,52 @@ export const buildChartData = (
 ) => {
   if (!data || data.length === 0) return [];
   
+  // Check if data has hiveNumber field (new parser format)
+  const hasHiveNumberField = data.some(item => item.hiveNumber !== undefined);
+  
+  if (hasHiveNumberField) {
+    // New format: Group by timestamp and hiveNumber
+    const timestampMap = new Map<string, Map<number, SensorData>>();
+    
+    data.forEach(item => {
+      const timestamp = item.timestamp || new Date().toISOString();
+      const timeKey = new Date(timestamp).toISOString();
+      const hiveNum = item.hiveNumber || 1;
+      
+      if (!timestampMap.has(timeKey)) {
+        timestampMap.set(timeKey, new Map());
+      }
+      
+      timestampMap.get(timeKey)!.set(hiveNum, item);
+    });
+    
+    const chartData = Array.from(timestampMap.entries()).map(([timeKey, hiveMap]) => {
+      const dataPoint: any = {
+        timestamp: timeKey,
+        validDataPoints: 0
+      };
+      
+      selectedHiveNumbers.forEach((hiveNumber) => {
+        const item = hiveMap.get(hiveNumber);
+        
+        if (item) {
+          const value = metricExtractor(item, hiveNumber);
+          if (value !== null) {
+            dataPoint[`${metricPrefix}_${hiveNumber}`] = value;
+            dataPoint.validDataPoints++;
+          }
+        }
+      });
+      
+      return dataPoint;
+    });
+    
+    return chartData
+      .filter(item => item.validDataPoints > 0)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  }
+  
+  // Old format: Use timestamp groups
   const timestampGroups = groupByTimestamp(data);
   
   const chartData = Array.from(timestampGroups.entries()).map(([timeKey, itemsWithIndex]) => {
