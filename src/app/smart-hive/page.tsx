@@ -191,8 +191,21 @@ const HiveCircle = ({
   
   const hiveData = getHiveData(data, hiveNumber);
   const latestHiveItem = hiveData.length > 0 ? hiveData[hiveData.length - 1] : null;
-  const batteryRaw = latestHiveItem ? getBattery(latestHiveItem) : null;
-  const battery = hiveNumber === 2 ? 0 : (batteryRaw !== null ? batteryRaw : 100);
+  
+  // Check if hive is sending data by verifying if it has any valid sensor readings
+  const hasRealData = (item: any): boolean => {
+    if (!item) return false;
+    const temp = getTemperature(item, 'internal');
+    const hum = getHumidity(item, 'internal');
+    const weight = getWeight(item);
+    return (temp !== null && !isNaN(temp) && temp !== 0) || 
+           (hum !== null && !isNaN(hum) && hum !== 0) || 
+           (weight !== null && !isNaN(weight) && weight !== 0);
+  };
+  
+  // If hive has real data, battery is 100%, otherwise 0%
+  const isSendingData = latestHiveItem && hasRealData(latestHiveItem);
+  const battery = isSendingData ? 100 : 0;
   
   const tempChange = calculateChange(hiveData, 'temp_internal');
   const weightChange = calculateChange(hiveData, 'weight');
@@ -450,9 +463,6 @@ const HiveCircle = ({
           <div className="text-[9px] text-center mb-0.5 font-semibold uppercase tracking-wider" style={{ color: `${batteryColor}dd` }}>Battery</div>
           <div className="text-sm font-bold text-center flex items-center gap-1" style={{ color: batteryColor }}>
             <span>{Math.round(battery)}%</span>
-            {batteryRaw === null && (
-              <span className={`text-[7px] ${isDarkMode ? 'text-white/30' : 'text-gray-400'}`} title="Simulated data">*</span>
-            )}
           </div>
         </div>
       </div>
