@@ -1207,6 +1207,37 @@ const BeeBuzzSoundsPlayer = ({
   const sounds = HIVE_BUZZ_SOUNDS[hiveNumber as keyof typeof HIVE_BUZZ_SOUNDS] || [];
   const currentSound = sounds[selectedAudio];
 
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleError = (e: Event) => {
+      console.error('Audio loading error:', {
+        error: audio.error?.code,
+        errorMessage: audio.error?.message,
+        networkState: audio.networkState,
+        readyState: audio.readyState,
+        currentSrc: audio.currentSrc,
+        path: currentSound?.path
+      });
+      
+      // Display user-friendly error
+      alert(`Failed to load audio: ${currentSound?.path}\nCheck console for details.`);
+    };
+
+    const handleCanPlay = () => {
+      console.log('Audio can play:', currentSound?.path);
+    };
+
+    audio.addEventListener('error', handleError);
+    audio.addEventListener('canplay', handleCanPlay);
+    
+    return () => {
+      audio.removeEventListener('error', handleError);
+      audio.removeEventListener('canplay', handleCanPlay);
+    };
+  }, [currentSound?.path]);
+
   // ✅ FIX: Properly set up audio event listeners
   useEffect(() => {
     const audio = audioRef.current;
