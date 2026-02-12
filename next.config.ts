@@ -7,7 +7,30 @@ const nextConfig: NextConfig = {
   // Enable Turbopack (required for Next.js 16)
   turbopack: {},
   
-  // Add headers for audio files
+  // Webpack configuration for audio/video files
+  webpack: (config, { isServer }) => {
+    // Add rule for audio files (.mp3, .wav, .ogg)
+    config.module.rules.push({
+      test: /\.(mp3|wav|ogg)$/i,
+      type: 'asset/resource',
+      generator: {
+        filename: 'static/media/[name].[hash][ext]',
+      },
+    });
+
+    // Add rule for video files (.mp4, .webm)
+    config.module.rules.push({
+      test: /\.(mp4|webm)$/i,
+      type: 'asset/resource',
+      generator: {
+        filename: 'static/media/[name].[hash][ext]',
+      },
+    });
+
+    return config;
+  },
+  
+  // Add headers for audio/video files
   async headers() {
     return [
       {
@@ -61,6 +84,20 @@ const nextConfig: NextConfig = {
           {
             key: 'Cache-Control',
             value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        // Handle .mp4 files anywhere
+        source: '/:path*.mp4',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'video/mp4',
+          },
+          {
+            key: 'Accept-Ranges',
+            value: 'bytes',
           },
         ],
       },
