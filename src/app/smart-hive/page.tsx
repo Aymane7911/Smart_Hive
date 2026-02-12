@@ -1202,7 +1202,7 @@ const BeeBuzzSoundsPlayer = ({
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.7);
   const [isMuted, setIsMuted] = useState(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const audioRef = useRef<HTMLVideoElement>(null);
   
   const sounds = HIVE_BUZZ_SOUNDS[hiveNumber as keyof typeof HIVE_BUZZ_SOUNDS] || [];
   const currentSound = sounds[selectedAudio];
@@ -1393,14 +1393,12 @@ const BeeBuzzSoundsPlayer = ({
         </div>
 
         {/* Audio Element - ✅ FIXED: Proper setup */}
-        <audio
-          ref={audioRef}
-          preload="metadata"
-          src={currentSound.path}
-        >
-          <source src={currentSound.path} type="audio/mpeg" />
-          Your browser does not support the audio element.
-        </audio>
+        <video
+  ref={audioRef}
+  preload="metadata"
+  src={currentSound.path}
+  style={{ display: 'none' }}
+/>
 
         {/* Main Audio Player */}
         <div className={`relative rounded-2xl overflow-hidden aspect-video mb-4 ${
