@@ -65,7 +65,7 @@ const HIVE_BUZZ_SOUNDS: HiveBuzzSounds = {
     { 
       id: 1, 
       title: "", 
-      path: "/voice/buzz1.mp3",
+      path: "/voice/buzz11.mp3",
       duration: "1:45",
       recordedDate: "2024-01-15",
       description: "Active morning foraging sounds",
