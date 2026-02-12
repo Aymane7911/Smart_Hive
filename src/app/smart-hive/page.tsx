@@ -222,31 +222,45 @@ const HiveCircle = ({
   };
   
   const getLastReadingTime = (): string | null => {
-    const hasRealData = (item: any): boolean => {
-      if (!item) return false;
-      
-      const temp = getTemperature(item, 'internal');
-      const hum = getHumidity(item, 'internal');
-      const weight = getWeight(item);
-      
-      return (temp !== null && !isNaN(temp) && temp !== 0) || 
-             (hum !== null && !isNaN(hum) && hum !== 0) || 
-             (weight !== null && !isNaN(weight) && weight !== 0);
-    };
+  const hasRealData = (item: any): boolean => {
+    if (!item) return false;
     
-    const historicalHiveData = getHiveData(historicalData, hiveNumber);
-    const allHiveData = [...historicalHiveData, ...hiveData];
+    const temp = getTemperature(item, 'internal');
+    const hum = getHumidity(item, 'internal');
+    const weight = getWeight(item);
     
-    for (let i = allHiveData.length - 1; i >= 0; i--) {
-      const item = allHiveData[i];
-      if (hasRealData(item)) {
-        const timestamp = item?.timestamp || item?._metadata?.lastModified;
-        if (timestamp) return timestamp;
-      }
-    }
-    
-    return null;
+    return (temp !== null && !isNaN(temp) && temp !== 0) || 
+           (hum !== null && !isNaN(hum) && hum !== 0) || 
+           (weight !== null && !isNaN(weight) && weight !== 0);
   };
+  
+  // Get hive-specific data (getHiveData already filters by hive number)
+  const historicalHiveData = getHiveData(historicalData, hiveNumber);
+  const allHiveData = [...historicalHiveData, ...hiveData];
+  
+  // Filter out items without timestamps, then sort newest first
+  const dataWithTimestamps = allHiveData
+    .filter(item => {
+      if (!item) return false;
+      const timestamp = item.timestamp || item._metadata?.lastModified;
+      return timestamp !== undefined && timestamp !== null;
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.timestamp || a._metadata?.lastModified || 0).getTime();
+      const timeB = new Date(b.timestamp || b._metadata?.lastModified || 0).getTime();
+      return timeB - timeA; // Descending: newest first
+    });
+  
+  // Now find the first (newest) item that has real sensor data
+  for (const item of dataWithTimestamps) {
+    if (hasRealData(item)) {
+      const timestamp = item?.timestamp || item?._metadata?.lastModified;
+      if (timestamp) return timestamp;
+    }
+  }
+  
+  return null;
+};
 
   const lastReadingTime = getLastReadingTime();
 
@@ -561,29 +575,46 @@ const HiveDataSummaryCard = ({
   
   const batteryColor = getBatteryColor(battery);
   
-  const getLastReadingTime = (): string | null => {
-    const hasRealData = (item: any): boolean => {
-      if (!item) return false;
-      const temp = getTemperature(item, 'internal');
-      const hum = getHumidity(item, 'internal');
-      const weight = getWeight(item);
-      return (temp !== null && !isNaN(temp) && temp !== 0) || 
-             (hum !== null && !isNaN(hum) && hum !== 0) || 
-             (weight !== null && !isNaN(weight) && weight !== 0);
-    };
+ const getLastReadingTime = (): string | null => {
+  const hasRealData = (item: any): boolean => {
+    if (!item) return false;
     
-    const historicalHiveData = getHiveData(historicalData, hiveNumber);
-    const allHiveData = [...historicalHiveData, ...hiveData];
+    const temp = getTemperature(item, 'internal');
+    const hum = getHumidity(item, 'internal');
+    const weight = getWeight(item);
     
-    for (let i = allHiveData.length - 1; i >= 0; i--) {
-      const item = allHiveData[i];
-      if (hasRealData(item)) {
-        const timestamp = item?.timestamp || item?._metadata?.lastModified;
-        if (timestamp) return timestamp;
-      }
-    }
-    return null;
+    return (temp !== null && !isNaN(temp) && temp !== 0) || 
+           (hum !== null && !isNaN(hum) && hum !== 0) || 
+           (weight !== null && !isNaN(weight) && weight !== 0);
   };
+  
+  // Get hive-specific data (getHiveData already filters by hive number)
+  const historicalHiveData = getHiveData(historicalData, hiveNumber);
+  const allHiveData = [...historicalHiveData, ...hiveData];
+  
+  // Filter out items without timestamps, then sort newest first
+  const dataWithTimestamps = allHiveData
+    .filter(item => {
+      if (!item) return false;
+      const timestamp = item.timestamp || item._metadata?.lastModified;
+      return timestamp !== undefined && timestamp !== null;
+    })
+    .sort((a, b) => {
+      const timeA = new Date(a.timestamp || a._metadata?.lastModified || 0).getTime();
+      const timeB = new Date(b.timestamp || b._metadata?.lastModified || 0).getTime();
+      return timeB - timeA; // Descending: newest first
+    });
+  
+  // Now find the first (newest) item that has real sensor data
+  for (const item of dataWithTimestamps) {
+    if (hasRealData(item)) {
+      const timestamp = item?.timestamp || item?._metadata?.lastModified;
+      if (timestamp) return timestamp;
+    }
+  }
+  
+  return null;
+};
 
   const lastReadingTime = getLastReadingTime();
 
@@ -1176,13 +1207,77 @@ const BeeBuzzSoundsPlayer = ({
   const sounds = HIVE_BUZZ_SOUNDS[hiveNumber as keyof typeof HIVE_BUZZ_SOUNDS] || [];
   const currentSound = sounds[selectedAudio];
 
+  // ✅ FIX: Properly set up audio event listeners
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
+    const handleDurationChange = () => setDuration(audio.duration);
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => {
+      setIsPlaying(false);
+      // Auto-play next track
+      if (selectedAudio < sounds.length - 1) {
+        setSelectedAudio(selectedAudio + 1);
+      }
+    };
+    const handleLoadedMetadata = () => {
+      setDuration(audio.duration);
+    };
+
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('durationchange', handleDurationChange);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('ended', handleEnded);
+
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('durationchange', handleDurationChange);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('ended', handleEnded);
+    };
+  }, [selectedAudio, sounds.length]);
+
+  // ✅ FIX: Auto-play when selecting new audio
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    // Load the new audio source
+    audio.load();
+    
+    // If it was playing before, continue playing
+    if (isPlaying) {
+      audio.play().catch((error) => {
+        console.log('Autoplay prevented:', error);
+        setIsPlaying(false);
+      });
+    }
+  }, [selectedAudio]);
+
+  // ✅ FIX: Set initial volume
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.volume = volume;
+      audio.muted = isMuted;
+    }
+  }, [volume, isMuted]);
   
   const togglePlay = () => {
     if (audioRef.current) {
       if (isPlaying) {
         audioRef.current.pause();
       } else {
-        audioRef.current.play();
+        audioRef.current.play().catch((error) => {
+          console.error('Play error:', error);
+        });
       }
     }
   };
@@ -1220,7 +1315,7 @@ const BeeBuzzSoundsPlayer = ({
   const selectAudio = (index: number) => {
     setSelectedAudio(index);
     setCurrentTime(0);
-    setIsPlaying(false);
+    // Don't automatically stop playing - let useEffect handle it
   };
 
   if (sounds.length === 0) {
@@ -1266,22 +1361,22 @@ const BeeBuzzSoundsPlayer = ({
           </div>
         </div>
 
+        {/* Audio Element - ✅ FIXED: Proper setup */}
+        <audio
+          ref={audioRef}
+          preload="metadata"
+          src={currentSound.path}
+        >
+          <source src={currentSound.path} type="audio/mpeg" />
+          Your browser does not support the audio element.
+        </audio>
+
         {/* Main Audio Player */}
         <div className={`relative rounded-2xl overflow-hidden aspect-video mb-4 ${
           isDarkMode 
             ? 'bg-gradient-to-br from-slate-700 to-slate-900' 
             : 'bg-gradient-to-br from-slate-100 to-blue-100'
         }`}>
-          <audio
-            key={currentSound.id}
-            ref={audioRef}
-            preload="metadata"
-            crossOrigin="anonymous"
-          >
-            <source src={currentSound.path} type="audio/mpeg" />
-            Your browser does not support the audio element.
-          </audio>
-
           {/* Waveform Visualization */}
           <div className="absolute inset-0 flex items-center justify-center p-8">
             <div className="flex items-center justify-center gap-1 h-full w-full">
