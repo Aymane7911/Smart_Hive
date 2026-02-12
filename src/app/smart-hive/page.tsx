@@ -65,7 +65,7 @@ const HIVE_BUZZ_SOUNDS: HiveBuzzSounds = {
     { 
       id: 1, 
       title: "", 
-      path: "/voice/buzz11.mp3",
+      path: "/voice/buzz11.mp4",
       duration: "1:45",
       recordedDate: "2024-01-15",
       description: "Active morning foraging sounds",
@@ -73,7 +73,7 @@ const HIVE_BUZZ_SOUNDS: HiveBuzzSounds = {
     { 
       id: 2, 
       title: "", 
-      path: "/voice/buzz2.mp3",
+      path: "/voice/buzz2.mp4",
       duration: "2:10",
       recordedDate: "2024-01-14",
       description: "Queen piping sound during inspection",
@@ -81,7 +81,7 @@ const HIVE_BUZZ_SOUNDS: HiveBuzzSounds = {
     { 
       id: 3, 
       title: "", 
-      path: "/voice/buzz3.mp3",
+      path: "/voice/buzz1.mp4",
       duration: "3:30",
       recordedDate: "2024-01-13",
       description: "Pre-swarm colony behavior sounds",
@@ -1207,36 +1207,7 @@ const BeeBuzzSoundsPlayer = ({
   const sounds = HIVE_BUZZ_SOUNDS[hiveNumber as keyof typeof HIVE_BUZZ_SOUNDS] || [];
   const currentSound = sounds[selectedAudio];
 
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handleError = (e: Event) => {
-      console.error('Audio loading error:', {
-        error: audio.error?.code,
-        errorMessage: audio.error?.message,
-        networkState: audio.networkState,
-        readyState: audio.readyState,
-        currentSrc: audio.currentSrc,
-        path: currentSound?.path
-      });
-      
-      // Display user-friendly error
-      alert(`Failed to load audio: ${currentSound?.path}\nCheck console for details.`);
-    };
-
-    const handleCanPlay = () => {
-      console.log('Audio can play:', currentSound?.path);
-    };
-
-    audio.addEventListener('error', handleError);
-    audio.addEventListener('canplay', handleCanPlay);
-    
-    return () => {
-      audio.removeEventListener('error', handleError);
-      audio.removeEventListener('canplay', handleCanPlay);
-    };
-  }, [currentSound?.path]);
+  
 
   // ✅ FIX: Properly set up audio event listeners
   useEffect(() => {
