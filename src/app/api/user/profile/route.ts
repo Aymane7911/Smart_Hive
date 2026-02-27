@@ -34,8 +34,10 @@ export async function GET(request: NextRequest) {
       token = authHeader.substring(7);
     } else {
       // Fallback to cookies
-      token = request.cookies.get('user-token')?.value || 
-              request.cookies.get('auth-token')?.value;
+      token = request.cookies.get('user-token')?.value ||
+        request.cookies.get('admin-token')?.value ||  // ← ADD THIS
+        request.cookies.get('token')?.value ||
+        request.cookies.get('auth-token')?.value;
     }
     
     if (!token) {

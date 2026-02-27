@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   
   // Enable Turbopack (required for Next.js 16)
   turbopack: {},
+  assetPrefix: process.env.NEXT_PUBLIC_APP_URL || '',
   
   // Webpack configuration for audio/video files
   webpack: (config, { isServer }) => {
