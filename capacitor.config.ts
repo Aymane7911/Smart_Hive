@@ -3,11 +3,11 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.nahalai.app',
   appName: 'NahalAI',
-  webDir: 'public',
+  webDir: 'out',
    server: {
-    url: 'https://smart-hive-jpy315jh5-aymane7911s-projects.vercel.app', // 👈 replace with your actual URL
+    url: 'https://smart-hive-pi.vercel.app/', // 👈 replace with your actual URL
     cleartext: true,
-    allowNavigation: ['smart-hive-jpy315jh5-aymane7911s-projects.vercel.app'],
+    allowNavigation: ['smart-hive-pi.vercel.app'],
   },
   
   
