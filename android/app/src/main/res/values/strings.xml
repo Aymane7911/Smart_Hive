@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NahalAI</string>
+    <string name="title_activity_main">NahalAI</string>
+    <string name="package_name">com.nahalai.app</string>
+    <string name="custom_url_scheme">com.nahalai.app</string>
+</resources>

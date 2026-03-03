@@ -4,21 +4,22 @@ const config: CapacitorConfig = {
   appId: 'com.nahalai.app',
   appName: 'NahalAI',
   webDir: 'out',
-   server: {
-    url: 'https://smart-hive-pi.vercel.app/', // 👈 replace with your actual URL
+  server: {
+    url: 'https://smart-hive-pi.vercel.app/',
     cleartext: true,
     allowNavigation: ['smart-hive-pi.vercel.app'],
   },
-  
-  
   plugins: {
     SplashScreen: {
       launchShowDuration: 2000,
       backgroundColor: '#000000',
       showSpinner: false,
     },
+    StatusBar: {
+      overlaysWebView: false,
+      backgroundColor: '#000000',
+    },
   },
 };
-
 
 export default config;
