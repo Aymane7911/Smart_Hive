@@ -58,28 +58,52 @@ export default function SmartHivePage() {
   ]
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-black">
-
+    <div
+      className="relative w-full bg-black"
+      style={{
+        // 100dvh fills the exact visible viewport — no gray/black gaps
+        minHeight: '100dvh',
+        height: view === 'home' ? '100dvh' : 'auto',
+        overflow: view === 'home' ? 'hidden' : 'auto',
+      }}
+    >
       {/* Background video */}
       <video
         autoPlay muted loop playsInline
         className="absolute inset-0 w-full h-full object-cover"
+        style={{ zIndex: 0 }}
       >
         <source src="/littlebee.mp4" type="video/mp4" />
       </video>
 
-      {/* Overlays */}
-      <div className="absolute inset-0 bg-gradient-to-br from-black/65 via-black/50 to-black/70" />
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {/* Dark overlay */}
+      <div
+        className="absolute inset-0 bg-gradient-to-br from-black/65 via-black/50 to-black/70"
+        style={{ zIndex: 1 }}
+      />
+
+      {/* Animated blobs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 2 }}>
         <div className="absolute top-20 left-10 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl animate-pulse" />
         <div className="absolute bottom-20 right-10 w-96 h-96 bg-yellow-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '0.5s' }} />
       </div>
 
-      {/* Top nav */}
+      {/* ── TOP NAV ──
+          - gradient fade so nav is readable over any background
+          - paddingTop: max(44px, safe-area-inset-top) keeps it below status bar on ALL phones
+            (44px is enough for phones without a notch; notched phones will use the larger inset) */}
       <header
-        className={`fixed left-0 right-0 z-30 flex items-center justify-between px-5 sm:px-8 transition-all duration-700 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}
-        style={{ top: 0, paddingTop: 'max(16px, env(safe-area-inset-top))' }}
+        className={`fixed left-0 right-0 flex items-center justify-between px-5 sm:px-8 transition-all duration-700 ${
+          isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
+        }`}
+        style={{
+          top: 0,
+          zIndex: 30,
+          paddingTop: 'max(44px, env(safe-area-inset-top, 44px))',
+          paddingBottom: '14px',
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)',
+        }}
       >
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-gradient-to-br from-amber-400 to-yellow-400 rounded-lg">
@@ -90,10 +114,10 @@ export default function SmartHivePage() {
           </span>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('contact')}
-            className="hidden md:block text-white/80 hover:text-white text-sm font-semibold transition-colors"
+            className="hidden md:block text-white/80 hover:text-white text-sm font-semibold transition-colors mr-2"
           >
             Contact Us
           </button>
@@ -114,10 +138,17 @@ export default function SmartHivePage() {
         </div>
       </header>
 
-      {/* Footer */}
+      {/* ── FOOTER ──
+          paddingBottom clears Android gesture navigation bar */}
       <footer
-        className={`fixed left-0 right-0 z-30 flex justify-center transition-all duration-700 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
-        style={{ bottom: 0, paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
+        className={`fixed left-0 right-0 flex justify-center transition-all duration-700 ${
+          isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        }`}
+        style={{
+          bottom: 0,
+          zIndex: 30,
+          paddingBottom: 'max(20px, env(safe-area-inset-bottom, 20px))',
+        }}
       >
         <div className="bg-black/60 backdrop-blur-sm px-5 py-1.5 rounded-full border border-white/10">
           <p className="text-white/80 text-xs font-semibold tracking-wide">
@@ -126,15 +157,26 @@ export default function SmartHivePage() {
         </div>
       </footer>
 
-      {/* Page content */}
-      <main className="relative z-10 min-h-screen flex flex-col items-center justify-center px-4 sm:px-6 pt-24 pb-16">
+      {/* ── PAGE CONTENT ──
+          flex + min-height fills the screen; padding clears the fixed header and footer */}
+      <div
+        className="relative flex flex-col items-center justify-center px-4 sm:px-6 w-full"
+        style={{
+          zIndex: 10,
+          minHeight: '100dvh',
+          paddingTop: 'max(110px, calc(env(safe-area-inset-top, 44px) + 80px))',
+          paddingBottom: 'max(80px, calc(env(safe-area-inset-bottom, 20px) + 56px))',
+        }}
+      >
 
         {/* ── HOME ── */}
         {view === 'home' && (
           <div
-            className={`text-center max-w-xl mx-auto transition-all duration-500 ${isLoaded && !fadeOut ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
+            className={`text-center max-w-xl mx-auto w-full transition-all duration-500 ${
+              isLoaded && !fadeOut ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+            }`}
           >
-            <h2 className="text-5xl sm:text-6xl lg:text-7xl font-black mb-5 leading-tight">
+            <h2 className="text-5xl sm:text-6xl font-black mb-4 leading-tight">
               <span className="bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
                 Smart Hive
               </span>
@@ -142,12 +184,12 @@ export default function SmartHivePage() {
             <p className="text-xl sm:text-2xl text-white font-bold mb-3">
               AI-Powered Beekeeping Intelligence
             </p>
-            <p className="text-base sm:text-lg text-gray-300 mb-10 leading-relaxed">
+            <p className="text-base text-gray-300 mb-10 leading-relaxed">
               Data-driven insights for modern beekeepers
             </p>
             <button
               onClick={() => navigate('info')}
-              className="inline-flex items-center gap-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white font-bold py-4 px-8 rounded-2xl shadow-2xl hover:shadow-yellow-500/40 transition-all duration-300 hover:-translate-y-1"
+              className="inline-flex items-center gap-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white font-bold py-4 px-10 rounded-2xl shadow-2xl hover:shadow-yellow-500/40 transition-all duration-300 hover:-translate-y-1 text-lg"
             >
               Get Started
               <ArrowRight className="w-5 h-5" />
@@ -158,7 +200,9 @@ export default function SmartHivePage() {
         {/* ── INFO ── */}
         {view === 'info' && (
           <div
-            className={`w-full max-w-4xl mx-auto transition-all duration-500 ${!fadeOut ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
+            className={`w-full max-w-4xl mx-auto transition-all duration-500 ${
+              !fadeOut ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+            }`}
           >
             <div className="text-center mb-8">
               <h2 className="text-3xl sm:text-4xl font-black text-white mb-3">
@@ -167,23 +211,21 @@ export default function SmartHivePage() {
                   Smart Hive
                 </span>
               </h2>
-              <p className="text-gray-300 text-base sm:text-lg">
+              <p className="text-gray-300 text-sm sm:text-base">
                 Advanced AI platform for modern beekeeping
               </p>
             </div>
 
-            {/* Why */}
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-5 sm:p-7 mb-4">
               <h3 className="text-lg font-bold text-amber-400 mb-3">Why Smart Hive?</h3>
               <p className="text-gray-300 text-sm leading-relaxed mb-2">
                 Beekeeping is an ancient practice, but management still relies heavily on personal experience and guesswork.
               </p>
               <p className="text-white text-sm font-semibold">
-                Smart Hive brings this world into the era of data and scientific measurement — we don't replace beekeepers, we empower them.
+                Smart Hive brings this world into the era of data — we don't replace beekeepers, we empower them.
               </p>
             </div>
 
-            {/* Features grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               {features.map(({ icon, title, items }) => (
                 <div key={title} className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-5">
@@ -198,7 +240,6 @@ export default function SmartHivePage() {
               ))}
             </div>
 
-            {/* How it works */}
             <div className="bg-gradient-to-br from-amber-500/20 to-yellow-500/20 backdrop-blur-md border border-amber-500/30 rounded-2xl p-5 sm:p-7 mb-4">
               <h3 className="text-lg font-bold text-amber-400 mb-4">How It Works</h3>
               <div className="space-y-2 text-sm text-white">
@@ -215,7 +256,6 @@ export default function SmartHivePage() {
               </p>
             </div>
 
-            {/* Who is it for */}
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-5 sm:p-7 mb-4">
               <h3 className="text-lg font-bold text-amber-400 mb-3">Who Is Smart Hive For?</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-gray-300 text-sm">
@@ -225,7 +265,6 @@ export default function SmartHivePage() {
               </div>
             </div>
 
-            {/* Vision */}
             <div className="bg-gradient-to-br from-amber-500/20 to-yellow-500/20 backdrop-blur-md border border-amber-500/30 rounded-2xl p-5 sm:p-7 mb-6 text-center">
               <h3 className="text-lg font-bold text-amber-400 mb-3">Our Vision</h3>
               <p className="text-white text-sm mb-3">
@@ -236,7 +275,7 @@ export default function SmartHivePage() {
               </p>
             </div>
 
-            <div className="text-center">
+            <div className="text-center pb-4">
               <button onClick={() => navigate('home')} className="text-white/50 hover:text-white text-sm underline transition-colors">
                 ← Back
               </button>
@@ -247,7 +286,9 @@ export default function SmartHivePage() {
         {/* ── CONTACT ── */}
         {view === 'contact' && (
           <div
-            className={`w-full max-w-lg mx-auto transition-all duration-500 ${!fadeOut ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
+            className={`w-full max-w-lg mx-auto transition-all duration-500 ${
+              !fadeOut ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+            }`}
           >
             <div className="flex justify-center mb-5">
               <div className="bg-gradient-to-r from-amber-500 to-yellow-500 p-4 rounded-full shadow-xl">
@@ -286,14 +327,18 @@ export default function SmartHivePage() {
               <button
                 onClick={handleSend}
                 disabled={!message.trim()}
-                className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg transition-all duration-300 ${message.trim() ? 'hover:from-amber-600 hover:to-yellow-600 hover:-translate-y-0.5 hover:shadow-yellow-500/40' : 'opacity-40 cursor-not-allowed'}`}
+                className={`w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white font-bold py-3.5 px-6 rounded-xl shadow-lg transition-all duration-300 ${
+                  message.trim()
+                    ? 'hover:from-amber-600 hover:to-yellow-600 hover:-translate-y-0.5 hover:shadow-yellow-500/40'
+                    : 'opacity-40 cursor-not-allowed'
+                }`}
               >
                 <Send className="w-4 h-4" />
                 Send via Gmail
               </button>
             </div>
 
-            <div className="text-center">
+            <div className="text-center pb-4">
               <button onClick={() => navigate('home')} className="text-white/50 hover:text-white text-sm underline transition-colors">
                 ← Back
               </button>
@@ -301,7 +346,7 @@ export default function SmartHivePage() {
           </div>
         )}
 
-      </main>
+      </div>
     </div>
   )
 }
