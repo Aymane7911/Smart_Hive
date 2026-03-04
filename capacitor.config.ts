@@ -8,6 +8,7 @@ const config: CapacitorConfig = {
     url: 'https://smart-hive-pi.vercel.app/',
     cleartext: true,
     allowNavigation: ['smart-hive-pi.vercel.app'],
+    androidScheme: 'https',
   },
   plugins: {
     SplashScreen: {
@@ -16,8 +17,8 @@ const config: CapacitorConfig = {
       showSpinner: false,
     },
     StatusBar: {
-      overlaysWebView: false,
-      backgroundColor: '#000000',
+      overlaysWebView: true,  // KEY: let webview go under status bar
+      backgroundColor: '#00000000',
     },
   },
 };

@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect } from 'react';
 import {
-  Search, Check, X, Edit2, UserCheck, UserX, Package, AlertCircle, RefreshCw,
+  Search, Check, X, UserCheck, UserX, Package, AlertCircle, RefreshCw,
   ChevronDown, ChevronUp, LogOut, MapPin, Menu, Home, ShoppingCart,
   LayoutDashboard, Settings, Moon, SunMedium, Activity, Zap, Clock
 } from 'lucide-react';
@@ -63,21 +63,28 @@ export default function AdminAccessManagement() {
 
   const dm = mounted && darkMode;
 
+  // ── Theme tokens ──
+  // FIX: dark mode sub/muted text changed from gray-400/500 to gray-200/300
+  // so it's actually readable on dark backgrounds
   const t = {
     card:       dm ? 'bg-gray-900/40 border border-white/10 backdrop-blur-md' : 'bg-white/40 border border-white/50 backdrop-blur-md',
-    text:       dm ? 'text-gray-100'  : 'text-gray-900',
-    textSub:    dm ? 'text-gray-400'  : 'text-gray-600',
-    textMuted:  dm ? 'text-gray-500'  : 'text-gray-500',
-    divider:    dm ? 'border-white/10' : 'border-black/10',
-    input:      dm ? 'bg-gray-800/60 border-white/10 text-gray-100 placeholder-gray-500 focus:ring-amber-500' : 'bg-white/60 border-white/40 text-gray-900 placeholder-gray-400 focus:ring-amber-500',
-    pill:       dm ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15',
+    text:       dm ? 'text-white'        : 'text-gray-900',
+    textSub:    dm ? 'text-gray-200'     : 'text-gray-600',   // was text-gray-400 — now visible
+    textMuted:  dm ? 'text-gray-300'     : 'text-gray-500',   // was text-gray-500 — now visible
+    divider:    dm ? 'border-white/10'   : 'border-black/10',
+    input:      dm ? 'bg-gray-800/60 border-white/10 text-white placeholder-gray-400 focus:ring-amber-500'
+                   : 'bg-white/60 border-white/40 text-gray-900 placeholder-gray-400 focus:ring-amber-500',
+    pill:       dm ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15',
     pillActive: 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-lg shadow-amber-500/30',
-    tableHead:  dm ? 'bg-white/5 text-gray-400'  : 'bg-black/5 text-gray-500',
+    tableHead:  dm ? 'bg-white/5 text-gray-300'   : 'bg-black/5 text-gray-500',  // was gray-400
     tableRow:   dm ? 'hover:bg-white/5 border-white/10' : 'hover:bg-black/[0.03] border-black/10',
     sidebar:    dm ? 'bg-gray-950 border-r border-gray-800' : 'bg-white border-r border-gray-100',
     modalBg:    dm ? 'bg-gray-900 border border-white/10' : 'bg-white border border-gray-200',
     innerCard:  dm ? 'bg-white/5' : 'bg-black/[0.04]',
     mobileCard: dm ? 'bg-gray-900/50 border border-white/10' : 'bg-white/60 border border-black/10',
+    sidebarText: dm ? 'text-white'    : 'text-gray-900',
+    sidebarSub:  dm ? 'text-gray-200' : 'text-gray-600',   // was gray-400
+    sidebarMuted:dm ? 'text-gray-300' : 'text-gray-500',   // was gray-500
   };
 
   const loadApiaryLocations = async () => {
@@ -107,7 +114,6 @@ export default function AdminAccessManagement() {
       const purchasesData = await purchasesRes.json();
       if (!purchasesData.success) throw new Error(purchasesData.error || 'Failed to fetch purchases');
       setPurchases(purchasesData.data || []);
-
       const containersRes  = await fetch('/api/smart-hive/containers', { credentials: 'include' });
       const containersData = await containersRes.json();
       if (containersData.success) setContainers(containersData.data || []);
@@ -216,7 +222,7 @@ export default function AdminAccessManagement() {
             <div className="absolute inset-0 flex items-center justify-center text-3xl">🐝</div>
           </div>
           <p className={`text-xl font-bold mb-1 ${dm ? 'text-white' : 'text-gray-900'}`}>Loading Admin Panel</p>
-          <p className={`text-sm ${dm ? 'text-gray-400' : 'text-gray-600'}`}>Fetching purchases & containers…</p>
+          <p className={`text-sm ${dm ? 'text-gray-300' : 'text-gray-600'}`}>Fetching purchases & containers…</p>
         </div>
       </div>
     );
@@ -229,7 +235,7 @@ export default function AdminAccessManagement() {
         <div className={`inline-flex p-2 sm:p-2.5 rounded-xl bg-gradient-to-br ${gradient} shadow-md mb-2 sm:mb-3`}>
           <Icon className="w-4 h-4 text-white" />
         </div>
-        <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${t.textSub}`}>{title}</p>
+        <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${t.textMuted}`}>{title}</p>
         <span className={`text-2xl sm:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-br ${gradient}`}>{value}</span>
       </div>
       <div className={`h-0.5 bg-gradient-to-r ${gradient} opacity-60`} />
@@ -249,12 +255,10 @@ export default function AdminAccessManagement() {
     );
   };
 
-  // ── Mobile Purchase Card (replaces table rows on small screens) ──
   const MobilePurchaseCard = ({ purchase }: { purchase: Purchase }) => {
     const isExpanded = expandedRows.has(purchase.id);
     return (
       <div className={`rounded-2xl shadow-sm ${t.mobileCard} overflow-hidden mb-3`}>
-        {/* Card Header */}
         <div className="p-4">
           <div className="flex items-start justify-between mb-3">
             <div className="min-w-0 flex-1">
@@ -270,8 +274,6 @@ export default function AdminAccessManagement() {
               )}
             </div>
           </div>
-
-          {/* Hives + Amount row */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex gap-3">
               <div className="flex items-center gap-1.5">
@@ -287,15 +289,12 @@ export default function AdminAccessManagement() {
               ${purchase.totalAmount}
             </span>
           </div>
-
-          {/* Action buttons row */}
           <div className="flex gap-2">
             <button onClick={() => handleOpenContainerModal(purchase)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold flex-1 justify-center transition-all ${dm ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15'}`}>
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold flex-1 justify-center transition-all ${dm ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15'}`}>
               <Package className="w-3.5 h-3.5" />
               {purchase.assignedContainers?.length || 0} containers
             </button>
-
             {!purchase.accessGranted ? (
               <button onClick={() => handleGrantAccess(purchase.id)} disabled={processing === purchase.id}
                 className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl text-xs font-bold flex-1 justify-center shadow-md hover:from-emerald-600 hover:to-teal-600 transition-all disabled:opacity-50 disabled:pointer-events-none">
@@ -307,20 +306,17 @@ export default function AdminAccessManagement() {
                 <UserX className="w-3.5 h-3.5" />Revoke
               </button>
             )}
-
             <button onClick={() => toggleRowExpansion(purchase.id)}
-              className={`p-2 rounded-xl transition-all ${dm ? 'hover:bg-white/10 text-gray-400 bg-white/5' : 'hover:bg-black/10 text-gray-500 bg-black/5'}`}>
+              className={`p-2 rounded-xl transition-all ${dm ? 'hover:bg-white/10 text-gray-300 bg-white/5' : 'hover:bg-black/10 text-gray-500 bg-black/5'}`}>
               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           </div>
         </div>
-
-        {/* Expanded details */}
         {isExpanded && (
           <div className={`px-4 pb-4 border-t ${t.divider} pt-4`}>
             <div className="grid grid-cols-1 gap-3">
               <div className={`rounded-xl p-3 ${t.innerCard}`}>
-                <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${t.textSub}`}>Contact Info</p>
+                <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${t.textMuted}`}>Contact Info</p>
                 <div className={`space-y-1 text-xs ${t.textSub}`}>
                   <p><span className="font-semibold">Phone:</span> {purchase.phone}</p>
                   <p><span className="font-semibold">Address:</span> {purchase.address}</p>
@@ -328,7 +324,7 @@ export default function AdminAccessManagement() {
                 </div>
               </div>
               <div className={`rounded-xl p-3 ${t.innerCard}`}>
-                <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${t.textSub}`}>Purchase Details</p>
+                <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${t.textMuted}`}>Purchase Details</p>
                 <div className={`space-y-1 text-xs ${t.textSub}`}>
                   <p><span className="font-semibold">Date:</span> {new Date(purchase.purchaseDate).toLocaleDateString()}</p>
                   {purchase.adminNotes && (
@@ -349,37 +345,48 @@ export default function AdminAccessManagement() {
   return (
     <div className="min-h-screen relative transition-colors duration-300">
 
-      {/* Background blobs */}
+      {/* Background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className={`absolute inset-0 ${dm ? 'bg-gradient-to-br from-gray-950 via-amber-950/20 to-gray-950' : 'bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50'}`} />
         <div className={`absolute top-0 right-0 w-[700px] h-[700px] rounded-full blur-3xl opacity-20 ${dm ? 'bg-amber-700' : 'bg-amber-300'} animate-pulse`} />
         <div className={`absolute bottom-0 left-0 w-[500px] h-[500px] rounded-full blur-3xl opacity-15 ${dm ? 'bg-yellow-700' : 'bg-yellow-300'} animate-pulse`} style={{ animationDelay: '1.5s' }} />
       </div>
 
-      {/* ── Sidebar ── */}
+      {/* Sidebar backdrop */}
       {sidebarOpen && <div className="fixed inset-0 z-40 backdrop-blur-sm bg-black/40" onClick={() => setSidebarOpen(false)} />}
+
+      {/* ── Sidebar ──
+          FIX: bottom section uses paddingBottom with safe-area-inset-bottom
+          so Dark Mode and Sign Out buttons never hide behind the gesture bar */}
       <aside className={`fixed top-0 left-0 h-full w-72 z-50 transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${t.sidebar} shadow-2xl flex flex-col`}>
-        <div className={`px-6 py-5 flex items-center justify-between border-b ${t.divider}`}>
+
+        {/* Sidebar header — also safe area aware for top */}
+        <div
+          className={`px-6 flex items-center justify-between border-b ${t.divider}`}
+          style={{ paddingTop: 'max(20px, env(safe-area-inset-top, 20px))', paddingBottom: '16px' }}
+        >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg text-xl">🐝</div>
             <div>
-              <h2 className={`text-sm font-black tracking-tight ${t.text}`}>Smart Hive</h2>
-              <p className={`text-xs ${t.textMuted}`}>Admin Panel</p>
+              <h2 className={`text-sm font-black tracking-tight ${t.sidebarText}`}>Smart Hive</h2>
+              <p className={`text-xs ${t.sidebarMuted}`}>Admin Panel</p>
             </div>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className={`p-1.5 rounded-lg ${dm ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+          <button onClick={() => setSidebarOpen(false)} className={`p-1.5 rounded-lg ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-500'}`}>
             <X className="w-5 h-5" />
           </button>
         </div>
 
+        {/* Access level badge */}
         <div className={`mx-4 my-4 px-4 py-3 rounded-xl ${dm ? 'bg-amber-950/60 border border-amber-900/60' : 'bg-amber-50 border border-amber-100'}`}>
           <p className={`text-xs font-semibold uppercase tracking-widest mb-1 ${dm ? 'text-amber-400' : 'text-amber-600'}`}>Access Level</p>
-          <p className={`text-sm font-bold ${t.text}`}>Administrator</p>
-          <p className={`text-xs truncate mt-0.5 ${t.textMuted}`}>{adminInfo?.email || 'admin'}</p>
+          <p className={`text-sm font-bold ${t.sidebarText}`}>Administrator</p>
+          <p className={`text-xs truncate mt-0.5 ${t.sidebarMuted}`}>{adminInfo?.email || 'admin'}</p>
         </div>
 
+        {/* Nav links */}
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-          <p className={`text-xs font-semibold uppercase tracking-widest px-2 py-2 ${t.textMuted}`}>Navigation</p>
+          <p className={`text-xs font-semibold uppercase tracking-widest px-2 py-2 ${t.sidebarMuted}`}>Navigation</p>
           {[
             { label: 'Home',        icon: Home,            action: () => router.push('/welcome') },
             { label: 'Smart Hive',  icon: LayoutDashboard, action: () => router.push('/smart-hive') },
@@ -387,7 +394,7 @@ export default function AdminAccessManagement() {
             { label: 'Purchase',    icon: ShoppingCart,    action: () => router.push('/purchase') },
           ].map(item => (
             <button key={item.label} onClick={() => { item.action(); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${t.text} ${dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${t.sidebarText} ${dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
               <item.icon className="w-4 h-4" />{item.label}
             </button>
           ))}
@@ -395,32 +402,40 @@ export default function AdminAccessManagement() {
             <UserCheck className="w-4 h-4" />Access Management
           </div>
 
-          {/* Mobile-only sidebar actions */}
+          {/* Mobile-only quick actions */}
           <div className={`md:hidden pt-2 border-t ${t.divider} space-y-1`}>
-            <p className={`text-xs font-semibold uppercase tracking-widest px-2 py-2 ${t.textMuted}`}>Quick Actions</p>
+            <p className={`text-xs font-semibold uppercase tracking-widest px-2 py-2 ${t.sidebarMuted}`}>Quick Actions</p>
             <button onClick={() => { setShowLocationsPanel(!showLocationsPanel); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${showLocationsPanel ? 'bg-gradient-to-r from-sky-500/20 to-blue-500/20 text-sky-500' : `${t.text} ${dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}`}>
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${showLocationsPanel ? 'bg-gradient-to-r from-sky-500/20 to-blue-500/20 text-sky-500' : `${t.sidebarText} ${dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}`}>
               <MapPin className="w-4 h-4" />Locations
             </button>
             <button onClick={() => { router.push('/admin/correction'); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${t.text} ${dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${t.sidebarText} ${dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
               <Settings className="w-4 h-4" />Calibration
             </button>
             <button onClick={() => { fetchData(); setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${t.text} ${dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${t.sidebarText} ${dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
               <RefreshCw className="w-4 h-4" />Refresh Data
             </button>
           </div>
         </nav>
 
-        <div className={`px-4 py-4 border-t ${t.divider} space-y-2`}>
+        {/* ── Sidebar footer — FIX: safe area bottom padding ──
+            This pushes Dark Mode and Sign Out above the phone's gesture/nav bar */}
+        <div
+          className={`px-4 border-t ${t.divider} space-y-2`}
+          style={{
+            paddingTop: '16px',
+            paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))',
+          }}
+        >
           <button onClick={() => setDarkMode(!dm)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${dm ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold ${dm ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             {dm ? <SunMedium className="w-4 h-4 text-yellow-400" /> : <Moon className="w-4 h-4" />}
             {dm ? 'Light Mode' : 'Dark Mode'}
           </button>
           <button onClick={() => { localStorage.removeItem('adminInfo'); router.push('/login'); }}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${dm ? 'bg-red-950/50 text-red-400 border border-red-900/40 hover:bg-red-950' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}>
+            className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold ${dm ? 'bg-red-950/50 text-red-400 border border-red-900/40 hover:bg-red-950' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}>
             <LogOut className="w-4 h-4" />Sign Out
           </button>
         </div>
@@ -428,13 +443,15 @@ export default function AdminAccessManagement() {
 
       <div className="relative min-h-screen flex flex-col">
 
-        {/* ── Header ── */}
-        <header className={`sticky top-0 z-30 ${dm ? 'bg-gray-900/30 border-b border-white/10' : 'bg-white/20 border-b border-white/30'} backdrop-blur-xl`}>
+        {/* ── Header ── 
+            FIX: safe area top padding so header clears status bar properly */}
+        <header
+          className={`sticky top-0 z-30 ${dm ? 'bg-gray-900/30 border-b border-white/10' : 'bg-white/20 border-b border-white/30'} backdrop-blur-xl`}
+          style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+        >
           <div className="flex items-center justify-between px-4 sm:px-5 py-3">
-
-            {/* Left: hamburger + title */}
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-2 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}>
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-2 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}>
                 <Menu className="w-5 h-5" />
               </button>
               <div className={`w-px h-5 flex-shrink-0 ${dm ? 'bg-gray-800' : 'bg-gray-200'}`} />
@@ -447,62 +464,42 @@ export default function AdminAccessManagement() {
               </div>
             </div>
 
-            {/* Right: desktop buttons + mobile compact buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-
-              {/* Admin badge — desktop only */}
               <div className="hidden md:flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-500/20">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 <span className={`text-xs font-bold ${dm ? 'text-amber-300' : 'text-amber-700'}`}>Admin</span>
               </div>
-
-              {/* Smart Hive — always visible */}
               <button onClick={() => router.push('/smart-hive')}
                 className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-white px-3 py-2 rounded-lg hover:from-amber-600 hover:to-yellow-600 transition-all shadow-md font-semibold text-xs">
                 <LayoutDashboard className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Smart Hive</span>
               </button>
-
-              {/* Locations — desktop only (on mobile it's in sidebar) */}
               <button onClick={() => setShowLocationsPanel(!showLocationsPanel)}
-                className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-lg font-semibold text-xs transition-all shadow-md ${showLocationsPanel ? 'bg-gradient-to-r from-sky-500 to-blue-500 text-white' : dm ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
-                <MapPin className="w-3.5 h-3.5" />
-                <span>Locations</span>
+                className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-lg font-semibold text-xs transition-all shadow-md ${showLocationsPanel ? 'bg-gradient-to-r from-sky-500 to-blue-500 text-white' : dm ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                <MapPin className="w-3.5 h-3.5" /><span>Locations</span>
               </button>
-
-              {/* Calibration — desktop only */}
               <button onClick={() => router.push('/admin/correction')}
-                className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-lg font-semibold text-xs transition-all ${dm ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
-                <Settings className="w-3.5 h-3.5" />
-                <span>Calibration</span>
+                className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-lg font-semibold text-xs transition-all ${dm ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                <Settings className="w-3.5 h-3.5" /><span>Calibration</span>
               </button>
-
-              {/* Refresh — desktop only */}
               <button onClick={fetchData}
                 className="hidden md:flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-white px-3 py-2 rounded-lg hover:from-amber-600 hover:to-yellow-600 transition-all shadow-md font-semibold text-xs">
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Refresh</span>
+                <RefreshCw className="w-3.5 h-3.5" /><span>Refresh</span>
               </button>
-
-              {/* Dark mode toggle — always visible */}
               <button onClick={() => setDarkMode(!dm)} className={`p-2 rounded-lg ${dm ? 'hover:bg-gray-800 text-yellow-400' : 'hover:bg-gray-100 text-gray-600'}`}>
                 {dm ? <SunMedium className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
-
-              {/* Sign out — desktop only (on mobile it's in sidebar) */}
               <button onClick={() => { localStorage.removeItem('adminInfo'); router.push('/login'); }}
                 className={`hidden md:flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold ${dm ? 'bg-red-950/50 text-red-400 border border-red-900/40 hover:bg-red-950' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}>
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out</span>
+                <LogOut className="w-3.5 h-3.5" /><span>Sign Out</span>
               </button>
             </div>
           </div>
         </header>
 
-        {/* ── Main ── */}
+        {/* ── Main content ── */}
         <main className="flex-1 px-4 py-5 md:px-6 lg:px-8 max-w-screen-2xl mx-auto w-full">
 
-          {/* Error */}
           {error && (
             <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5 flex items-start gap-3`}>
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
@@ -513,7 +510,7 @@ export default function AdminAccessManagement() {
             </div>
           )}
 
-          {/* ── Status banner ── */}
+          {/* Status banner */}
           <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -547,7 +544,7 @@ export default function AdminAccessManagement() {
             </div>
           </div>
 
-          {/* ── Stat cards ── */}
+          {/* Stat cards */}
           <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-5">
             <StatCard icon={Package}   title="Total"      value={stats.total}           gradient="from-sky-500 to-blue-500" />
             <StatCard icon={Clock}     title="Pending"    value={stats.pending}         gradient="from-amber-500 to-yellow-500" />
@@ -557,7 +554,7 @@ export default function AdminAccessManagement() {
             <StatCard icon={MapPin}    title="Locations"  value={stats.locationsSet}    gradient="from-orange-500 to-amber-500" />
           </div>
 
-          {/* ── Locations panel ── */}
+          {/* Locations panel */}
           {showLocationsPanel && (
             <div className={`rounded-2xl shadow-md ${t.card} p-5 mb-5`}>
               <div className="flex items-center gap-3 mb-5">
@@ -568,7 +565,7 @@ export default function AdminAccessManagement() {
                   <h2 className={`text-base font-black ${t.text}`}>Apiary Locations</h2>
                   <p className={`text-xs ${t.textSub}`}>Set GPS coordinates for each container</p>
                 </div>
-                <button onClick={() => setShowLocationsPanel(false)} className={`p-1.5 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+                <button onClick={() => setShowLocationsPanel(false)} className={`p-1.5 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-500'}`}>
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -591,7 +588,7 @@ export default function AdminAccessManagement() {
                       )}
                       <button onClick={() => handleSetLocationClick(container.name)}
                         className={`w-full py-2 rounded-xl text-xs font-bold transition-all ${location
-                          ? (dm ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15')
+                          ? (dm ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15')
                           : 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-md shadow-amber-500/20 hover:from-amber-600 hover:to-yellow-600'}`}>
                         {location ? 'Edit Location' : 'Set Location'}
                       </button>
@@ -602,7 +599,7 @@ export default function AdminAccessManagement() {
             </div>
           )}
 
-          {/* ── Filters ── */}
+          {/* Filters */}
           <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
             <div className="flex flex-col gap-3">
               <div className="relative">
@@ -622,17 +619,17 @@ export default function AdminAccessManagement() {
             </div>
           </div>
 
-          {/* ── Purchase list ── */}
+          {/* Purchase list */}
           {filteredPurchases.length > 0 ? (
             <>
-              {/* Mobile: cards */}
+              {/* Mobile cards */}
               <div className="md:hidden">
                 {filteredPurchases.map(purchase => (
                   <MobilePurchaseCard key={purchase.id} purchase={purchase} />
                 ))}
               </div>
 
-              {/* Desktop: table */}
+              {/* Desktop table */}
               <div className={`hidden md:block rounded-2xl shadow-md ${t.card} overflow-hidden`}>
                 <div className="overflow-x-auto">
                   <table className="min-w-full">
@@ -678,7 +675,7 @@ export default function AdminAccessManagement() {
                             </td>
                             <td className="px-5 py-4">
                               <button onClick={() => handleOpenContainerModal(purchase)}
-                                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:-translate-y-0.5 ${dm ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15'}`}>
+                                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:-translate-y-0.5 ${dm ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15'}`}>
                                 <Package className="w-3.5 h-3.5" />
                                 {purchase.assignedContainers?.length || 0} assigned
                               </button>
@@ -698,12 +695,11 @@ export default function AdminAccessManagement() {
                             </td>
                             <td className="px-5 py-4">
                               <button onClick={() => toggleRowExpansion(purchase.id)}
-                                className={`p-1.5 rounded-lg transition-all ${dm ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-black/10 text-gray-500'}`}>
+                                className={`p-1.5 rounded-lg transition-all ${dm ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-black/10 text-gray-500'}`}>
                                 {expandedRows.has(purchase.id) ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                               </button>
                             </td>
                           </tr>
-
                           {expandedRows.has(purchase.id) && (
                             <tr>
                               <td colSpan={7} className={`px-5 py-5 ${dm ? 'bg-white/[0.02]' : 'bg-black/[0.02]'}`}>
@@ -762,8 +758,10 @@ export default function AdminAccessManagement() {
       {/* ── Location Modal ── */}
       {showLocationModal && selectedLocationContainer && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className={`rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg p-6 ${t.modalBg} max-h-[90vh] overflow-y-auto`}>
-            {/* Drag handle on mobile */}
+          <div
+            className={`rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg p-6 ${t.modalBg} max-h-[90vh] overflow-y-auto`}
+            style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
+          >
             <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mb-5 sm:hidden" />
             <div className="flex items-center gap-3 mb-6">
               <div className="p-2.5 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-md flex-shrink-0">
@@ -774,7 +772,6 @@ export default function AdminAccessManagement() {
                 <p className={`text-xs ${t.textMuted}`}>{selectedLocationContainer}</p>
               </div>
             </div>
-
             <div className="space-y-4 mb-5">
               {[
                 { label: 'Latitude *',  key: 'lat',     placeholder: 'e.g., 24.453884', hint: 'Range: -90 to 90' },
@@ -792,7 +789,6 @@ export default function AdminAccessManagement() {
                 </div>
               ))}
             </div>
-
             <div className={`rounded-xl p-4 mb-5 ${dm ? 'bg-amber-950/60 border border-amber-900/40' : 'bg-amber-50 border border-amber-100'}`}>
               <p className={`text-xs font-bold mb-2 ${dm ? 'text-amber-400' : 'text-amber-700'}`}>💡 How to get coordinates</p>
               <ol className={`text-xs space-y-1 list-decimal list-inside ${dm ? 'text-amber-300' : 'text-amber-700'}`}>
@@ -802,10 +798,9 @@ export default function AdminAccessManagement() {
                 <li>Paste latitude and longitude here</li>
               </ol>
             </div>
-
             <div className="flex gap-3">
               <button onClick={() => { setShowLocationModal(false); setSelectedLocationContainer(null); setLocationForm({ lat: '', lon: '', address: '' }); }}
-                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${dm ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${dm ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                 Cancel
               </button>
               <button onClick={handleSaveLocation}
@@ -817,11 +812,10 @@ export default function AdminAccessManagement() {
         </div>
       )}
 
-      {/* ── Container Assignment Modal ── */}
+      {/* ── Container Modal ── */}
       {showContainerModal && selectedPurchase && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className={`rounded-t-3xl sm:rounded-2xl shadow-2xl w-full sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col ${t.modalBg}`}>
-            {/* Drag handle on mobile */}
             <div className="w-10 h-1 rounded-full bg-gray-300 mx-auto mt-4 sm:hidden" />
             <div className={`px-6 py-5 border-b ${t.divider} flex items-center gap-3`}>
               <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-md flex-shrink-0">
@@ -831,11 +825,10 @@ export default function AdminAccessManagement() {
                 <h2 className={`text-base font-black ${t.text}`}>Assign Containers</h2>
                 <p className={`text-xs truncate ${t.textMuted}`}>{selectedPurchase.fullName} · {selectedPurchase.email}</p>
               </div>
-              <button onClick={() => setShowContainerModal(false)} className={`p-1.5 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+              <button onClick={() => setShowContainerModal(false)} className={`p-1.5 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-500'}`}>
                 <X className="w-4 h-4" />
               </button>
             </div>
-
             <div className="flex-1 overflow-y-auto p-5">
               {containers.length === 0 ? (
                 <div className="text-center py-10">
@@ -881,7 +874,6 @@ export default function AdminAccessManagement() {
                   })}
                 </div>
               )}
-
               <div>
                 <label className={`block text-xs font-bold mb-1.5 ${t.textSub}`}>Admin Notes</label>
                 <textarea value={adminNotes} onChange={e => setAdminNotes(e.target.value)}
@@ -889,10 +881,12 @@ export default function AdminAccessManagement() {
                   className={`w-full px-4 py-3 border rounded-xl text-sm focus:ring-2 focus:outline-none resize-none transition-all ${t.input}`} rows={3} />
               </div>
             </div>
-
-            <div className={`px-5 py-4 border-t ${t.divider} flex gap-3`}>
+            <div
+              className={`px-5 border-t ${t.divider} flex gap-3`}
+              style={{ paddingTop: '16px', paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
+            >
               <button onClick={() => setShowContainerModal(false)}
-                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${dm ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${dm ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                 Cancel
               </button>
               <button onClick={handleSaveContainers}
