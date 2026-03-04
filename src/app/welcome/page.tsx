@@ -43,15 +43,16 @@ export default function WelcomePage() {
 
   const dm = mounted && darkMode;
 
-  // ── Theme tokens (mirrors SmartHiveDashboard) ──────────────────────────────
+  // ── Theme tokens ───────────────────────────────────────────────────────────
+  // FIX 1: dark mode text — gray-400/500 → gray-200/300 so text is visible
   const t = {
     card:       dm ? 'bg-gray-900/40 border border-white/10 backdrop-blur-md' : 'bg-white/40 border border-white/50 backdrop-blur-md',
-    text:       dm ? 'text-gray-100'  : 'text-gray-900',
-    textSub:    dm ? 'text-gray-400'  : 'text-gray-600',
-    textMuted:  dm ? 'text-gray-500'  : 'text-gray-500',
-    divider:    dm ? 'border-white/10' : 'border-black/10',
-    input:      dm ? 'bg-gray-800/60 border-white/10 text-gray-100' : 'bg-white/60 border-white/40 text-gray-900',
-    pill:       dm ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15',
+    text:       dm ? 'text-white'       : 'text-gray-900',
+    textSub:    dm ? 'text-gray-200'    : 'text-gray-600',   // was text-gray-400
+    textMuted:  dm ? 'text-gray-300'    : 'text-gray-500',   // was text-gray-500
+    divider:    dm ? 'border-white/10'  : 'border-black/10',
+    input:      dm ? 'bg-gray-800/60 border-white/10 text-white' : 'bg-white/60 border-white/40 text-gray-900',
+    pill:       dm ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15',
     pillActive: 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-lg shadow-amber-500/30',
     sidebar:    dm ? 'bg-gray-950 border-r border-gray-800' : 'bg-white border-r border-gray-100',
     tooltip:    dm ? 'rgba(17,24,39,0.95)' : 'rgba(255,255,255,0.95)',
@@ -129,7 +130,7 @@ export default function WelcomePage() {
             <div className="absolute inset-0 flex items-center justify-center text-3xl">🐝</div>
           </div>
           <p className={`text-xl font-bold mb-1 ${dm ? 'text-white' : 'text-gray-900'}`}>Loading Smart Hive</p>
-          <p className={`text-sm ${dm ? 'text-gray-400' : 'text-gray-600'}`}>Connecting to your dashboard…</p>
+          <p className={`text-sm ${dm ? 'text-gray-300' : 'text-gray-600'}`}>Connecting to your dashboard…</p>
         </div>
       </div>
     );
@@ -142,7 +143,12 @@ export default function WelcomePage() {
         <div className="fixed inset-0 z-40 backdrop-blur-sm bg-black/40" onClick={() => setSidebarOpen(false)} />
       )}
       <aside className={`fixed top-0 left-0 h-full w-72 z-50 transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${t.sidebar} shadow-2xl flex flex-col`}>
-        <div className={`px-6 py-5 flex items-center justify-between border-b ${t.divider}`}>
+
+        {/* FIX 2: safe area top — header clears status bar */}
+        <div
+          className={`px-6 flex items-center justify-between border-b ${t.divider}`}
+          style={{ paddingTop: 'max(20px, env(safe-area-inset-top, 20px))', paddingBottom: '16px' }}
+        >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg text-xl">🐝</div>
             <div>
@@ -150,7 +156,8 @@ export default function WelcomePage() {
               <p className={`text-xs ${t.textMuted}`}>Colony Monitoring</p>
             </div>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className={`p-1.5 rounded-lg ${dm ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+          <button onClick={() => setSidebarOpen(false)}
+            className={`p-1.5 rounded-lg ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-500'}`}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -166,8 +173,8 @@ export default function WelcomePage() {
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           <p className={`text-xs font-semibold uppercase tracking-widest px-2 py-2 ${t.textMuted}`}>Navigation</p>
           {[
-            { label: 'Home',             icon: Home,          action: () => { router.push('/welcome'); setSidebarOpen(false); } },
-            { label: 'Purchase',         icon: ShoppingCart,  action: () => { router.push('/payment'); setSidebarOpen(false); } },
+            { label: 'Home',     icon: Home,        action: () => { router.push('/welcome'); setSidebarOpen(false); } },
+            { label: 'Purchase', icon: ShoppingCart, action: () => { router.push('/payment'); setSidebarOpen(false); } },
           ].map(item => (
             <button key={item.label} onClick={item.action}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${t.text} ${dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
@@ -176,14 +183,18 @@ export default function WelcomePage() {
           ))}
         </nav>
 
-        <div className={`px-4 py-4 border-t ${t.divider} space-y-2`}>
+        {/* FIX 3: safe area bottom — Dark Mode + Sign Out buttons clear gesture bar */}
+        <div
+          className={`px-4 border-t ${t.divider} space-y-2`}
+          style={{ paddingTop: '16px', paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
+        >
           <button onClick={() => setDarkMode(!dm)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${dm ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold ${dm ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             {dm ? <SunMedium className="w-4 h-4 text-yellow-400" /> : <Moon className="w-4 h-4" />}
             {dm ? 'Light Mode' : 'Dark Mode'}
           </button>
           <button onClick={handleLogout}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${dm ? 'bg-red-950/50 text-red-400 border border-red-900/40 hover:bg-red-950' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}>
+            className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold ${dm ? 'bg-red-950/50 text-red-400 border border-red-900/40 hover:bg-red-950' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}>
             <LogOut className="w-4 h-4" />Sign Out
           </button>
         </div>
@@ -191,7 +202,7 @@ export default function WelcomePage() {
     </>
   );
 
-  // ── Stat card (mirrors SmartHiveDashboard StatCard) ────────────────────────
+  // ── Stat card ──────────────────────────────────────────────────────────────
   const StatCard = ({ icon: Icon, title, value, sub, gradient }: any) => (
     <div className={`relative overflow-hidden rounded-2xl shadow-md ${t.card} transition-all duration-300 hover:-translate-y-1 hover:shadow-xl`}>
       <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-[0.06]`} />
@@ -199,7 +210,7 @@ export default function WelcomePage() {
         <div className={`inline-flex p-2.5 rounded-xl bg-gradient-to-br ${gradient} shadow-md mb-3`}>
           <Icon className="w-4 h-4 text-white" />
         </div>
-        <p className={`text-xs font-semibold uppercase tracking-widest mb-1 ${t.textSub}`}>{title}</p>
+        <p className={`text-xs font-semibold uppercase tracking-widest mb-1 ${t.textMuted}`}>{title}</p>
         <div className="flex items-baseline gap-1.5">
           <span className={`text-3xl font-black text-transparent bg-clip-text bg-gradient-to-br ${gradient}`}>{value}</span>
         </div>
@@ -213,7 +224,7 @@ export default function WelcomePage() {
   return (
     <div className="min-h-screen relative transition-colors duration-300">
 
-      {/* ── Background blobs (identical to SmartHiveDashboard) ── */}
+      {/* Background blobs */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className={`absolute inset-0 ${dm ? 'bg-gradient-to-br from-gray-950 via-amber-950/20 to-gray-950' : 'bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50'}`} />
         <div className={`absolute top-0 right-0 w-[700px] h-[700px] rounded-full blur-3xl opacity-20 ${dm ? 'bg-amber-700' : 'bg-amber-300'} animate-pulse`} />
@@ -224,21 +235,21 @@ export default function WelcomePage() {
 
       <div className="relative min-h-screen flex flex-col">
 
-        {/* ── Header (mirrors SmartHiveDashboard header) ── */}
-        <header className={`sticky top-0 z-30 ${dm ? 'bg-gray-900/30 border-b border-white/10' : 'bg-white/20 border-b border-white/30'} backdrop-blur-xl`}>
+        {/* FIX 2: Header safe area — clears status bar in both modes */}
+        <header
+          className={`sticky top-0 z-30 ${dm ? 'bg-gray-900/30 border-b border-white/10' : 'bg-white/20 border-b border-white/30'} backdrop-blur-xl`}
+          style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+        >
           <div className="flex items-center justify-between px-5 py-3.5">
             <div className="flex items-center gap-3">
               <button onClick={() => setSidebarOpen(!sidebarOpen)}
-                className={`p-2 rounded-lg ${dm ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}>
+                className={`p-2 rounded-lg ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}>
                 <Menu className="w-5 h-5" />
               </button>
               <div className={`w-px h-5 ${dm ? 'bg-gray-800' : 'bg-gray-200'}`} />
               <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-lg flex items-center justify-center shadow-sm text-sm">🐝</div>
-                <div>
-                  <h1 className={`text-sm font-black tracking-tight leading-none ${t.text}`}>Smart Hive</h1>
-                  
-                </div>
+                <h1 className={`text-sm font-black tracking-tight leading-none ${t.text}`}>Smart Hive</h1>
               </div>
             </div>
 
@@ -262,18 +273,17 @@ export default function WelcomePage() {
                 {dm ? <SunMedium className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
               <button onClick={handleLogout}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${dm ? 'bg-red-950/50 text-red-400 border border-red-900/40 hover:bg-red-950' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}>
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all hidden md:flex ${dm ? 'bg-red-950/50 text-red-400 border border-red-900/40 hover:bg-red-950' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}>
                 <LogOut className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Sign Out</span>
+                <span>Sign Out</span>
               </button>
             </div>
           </div>
         </header>
 
-        {/* ── Main content ── */}
+        {/* Main content */}
         <main className="flex-1 px-4 py-6 md:px-6 lg:px-8 max-w-screen-2xl mx-auto w-full">
 
-          {/* Error */}
           {error && (
             <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-6 flex items-start gap-3 border-red-500/30`}>
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
@@ -284,7 +294,7 @@ export default function WelcomePage() {
             </div>
           )}
 
-          {/* ── Status banner ── */}
+          {/* Status banner */}
           <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4`}>
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -316,14 +326,14 @@ export default function WelcomePage() {
             </div>
           </div>
 
-          {/* ── Stat cards ── */}
+          {/* Stat cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <StatCard icon={LayoutDashboard} title="Active Apiaries"   value={totalContainers}        sub="Total container access"  gradient="from-amber-500 to-yellow-500" />
-            <StatCard icon={Activity}        title="Total Hives"       value={totalHives}              sub="Across all apiaries"     gradient="from-emerald-500 to-teal-500" />
-            <StatCard icon={ShoppingCart}    title="Active Purchases"  value={activePurchases.length}  sub="Approved orders"         gradient="from-sky-500 to-blue-500" />
+            <StatCard icon={LayoutDashboard} title="Active Apiaries"  value={totalContainers}       sub="Total container access" gradient="from-amber-500 to-yellow-500" />
+            <StatCard icon={Activity}        title="Total Hives"      value={totalHives}             sub="Across all apiaries"    gradient="from-emerald-500 to-teal-500" />
+            <StatCard icon={ShoppingCart}    title="Active Purchases" value={activePurchases.length} sub="Approved orders"        gradient="from-sky-500 to-blue-500" />
           </div>
 
-          {/* ── Pending purchases alert ── */}
+          {/* Pending purchases */}
           {pendingPurchases.length > 0 && (
             <div className={`rounded-2xl shadow-md ${t.card} p-5 mb-6 border-amber-500/30`}>
               <div className="flex items-start gap-4">
@@ -360,10 +370,10 @@ export default function WelcomePage() {
             </div>
           )}
 
-          {/* ── Two-column: Apiaries + Account ── */}
+          {/* Two-column layout */}
           <div className="flex gap-6 flex-col lg:flex-row">
 
-            {/* ── Apiaries list ── */}
+            {/* Apiaries list */}
             <div className="flex-1 min-w-0">
               <div className={`rounded-2xl shadow-md ${t.card} p-6`}>
                 <div className="flex items-center gap-3 mb-6">
@@ -424,7 +434,7 @@ export default function WelcomePage() {
                               <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full hidden sm:block ${dm ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-500/15 text-amber-700'}`}>
                                 Open Dashboard →
                               </span>
-                              <ChevronRight className={`w-5 h-5 transition-transform group-hover:translate-x-1 ${dm ? 'text-gray-500 group-hover:text-amber-400' : 'text-gray-400 group-hover:text-amber-600'}`} />
+                              <ChevronRight className={`w-5 h-5 transition-transform group-hover:translate-x-1 ${dm ? 'text-gray-300 group-hover:text-amber-400' : 'text-gray-400 group-hover:text-amber-600'}`} />
                             </div>
                           </div>
                           <div className="h-0.5 bg-gradient-to-r from-amber-500 to-yellow-500 opacity-0 group-hover:opacity-60 transition-opacity" />
@@ -436,7 +446,7 @@ export default function WelcomePage() {
               </div>
             </div>
 
-            {/* ── Right column ── */}
+            {/* Right column */}
             <div className="w-full lg:w-80 flex-shrink-0 space-y-4">
 
               {/* Purchase more */}

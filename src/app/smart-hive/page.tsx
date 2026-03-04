@@ -305,35 +305,42 @@ interface AIAssistantProps {
   t: any;
 }
 
-// Standalone InputBar — defined at module level so it never gets remounted
+// Standalone InputBar — defined at module level so it never gets remounted.
+// FIX: we use a ref to hold the latest inputMessage value so the send button
+// always reads the current text even if the useCallback closure is stale.
 const AIInputBar = ({
   inputMessage, setInputMessage, onSend, isLoading, isDarkMode,
 }: {
   inputMessage: string;
   setInputMessage: (v: string) => void;
-  onSend: () => void;
+  onSend: (text: string) => void;  // FIX: accept text directly — no closure needed
   isLoading: boolean;
   isDarkMode: boolean;
 }) => {
-  const inputRef = useRef<HTMLInputElement>(null);
+  // Local ref always holds the latest value typed into the input
+  const localValueRef = useRef(inputMessage);
+  localValueRef.current = inputMessage;
+
+  const handleSend = () => {
+    const text = localValueRef.current.trim();
+    if (!text || isLoading) return;
+    onSend(text);          // pass text explicitly — bypasses stale closure
+    setInputMessage('');   // clear after send
+  };
 
   return (
     <div
       className={`p-3 border-t flex-shrink-0 ${isDarkMode ? 'bg-gray-900/80 border-white/10' : 'bg-white border-amber-100'}`}
-      // FIX: safe area for bottom on mobile sheet
       style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
     >
       <div className="flex gap-2">
         <input
-          ref={inputRef}
           type="text"
           value={inputMessage}
           onChange={e => setInputMessage(e.target.value)}
-          onKeyPress={e => e.key === 'Enter' && onSend()}
+          onKeyPress={e => e.key === 'Enter' && handleSend()}
           placeholder="Ask about your hives…"
           disabled={isLoading}
-          // FIX: inputMode="text" + autoComplete="off" prevents keyboard from
-          // being dismissed on Android when state updates cause re-renders
           inputMode="text"
           autoComplete="off"
           autoCorrect="off"
@@ -346,7 +353,7 @@ const AIInputBar = ({
           }`}
         />
         <button
-          onClick={onSend}
+          onClick={handleSend}
           disabled={!inputMessage.trim() || isLoading}
           className="px-3.5 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-xl hover:from-amber-600 hover:to-yellow-600 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
         >
@@ -411,13 +418,14 @@ const SmartHiveAIAssistant = ({
     };
   }, [latestData, historicalData, selectedContainer, totalHives, activatedHives]);
 
-  const sendMessage = useCallback(async (overrideText?: string) => {
-    const text = (overrideText ?? inputMessage).trim();
+  // FIX: sendMessage always receives text as argument — never reads from state.
+  // This eliminates the stale-closure bug where the button would send empty string.
+  const sendMessage = useCallback(async (text: string) => {
+    text = text.trim();
     if (!text || isLoading) return;
 
     const userMsg: AIMessage = { id: Date.now().toString(), role: 'user', content: text, timestamp: new Date() };
     setMessages(prev => [...prev, userMsg]);
-    if (!overrideText) setInputMessage('');
     setIsLoading(true);
 
     try {
@@ -450,7 +458,7 @@ const SmartHiveAIAssistant = ({
     } finally {
       setIsLoading(false);
     }
-  }, [inputMessage, isLoading, messages, prepareContextData, selectedContainer, totalHives]);
+  }, [isLoading, messages, prepareContextData, selectedContainer, totalHives]);
 
   const quickActions = [
     { label: 'Overall Status',  prompt: 'Give me an overview of all my hives' },
@@ -481,7 +489,7 @@ const SmartHiveAIAssistant = ({
       <p className={`text-[10px] font-bold uppercase tracking-widest mb-2 ${isDarkMode ? 'text-gray-300' : 'text-amber-600'}`}>Quick Actions</p>
       <div className="grid grid-cols-2 gap-1.5">
         {quickActions.map((action, i) => (
-          <button key={i} onClick={() => sendMessage(action.prompt)}
+          <button key={i} onClick={() => { setInputMessage(''); sendMessage(action.prompt); }}
             className={`text-xs px-3 py-2 border rounded-xl transition-all font-semibold text-left leading-tight ${
               isDarkMode
                 ? 'bg-white/5 border-white/10 text-gray-200 hover:bg-white/10'
