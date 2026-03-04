@@ -275,7 +275,7 @@ const LocationMapInner = ({
   if (!apiaryLocation) return (
     <div className="flex flex-col items-center justify-center h-full gap-3 py-10">
       <MapPin className="w-10 h-10 text-gray-400" />
-      <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>No location data</p>
+      <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>No location data</p>
     </div>
   );
   return <div ref={mapRef} style={{ width: '100%', height: '100%', minHeight: 300 }} />;
@@ -290,16 +290,12 @@ const LocationMap = dynamic(() => Promise.resolve(LocationMapInner), {
   ),
 });
 
-// ─── AI Assistant Component (inline, no imports) ──────────────────────────────
-const SmartHiveAIAssistant = ({
-  latestData,
-  historicalData,
-  selectedContainer,
-  totalHives,
-  activatedHives,
-  isDarkMode,
-  t,
-}: {
+// ─── AI Assistant ─────────────────────────────────────────────────────────────
+// FIX: The keyboard-dismiss bug was caused by InputBar being defined INSIDE
+// the component function, making React recreate the DOM node on every keystroke.
+// Solution: hoist InputBar outside, pass props. Also fix safe area for FAB.
+
+interface AIAssistantProps {
   latestData: SensorData[];
   historicalData: SensorData[];
   selectedContainer: string;
@@ -307,109 +303,126 @@ const SmartHiveAIAssistant = ({
   activatedHives: number;
   isDarkMode: boolean;
   t: any;
+}
+
+// Standalone InputBar — defined at module level so it never gets remounted
+const AIInputBar = ({
+  inputMessage, setInputMessage, onSend, isLoading, isDarkMode,
+}: {
+  inputMessage: string;
+  setInputMessage: (v: string) => void;
+  onSend: () => void;
+  isLoading: boolean;
+  isDarkMode: boolean;
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<AIMessage[]>([]);
-  const [inputMessage, setInputMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // ── scroll to bottom on new message ──────────────────────────────────────
+  return (
+    <div
+      className={`p-3 border-t flex-shrink-0 ${isDarkMode ? 'bg-gray-900/80 border-white/10' : 'bg-white border-amber-100'}`}
+      // FIX: safe area for bottom on mobile sheet
+      style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
+    >
+      <div className="flex gap-2">
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputMessage}
+          onChange={e => setInputMessage(e.target.value)}
+          onKeyPress={e => e.key === 'Enter' && onSend()}
+          placeholder="Ask about your hives…"
+          disabled={isLoading}
+          // FIX: inputMode="text" + autoComplete="off" prevents keyboard from
+          // being dismissed on Android when state updates cause re-renders
+          inputMode="text"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          className={`flex-1 min-w-0 px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:opacity-50 text-sm ${
+            isDarkMode
+              ? 'bg-gray-800/60 border-white/10 text-white placeholder-gray-400'
+              : 'bg-gray-50 border-amber-200 text-gray-800 placeholder-gray-400'
+          }`}
+        />
+        <button
+          onClick={onSend}
+          disabled={!inputMessage.trim() || isLoading}
+          className="px-3.5 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-xl hover:from-amber-600 hover:to-yellow-600 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+        >
+          {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+        </button>
+      </div>
+      <p className={`text-[10px] mt-2 text-center font-medium ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+        AI responses may take a few seconds
+      </p>
+    </div>
+  );
+};
+
+const SmartHiveAIAssistant = ({
+  latestData, historicalData, selectedContainer,
+  totalHives, activatedHives, isDarkMode, t,
+}: AIAssistantProps) => {
+  const [isOpen, setIsOpen]           = useState(false);
+  const [messages, setMessages]       = useState<AIMessage[]>([]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isLoading, setIsLoading]     = useState(false);
+  const messagesEndRef                = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ── focus input when chat opens ───────────────────────────────────────────
+  // Lock body scroll while open on mobile
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-      // slight delay so the sheet animation finishes first on mobile
-      setTimeout(() => inputRef.current?.focus(), 350);
-    }
-  }, [isOpen]);
-
-  // ── lock body scroll while open on mobile ─────────────────────────────────
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    document.body.style.overflow = isOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [isOpen]);
 
-  // ── welcome message ───────────────────────────────────────────────────────
+  // Welcome message — only set once
   useEffect(() => {
     if (messages.length === 0) {
       setMessages([{
-        id: '1',
-        role: 'assistant',
-        content: `👋 Hello! I'm your Smart Hive AI Assistant. I can help you analyze your ${totalHives} hive${totalHives !== 1 ? 's' : ''} and provide insights about temperature, humidity, weight changes, and more.\n\nYou can ask me things like:\n• "How are my hives performing?"\n• "Which hive has the lowest battery?"\n• "Compare temperature trends across hives"\n• "Alert me about any concerning readings"\n\nWhat would you like to know?`,
-        timestamp: new Date(),
+        id: '1', role: 'assistant', timestamp: new Date(),
+        content: `👋 Hello! I'm your Smart Hive AI Assistant. I can help you analyze your ${totalHives} hive${totalHives !== 1 ? 's' : ''} and provide insights.\n\nYou can ask:\n• "How are my hives performing?"\n• "Which hive has the lowest battery?"\n• "Any concerning readings?"\n\nWhat would you like to know?`,
       }]);
     }
-  }, [totalHives, messages.length]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ── helpers ───────────────────────────────────────────────────────────────
-  const calculateTrend = (data: SensorData[], field: string) => {
-    if (data.length < 2) return 'insufficient_data';
-    const values = data
-      .map(item => item[field as keyof SensorData])
-      .filter(v => v !== null && v !== undefined && !isNaN(Number(v)))
-      .map(Number);
-    if (values.length < 2) return 'no_data';
-    const recentAvg = values.slice(-5).reduce((a, b) => a + b, 0) / Math.min(5, values.length);
-    const olderAvg  = values.slice(0, 5).reduce((a, b) => a + b, 0) / Math.min(5, values.length);
-    const change    = ((recentAvg - olderAvg) / olderAvg) * 100;
-    if (Math.abs(change) < 2) return 'stable';
-    return change > 0 ? 'increasing' : 'decreasing';
-  };
-
-  const prepareContextData = () => {
+  const prepareContextData = useCallback(() => {
     const hiveStats = new Map();
     latestData.forEach((item, index) => {
       hiveStats.set(index + 1, {
         temperature_internal: item.temp_internal || null,
         temperature_external: item.temp_external || null,
-        humidity_internal:    item.hum_internal  || null,
-        humidity_external:    item.hum_external  || null,
-        weight:               item.weight        || null,
-        battery:              item.battery       || 100,
-        timestamp:            item.timestamp     || item._metadata?.lastModified,
+        humidity_internal: item.hum_internal || null,
+        humidity_external: item.hum_external || null,
+        weight: item.weight || null,
+        battery: item.battery || 100,
+        timestamp: item.timestamp || item._metadata?.lastModified,
       });
     });
     return {
-      apiary: selectedContainer,
-      totalHives,
-      activatedHives,
+      apiary: selectedContainer, totalHives, activatedHives,
       hiveStats: Array.from(hiveStats.entries()).map(([num, stats]) => ({ hiveNumber: num, ...stats })),
-      trends: {
-        temperature: calculateTrend(historicalData, 'temp_internal'),
-        weight:      calculateTrend(historicalData, 'weight'),
-        battery:     calculateTrend(historicalData, 'battery'),
-      },
       dataPoints: { latest: latestData.length, historical: historicalData.length },
     };
-  };
+  }, [latestData, historicalData, selectedContainer, totalHives, activatedHives]);
 
-  // ── send a message ────────────────────────────────────────────────────────
-  const sendMessage = async (overrideText?: string) => {
+  const sendMessage = useCallback(async (overrideText?: string) => {
     const text = (overrideText ?? inputMessage).trim();
     if (!text || isLoading) return;
 
-    const userMessage: AIMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: text,
-      timestamp: new Date(),
-    };
-    setMessages(prev => [...prev, userMessage]);
+    const userMsg: AIMessage = { id: Date.now().toString(), role: 'user', content: text, timestamp: new Date() };
+    setMessages(prev => [...prev, userMsg]);
     if (!overrideText) setInputMessage('');
     setIsLoading(true);
 
     try {
-      const contextData  = prepareContextData();
-      const systemPrompt = `You are a helpful beekeeping AI assistant analyzing smart hive sensor data. You have access to real-time data from ${totalHives} beehives in the "${selectedContainer}" apiary.\n\nCurrent Data Summary:\n${JSON.stringify(contextData, null, 2)}\n\nGuidelines:\n- Provide clear, actionable insights about hive health\n- Alert users to concerning readings (e.g., temperature outside 32-36°C, low battery <30%, rapid weight loss)\n- Compare hives when asked and identify patterns\n- Suggest actions when problems are detected\n- Be concise but informative\n- Use emojis sparingly for readability (🐝, 📊, ⚠️, ✅)\n- If data is missing or insufficient, acknowledge it clearly\n\nFocus on practical beekeeping advice based on the sensor data.`;
+      const contextData = prepareContextData();
+      const systemPrompt = `You are a helpful beekeeping AI assistant analyzing smart hive sensor data. You have access to real-time data from ${totalHives} beehives in the "${selectedContainer}" apiary.\n\nCurrent Data:\n${JSON.stringify(contextData, null, 2)}\n\nGuidelines:\n- Provide clear, actionable insights\n- Alert users to concerning readings (temp outside 32-36°C, battery <30%, rapid weight loss)\n- Be concise but informative\n- Use emojis sparingly (🐝, 📊, ⚠️, ✅)`;
 
       const response = await fetch('/api/ai-chat', {
         method: 'POST',
@@ -426,32 +439,27 @@ const SmartHiveAIAssistant = ({
       if (!response.ok) throw new Error(`API error: ${response.status}`);
       const data = await response.json();
       setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
+        id: (Date.now() + 1).toString(), role: 'assistant', timestamp: new Date(),
         content: data.content[0].text,
-        timestamp: new Date(),
       }]);
     } catch {
       setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: '❌ Sorry, I encountered an error processing your request. Please try again.',
-        timestamp: new Date(),
+        id: (Date.now() + 1).toString(), role: 'assistant', timestamp: new Date(),
+        content: '❌ Sorry, I encountered an error. Please try again.',
       }]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [inputMessage, isLoading, messages, prepareContextData, selectedContainer, totalHives]);
 
   const quickActions = [
     { label: 'Overall Status',  prompt: 'Give me an overview of all my hives' },
-    { label: 'Alerts',          prompt: 'Are there any concerning readings I should know about?' },
+    { label: 'Alerts',          prompt: 'Are there any concerning readings?' },
     { label: 'Compare Hives',   prompt: 'Compare the performance of all my hives' },
     { label: 'Battery Status',  prompt: 'Check battery levels across all hives' },
   ];
 
-  // ── shared sub-pieces ─────────────────────────────────────────────────────
-  const Header = () => (
+  const ChatHeader = () => (
     <div className="bg-gradient-to-r from-amber-500 to-yellow-500 p-4 flex items-center justify-between flex-shrink-0">
       <div className="flex items-center gap-3 min-w-0">
         <div className="bg-white/20 p-2 rounded-xl flex-shrink-0">
@@ -459,39 +467,26 @@ const SmartHiveAIAssistant = ({
         </div>
         <div className="min-w-0">
           <h3 className="font-black text-white text-base leading-tight">AI Hive Assistant</h3>
-          <p className="text-xs text-white/80 font-medium truncate">
-            Powered by Groq · {totalHives} hive{totalHives !== 1 ? 's' : ''} monitored
-          </p>
+          <p className="text-xs text-white/80 font-medium">Powered by Groq · {totalHives} hive{totalHives !== 1 ? 's' : ''}</p>
         </div>
       </div>
-      <button
-        onClick={() => setIsOpen(false)}
-        className="p-2 hover:bg-white/20 rounded-xl transition-colors flex-shrink-0 ml-2"
-        aria-label="Close chat"
-      >
+      <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/20 rounded-xl transition-colors flex-shrink-0 ml-2">
         <X className="w-5 h-5 text-white" />
       </button>
     </div>
   );
 
   const QuickActions = () => (
-    <div className={`p-3 border-b flex-shrink-0 ${
-      isDarkMode ? 'bg-gray-800/60 border-white/10' : 'bg-amber-50/80 border-amber-100'
-    }`}>
-      <p className={`text-[10px] font-bold uppercase tracking-widest mb-2 ${
-        isDarkMode ? 'text-gray-400' : 'text-amber-600'
-      }`}>Quick Actions</p>
+    <div className={`p-3 border-b flex-shrink-0 ${isDarkMode ? 'bg-gray-800/60 border-white/10' : 'bg-amber-50/80 border-amber-100'}`}>
+      <p className={`text-[10px] font-bold uppercase tracking-widest mb-2 ${isDarkMode ? 'text-gray-300' : 'text-amber-600'}`}>Quick Actions</p>
       <div className="grid grid-cols-2 gap-1.5">
         {quickActions.map((action, i) => (
-          <button
-            key={i}
-            onClick={() => sendMessage(action.prompt)}
+          <button key={i} onClick={() => sendMessage(action.prompt)}
             className={`text-xs px-3 py-2 border rounded-xl transition-all font-semibold text-left leading-tight ${
               isDarkMode
-                ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:border-amber-500/40'
-                : 'bg-white border-amber-200 text-amber-700 hover:border-amber-400 hover:bg-amber-50 shadow-sm'
-            }`}
-          >
+                ? 'bg-white/5 border-white/10 text-gray-200 hover:bg-white/10'
+                : 'bg-white border-amber-200 text-amber-700 hover:border-amber-400 shadow-sm'
+            }`}>
             {action.label}
           </button>
         ))}
@@ -500,14 +495,9 @@ const SmartHiveAIAssistant = ({
   );
 
   const MessageList = () => (
-    <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${
-      isDarkMode ? 'bg-gray-900/60' : 'bg-gray-50/80'
-    }`}>
+    <div className={`flex-1 overflow-y-auto p-4 space-y-4 ${isDarkMode ? 'bg-gray-900/60' : 'bg-gray-50/80'}`}>
       {messages.map(message => (
-        <div
-          key={message.id}
-          className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-        >
+        <div key={message.id} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
           <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${
             message.role === 'user'
               ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-lg shadow-amber-500/20'
@@ -516,152 +506,92 @@ const SmartHiveAIAssistant = ({
                 : 'bg-white border border-amber-100 text-gray-800 shadow-sm'
           }`}>
             {message.role === 'assistant' && (
-              <div className={`flex items-center gap-2 mb-2 pb-2 border-b ${
-                isDarkMode ? 'border-white/10' : 'border-amber-100'
-              }`}>
-                <Sparkles className={`w-3.5 h-3.5 flex-shrink-0 ${
-                  isDarkMode ? 'text-amber-400' : 'text-amber-500'
-                }`} />
-                <span className={`text-[10px] font-bold uppercase tracking-wide ${
-                  isDarkMode ? 'text-amber-400' : 'text-amber-600'
-                }`}>AI Assistant</span>
+              <div className={`flex items-center gap-2 mb-2 pb-2 border-b ${isDarkMode ? 'border-white/10' : 'border-amber-100'}`}>
+                <Sparkles className={`w-3.5 h-3.5 flex-shrink-0 ${isDarkMode ? 'text-amber-400' : 'text-amber-500'}`} />
+                <span className={`text-[10px] font-bold uppercase tracking-wide ${isDarkMode ? 'text-amber-400' : 'text-amber-600'}`}>AI Assistant</span>
               </div>
             )}
             <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
-            <p className={`text-[10px] mt-2 ${
-              message.role === 'user'
-                ? 'text-white/70'
-                : isDarkMode ? 'text-gray-500' : 'text-gray-400'
-            }`}>
+            <p className={`text-[10px] mt-2 ${message.role === 'user' ? 'text-white/70' : isDarkMode ? 'text-gray-400' : 'text-gray-400'}`}>
               {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </p>
           </div>
         </div>
       ))}
-
       {isLoading && (
         <div className="flex justify-start">
-          <div className={`rounded-2xl px-4 py-3 ${
-            isDarkMode ? 'bg-gray-800/80 border border-white/10' : 'bg-white border border-amber-100 shadow-sm'
-          }`}>
+          <div className={`rounded-2xl px-4 py-3 ${isDarkMode ? 'bg-gray-800/80 border border-white/10' : 'bg-white border border-amber-100 shadow-sm'}`}>
             <div className="flex items-center gap-2">
               <Loader2 className={`w-4 h-4 animate-spin ${isDarkMode ? 'text-amber-400' : 'text-amber-500'}`} />
-              <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-                Analyzing your hives…
-              </span>
+              <span className={`text-sm font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-600'}`}>Analyzing your hives…</span>
             </div>
           </div>
         </div>
       )}
-
       <div ref={messagesEndRef} />
     </div>
   );
 
-  const InputBar = () => (
-    <div className={`p-3 border-t flex-shrink-0 ${
-      isDarkMode ? 'bg-gray-900/80 border-white/10' : 'bg-white border-amber-100'
-    }`}>
-      <div className="flex gap-2">
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputMessage}
-          onChange={e => setInputMessage(e.target.value)}
-          onKeyPress={e => e.key === 'Enter' && sendMessage()}
-          placeholder="Ask about your hives…"
-          disabled={isLoading}
-          className={`flex-1 min-w-0 px-4 py-2.5 border rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:opacity-50 text-sm ${
-            isDarkMode
-              ? 'bg-gray-800/60 border-white/10 text-gray-100 placeholder-gray-500'
-              : 'bg-gray-50 border-amber-200 text-gray-800 placeholder-gray-400'
-          }`}
-        />
-        <button
-          onClick={() => sendMessage()}
-          disabled={!inputMessage.trim() || isLoading}
-          className="px-3.5 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-xl hover:from-amber-600 hover:to-yellow-600 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-amber-500/30 flex-shrink-0"
-          aria-label="Send message"
-        >
-          {isLoading
-            ? <Loader2 className="w-5 h-5 animate-spin" />
-            : <Send className="w-5 h-5" />
-          }
-        </button>
-      </div>
-      <p className={`text-[10px] mt-2 text-center font-medium ${
-        isDarkMode ? 'text-gray-500' : 'text-gray-400'
-      }`}>
-        AI responses may take a few seconds
-      </p>
-    </div>
-  );
-
-  // ── render ────────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ── Floating trigger button (always visible when chat is closed) ── */}
+      {/* FAB — FIX: bottom accounts for safe area + Android nav bar (80px total) */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-4 sm:right-6 z-50 w-14 h-14 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-full shadow-2xl shadow-amber-500/40 hover:shadow-amber-500/60 transition-all duration-300 hover:scale-110 flex items-center justify-center group"
+          className="fixed right-4 sm:right-6 z-50 w-14 h-14 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-full shadow-2xl shadow-amber-500/40 hover:shadow-amber-500/60 transition-all duration-300 hover:scale-110 flex items-center justify-center group"
+          style={{ bottom: 'max(80px, calc(env(safe-area-inset-bottom, 20px) + 60px))' }}
           aria-label="Open AI assistant"
         >
           <MessageSquare className="w-6 h-6" />
-          {/* live indicator dot */}
           <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-400 rounded-full border-2 border-white animate-pulse" />
-          {/* tooltip — desktop only */}
           <span className="hidden sm:block absolute bottom-full right-0 mb-2 px-3 py-1 bg-gray-900/90 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
             Ask about your hives 🐝
           </span>
         </button>
       )}
 
-      {/* ── Mobile: full-screen bottom sheet ── */}
+      {/* Mobile full-screen bottom sheet */}
       {isOpen && (
         <div className="sm:hidden fixed inset-0 z-50 flex flex-col">
-          {/* backdrop */}
+          <div className="flex-shrink-0 bg-black/50 backdrop-blur-sm" style={{ height: '8vh' }} onClick={() => setIsOpen(false)} />
           <div
-            className="flex-shrink-0 bg-black/50 backdrop-blur-sm"
-            style={{ height: '8vh' }}
-            onClick={() => setIsOpen(false)}
-          />
-          {/* sheet — takes 92 % of viewport height */}
-          <div
-            className={`flex flex-col rounded-t-3xl overflow-hidden shadow-2xl border-t border-l border-r ${
-              isDarkMode
-                ? 'bg-gray-900/98 border-white/10'
-                : 'bg-white/98 border-white/50'
-            }`}
+            className={`flex flex-col rounded-t-3xl overflow-hidden shadow-2xl border-t border-l border-r ${isDarkMode ? 'bg-gray-900 border-white/10' : 'bg-white border-white/50'}`}
             style={{ height: '92vh' }}
           >
-            {/* drag handle */}
             <div className="flex justify-center pt-2.5 pb-1 flex-shrink-0">
               <div className={`w-10 h-1 rounded-full ${isDarkMode ? 'bg-white/20' : 'bg-gray-300'}`} />
             </div>
-
-            <Header />
+            <ChatHeader />
             {messages.length <= 1 && <QuickActions />}
             <MessageList />
-            <InputBar />
+            {/* FIX: use the hoisted AIInputBar — it never remounts so keyboard stays open */}
+            <AIInputBar
+              inputMessage={inputMessage}
+              setInputMessage={setInputMessage}
+              onSend={sendMessage}
+              isLoading={isLoading}
+              isDarkMode={isDarkMode}
+            />
           </div>
         </div>
       )}
 
-      {/* ── Desktop: floating panel bottom-right ── */}
+      {/* Desktop floating panel */}
       {isOpen && (
         <div
-          className={`hidden sm:flex fixed bottom-6 right-6 z-50 flex-col rounded-2xl shadow-2xl overflow-hidden border ${
-            isDarkMode
-              ? 'bg-gray-900/95 border-white/10 backdrop-blur-xl'
-              : 'bg-white/95 border-white/50 backdrop-blur-xl'
-          }`}
+          className={`hidden sm:flex fixed bottom-6 right-6 z-50 flex-col rounded-2xl shadow-2xl overflow-hidden border ${isDarkMode ? 'bg-gray-900/95 border-white/10 backdrop-blur-xl' : 'bg-white/95 border-white/50 backdrop-blur-xl'}`}
           style={{ width: '384px', height: '600px' }}
         >
-          <Header />
+          <ChatHeader />
           {messages.length <= 1 && <QuickActions />}
           <MessageList />
-          <InputBar />
+          <AIInputBar
+            inputMessage={inputMessage}
+            setInputMessage={setInputMessage}
+            onSend={sendMessage}
+            isLoading={isLoading}
+            isDarkMode={isDarkMode}
+          />
         </div>
       )}
     </>
@@ -706,16 +636,18 @@ const SmartHiveDashboard = () => {
 
   const dm = mounted && darkMode;
 
+  // FIX: dark mode text tokens — gray-400/500 replaced with gray-200/300
   const t = {
     card:       dm ? 'bg-gray-900/40 border border-white/10 backdrop-blur-md' : 'bg-white/40 border border-white/50 backdrop-blur-md',
-    text:       dm ? 'text-gray-100'  : 'text-gray-900',
-    textSub:    dm ? 'text-gray-400'  : 'text-gray-600',
-    textMuted:  dm ? 'text-gray-500'  : 'text-gray-500',
-    divider:    dm ? 'border-white/10' : 'border-black/10',
-    input:      dm ? 'bg-gray-800/60 border-white/10 text-gray-100 focus:ring-amber-500' : 'bg-white/60 border-white/40 text-gray-900 focus:ring-amber-500',
-    pill:       dm ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15',
+    text:       dm ? 'text-white'       : 'text-gray-900',
+    textSub:    dm ? 'text-gray-200'    : 'text-gray-600',   // was text-gray-400
+    textMuted:  dm ? 'text-gray-300'    : 'text-gray-500',   // was text-gray-500
+    divider:    dm ? 'border-white/10'  : 'border-black/10',
+    input:      dm ? 'bg-gray-800/60 border-white/10 text-white placeholder-gray-400 focus:ring-amber-500'
+                   : 'bg-white/60 border-white/40 text-gray-900 focus:ring-amber-500',
+    pill:       dm ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15',
     pillActive: 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-lg shadow-amber-500/30',
-    tableHead:  dm ? 'bg-white/5 text-gray-400'  : 'bg-black/5 text-gray-500',
+    tableHead:  dm ? 'bg-white/5 text-gray-200'  : 'bg-black/5 text-gray-500',  // was gray-400
     tableRow:   dm ? 'hover:bg-white/5 border-white/10' : 'hover:bg-black/5 border-black/10',
     tooltip:    dm ? 'rgba(17,24,39,0.95)' : 'rgba(255,255,255,0.95)',
     tooltipText:dm ? '#f3f4f6' : '#1f2937',
@@ -726,10 +658,10 @@ const SmartHiveDashboard = () => {
   };
 
   useEffect(() => {
-    const dm    = localStorage.getItem('hive-darkMode');
-    const an    = localStorage.getItem('hive-apiaryNames');
-    const hn    = localStorage.getItem('hive-hiveNames');
-    if (dm === 'true')  setDarkMode(true);
+    const d  = localStorage.getItem('hive-darkMode');
+    const an = localStorage.getItem('hive-apiaryNames');
+    const hn = localStorage.getItem('hive-hiveNames');
+    if (d  === 'true') setDarkMode(true);
     if (an) { try { setApiaryNames(JSON.parse(an)); } catch {} }
     if (hn) { try { setHiveNames(JSON.parse(hn));   } catch {} }
     setMounted(true);
@@ -811,8 +743,8 @@ const SmartHiveDashboard = () => {
     return () => clearInterval(iv);
   }, [selectedContainer, fetchData]);
 
-  const getHiveName    = useCallback((n: number) => hiveNames[n] || `Hive ${n}`, [hiveNames]);
-  const getApiaryName  = useCallback((id: string) => apiaryNames[id] || id, [apiaryNames]);
+  const getHiveName   = useCallback((n: number) => hiveNames[n] || `Hive ${n}`, [hiveNames]);
+  const getApiaryName = useCallback((id: string) => apiaryNames[id] || id, [apiaryNames]);
 
   const hiveIds = useMemo(() => {
     const combined = [...historicalData, ...latestData];
@@ -926,7 +858,7 @@ const SmartHiveDashboard = () => {
         <div className={`inline-flex p-2 sm:p-2.5 rounded-xl bg-gradient-to-br ${gradient} shadow-md mb-2 sm:mb-3`}>
           <Icon className="w-4 h-4 text-white" />
         </div>
-        <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${t.textSub}`}>{title}</p>
+        <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${t.textMuted}`}>{title}</p>
         <div className="flex items-baseline gap-1">
           <span className={`text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br ${gradient}`}>
             {value !== null && value !== undefined ? value : '—'}
@@ -992,8 +924,8 @@ const SmartHiveDashboard = () => {
         <AreaChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
           <defs>
             <linearGradient id={`grad-${dataKey}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor={color}  stopOpacity={dm ? 0.5 : 0.35} />
-              <stop offset="95%" stopColor={color}  stopOpacity={0.02} />
+              <stop offset="5%"  stopColor={color} stopOpacity={dm ? 0.5 : 0.35} />
+              <stop offset="95%" stopColor={color} stopOpacity={0.02} />
             </linearGradient>
             {dataKey2 && (
               <linearGradient id={`grad2-${dataKey2}`} x1="0" y1="0" x2="0" y2="1">
@@ -1038,7 +970,7 @@ const SmartHiveDashboard = () => {
           return (
             <button key={g.key} onClick={() => setActiveGases(prev =>
               active ? (prev.length > 1 ? prev.filter(x => x !== g.key) : prev) : [...prev, g.key]
-            )} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${active ? 'text-white border-transparent' : dm ? 'border-white/10 text-gray-400 hover:bg-white/5' : 'border-black/10 text-gray-500 hover:bg-black/5'}`}
+            )} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${active ? 'text-white border-transparent' : dm ? 'border-white/10 text-gray-300 hover:bg-white/5' : 'border-black/10 text-gray-500 hover:bg-black/5'}`}
               style={active ? { backgroundColor: g.color + 'cc', borderColor: g.color } : {}}>
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.color }} />
               {g.key}
@@ -1172,15 +1104,15 @@ const SmartHiveDashboard = () => {
             </div>
           </div>
           <button onClick={e => { e.stopPropagation(); setEditingHive(hiveNumber); setTempName(getHiveName(hiveNumber)); }}
-            className={`p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100 ${dm ? 'hover:bg-white/10 text-gray-400' : 'hover:bg-black/10 text-gray-500'}`}>
+            className={`p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100 ${dm ? 'hover:bg-white/10 text-gray-300' : 'hover:bg-black/10 text-gray-500'}`}>
             <Edit2 className="w-3.5 h-3.5" />
           </button>
         </div>
         <div className="relative p-4 grid grid-cols-2 gap-3">
           {[
-            { label: 'Temp', val: `${displayVal(temp)}°`, sub: '°C · Internal', from: 'from-rose-500', to: 'to-pink-500', labelColor: dm ? 'text-rose-400' : 'text-rose-600' },
-            { label: 'Humidity', val: `${displayVal(hum, 0)}%`, sub: '% · Internal', from: 'from-emerald-500', to: 'to-teal-500', labelColor: dm ? 'text-emerald-400' : 'text-emerald-600' },
-            { label: 'Weight', val: `${displayVal(weight)}`, sub: 'kg', from: 'from-amber-500', to: 'to-yellow-500', labelColor: dm ? 'text-amber-400' : 'text-amber-600' },
+            { label: 'Temp',     val: `${displayVal(temp)}°`,    sub: '°C · Internal', from: 'from-rose-500',    to: 'to-pink-500',    labelColor: dm ? 'text-rose-400'    : 'text-rose-600' },
+            { label: 'Humidity', val: `${displayVal(hum, 0)}%`,  sub: '% · Internal',  from: 'from-emerald-500', to: 'to-teal-500',    labelColor: dm ? 'text-emerald-400' : 'text-emerald-600' },
+            { label: 'Weight',   val: `${displayVal(weight)}`,   sub: 'kg',            from: 'from-amber-500',   to: 'to-yellow-500',  labelColor: dm ? 'text-amber-400'   : 'text-amber-600' },
           ].map(({ label, val, sub, from, to, labelColor }) => (
             <div key={label} className={`rounded-xl p-3 ${dm ? 'bg-white/5' : 'bg-black/[0.04]'}`}>
               <p className={`text-[9px] uppercase tracking-widest font-bold mb-0.5 ${labelColor}`}>{label}</p>
@@ -1208,7 +1140,6 @@ const SmartHiveDashboard = () => {
     );
   };
 
-  // ── Desktop Apiary Sidebar ──────────────────────────────────────────────────
   const ApiarySidebar = () => (
     <div className="hidden lg:block w-72 flex-shrink-0">
       <div className={`rounded-2xl shadow-xl ${t.card} p-5 sticky top-24`}>
@@ -1247,7 +1178,6 @@ const SmartHiveDashboard = () => {
     </div>
   );
 
-  // ── Mobile Apiary Bottom Sheet ─────────────────────────────────────────────
   const ApiaryBottomSheet = () => (
     <>
       {apiarySheetOpen && (
@@ -1259,7 +1189,7 @@ const SmartHiveDashboard = () => {
           <h3 className={`text-base font-bold flex items-center gap-2 ${t.text}`}>
             <Filter className="w-4 h-4" /> Select Apiary
           </h3>
-          <button onClick={() => setApiarySheetOpen(false)} className={`p-1.5 rounded-lg ${dm ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+          <button onClick={() => setApiarySheetOpen(false)} className={`p-1.5 rounded-lg ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-500'}`}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1271,7 +1201,10 @@ const SmartHiveDashboard = () => {
             <Search className={`absolute left-3 top-3 w-3.5 h-3.5 ${t.textMuted}`} />
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 pb-8 space-y-2">
+        <div
+          className="flex-1 overflow-y-auto px-5 space-y-2"
+          style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
+        >
           {availableContainers
             .filter(c => getApiaryName(c).toLowerCase().includes(apiarySearchQuery.toLowerCase()) || c.toLowerCase().includes(apiarySearchQuery.toLowerCase()))
             .map(container => (
@@ -1298,22 +1231,28 @@ const SmartHiveDashboard = () => {
     </>
   );
 
+  // ── Sidebar ────────────────────────────────────────────────────────────────
   const Sidebar = () => (
     <>
       {sidebarOpen && <div className="fixed inset-0 z-40 backdrop-blur-sm bg-black/40" onClick={() => setSidebarOpen(false)} />}
       <aside className={`fixed top-0 left-0 h-full w-72 z-50 transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${t.sidebar} shadow-2xl flex flex-col`}>
-        <div className={`px-6 py-5 flex items-center justify-between border-b ${t.divider}`}>
+
+        {/* Header — safe area top */}
+        <div
+          className={`px-6 flex items-center justify-between border-b ${t.divider}`}
+          style={{ paddingTop: 'max(20px, env(safe-area-inset-top, 20px))', paddingBottom: '16px' }}
+        >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg text-xl">🐝</div>
             <div>
               <h2 className={`text-sm font-black tracking-tight ${t.text}`}>Smart Hive</h2>
-             
             </div>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className={`p-1.5 rounded-lg ${dm ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-500'}`}>
+          <button onClick={() => setSidebarOpen(false)} className={`p-1.5 rounded-lg ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-500'}`}>
             <X className="w-5 h-5" />
           </button>
         </div>
+
         {selectedContainer && (
           <div className={`mx-4 my-4 px-4 py-3 rounded-xl ${dm ? 'bg-amber-950/60 border border-amber-900/60' : 'bg-amber-50 border border-amber-100'}`}>
             <p className={`text-xs font-semibold uppercase tracking-widest mb-1 ${dm ? 'text-amber-400' : 'text-amber-600'}`}>Active Apiary</p>
@@ -1324,6 +1263,7 @@ const SmartHiveDashboard = () => {
             </div>
           </div>
         )}
+
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           <p className={`text-xs font-semibold uppercase tracking-widest px-2 py-2 ${t.textMuted}`}>Navigation</p>
           {[
@@ -1343,13 +1283,19 @@ const SmartHiveDashboard = () => {
             </button>
           )}
         </nav>
-        <div className={`px-4 py-4 border-t ${t.divider} space-y-2`}>
-          <button onClick={() => setDarkMode(!dm)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${dm ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+
+        {/* Footer — FIX: safe area bottom so buttons clear gesture bar */}
+        <div
+          className={`px-4 border-t ${t.divider} space-y-2`}
+          style={{ paddingTop: '16px', paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
+        >
+          <button onClick={() => setDarkMode(!dm)}
+            className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold ${dm ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             {dm ? <SunMedium className="w-4 h-4 text-yellow-400" /> : <Moon className="w-4 h-4" />}
             {dm ? 'Light Mode' : 'Dark Mode'}
           </button>
           <button onClick={() => fetch('/api/auth/logout', { method: 'POST' }).then(() => router.push('/'))}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold ${dm ? 'bg-red-950/50 text-red-400 border border-red-900/40 hover:bg-red-950' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}>
+            className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold ${dm ? 'bg-red-950/50 text-red-400 border border-red-900/40 hover:bg-red-950' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}>
             <LogOut className="w-4 h-4" />Sign Out
           </button>
         </div>
@@ -1368,7 +1314,7 @@ const SmartHiveDashboard = () => {
             <div className="absolute inset-0 flex items-center justify-center text-3xl">🐝</div>
           </div>
           <p className={`text-xl font-bold mb-1 ${dm ? 'text-white' : 'text-gray-900'}`}>Loading Smart Hive</p>
-          <p className={`text-sm ${dm ? 'text-gray-400' : 'text-gray-600'}`}>Connecting to your hives…</p>
+          <p className={`text-sm ${dm ? 'text-gray-300' : 'text-gray-600'}`}>Connecting to your hives…</p>
         </div>
       </div>
     );
@@ -1439,24 +1385,24 @@ const SmartHiveDashboard = () => {
 
       <div className="relative min-h-screen flex flex-col">
         {/* ── Header ── */}
-        <header className={`sticky top-0 z-30 ${dm ? 'bg-gray-900/30 border-b border-white/10' : 'bg-white/20 border-b border-white/30'} backdrop-blur-xl`}>
+        <header
+          className={`sticky top-0 z-30 ${dm ? 'bg-gray-900/30 border-b border-white/10' : 'bg-white/20 border-b border-white/30'} backdrop-blur-xl`}
+          style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+        >
           <div className="flex items-center justify-between px-4 sm:px-5 py-3">
             <div className="flex items-center gap-2 min-w-0">
-              <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-2 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}>
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-2 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}>
                 <Menu className="w-5 h-5" />
               </button>
               {selectedHive && (
-                <button onClick={() => setSelectedHive(null)} className={`p-2 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-400' : 'hover:bg-gray-100 text-gray-600'}`}>
+                <button onClick={() => setSelectedHive(null)} className={`p-2 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}>
                   <ArrowLeft className="w-5 h-5" />
                 </button>
               )}
               <div className={`w-px h-5 flex-shrink-0 ${dm ? 'bg-gray-800' : 'bg-gray-200'}`} />
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-7 h-7 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-lg flex items-center justify-center shadow-sm text-sm flex-shrink-0">🐝</div>
-                <div className="min-w-0">
-                  <h1 className={`text-sm font-black tracking-tight leading-none ${t.text}`}>Smart Hive</h1>
-                  
-                </div>
+                <h1 className={`text-sm font-black tracking-tight leading-none truncate ${t.text}`}>Smart Hive</h1>
               </div>
             </div>
 
@@ -1468,16 +1414,14 @@ const SmartHiveDashboard = () => {
                   <ChevronDown className="w-3 h-3 flex-shrink-0" />
                 </button>
               )}
-
               <div className="hidden md:flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-500/20">
                 <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
                 <span className={`text-xs font-bold truncate max-w-[120px] ${dm ? 'text-amber-300' : 'text-amber-700'}`}>
                   {selectedHive ? getHiveName(selectedHive) : getApiaryName(selectedContainer)}
                 </span>
               </div>
-
               {lastUpdated && (
-                <div className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${dm ? 'bg-gray-800 text-gray-400' : 'bg-gray-100 text-gray-600'}`}>
+                <div className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${dm ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                   <Clock className="w-3.5 h-3.5" />
                   {new Date(lastUpdated).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                 </div>
@@ -1497,7 +1441,6 @@ const SmartHiveDashboard = () => {
         {/* ── Main ── */}
         <main className="flex-1 px-4 py-5 md:px-6 lg:px-8 max-w-screen-2xl mx-auto w-full">
 
-          {/* ALL HIVES VIEW */}
           {selectedHive === null && (
             <>
               <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
@@ -1535,7 +1478,6 @@ const SmartHiveDashboard = () => {
 
               <div className="flex gap-5 lg:gap-6">
                 {availableContainers.length > 1 && <ApiarySidebar />}
-
                 <div className="flex-1 min-w-0">
                   <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
                     <div className="flex flex-col gap-3">
@@ -1580,7 +1522,6 @@ const SmartHiveDashboard = () => {
             </>
           )}
 
-          {/* SINGLE HIVE DETAIL */}
           {selectedHive !== null && (
             <>
               <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
@@ -1604,7 +1545,7 @@ const SmartHiveDashboard = () => {
                       </div>
                     </div>
                     <button onClick={() => { setEditingHive(selectedHive); setTempName(getHiveName(selectedHive)); }}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${dm ? 'bg-white/10 text-gray-300 hover:bg-white/20' : 'bg-black/5 text-gray-600 hover:bg-black/10'}`}>
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${dm ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-black/5 text-gray-600 hover:bg-black/10'}`}>
                       <Edit2 className="w-3.5 h-3.5" />
                       <span className="hidden sm:inline">Rename</span>
                     </button>
@@ -1620,7 +1561,6 @@ const SmartHiveDashboard = () => {
                 <StatCard icon={Zap}         title="Battery"   value={(hiveStatVal(getBattery) ?? 100).toFixed(0)}                        unit="%" gradient="from-sky-500 to-cyan-500" />
               </div>
 
-              {/* Time filter */}
               <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                   <div className="flex items-center gap-3">
@@ -1633,7 +1573,7 @@ const SmartHiveDashboard = () => {
                     </div>
                   </div>
                   <button onClick={() => setShowDatePicker(!showDatePicker)}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-semibold text-xs transition-all self-start sm:self-auto ${showDatePicker ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-md' : dm ? 'bg-gray-800 text-gray-300 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-semibold text-xs transition-all self-start sm:self-auto ${showDatePicker ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-md' : dm ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
                     <Calendar className="w-3.5 h-3.5" />Custom Range
                   </button>
                 </div>
@@ -1648,7 +1588,7 @@ const SmartHiveDashboard = () => {
                         </div>
                       ))}
                       <button onClick={() => { setStartDate(''); setEndDate(''); }}
-                        className={`px-4 py-2 rounded-lg font-semibold text-xs ${dm ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>Clear</button>
+                        className={`px-4 py-2 rounded-lg font-semibold text-xs ${dm ? 'bg-gray-700 text-gray-200 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>Clear</button>
                     </div>
                   </div>
                 )}
@@ -1663,7 +1603,6 @@ const SmartHiveDashboard = () => {
                 </div>
               </div>
 
-              {/* Charts */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 mb-5">
                 <TemperatureChartCard data={chartData} />
                 <ChartCard title="Humidity" dataKey="humidity" dataKey2="humidityExt" color="#10b981" color2="#06b6d4" unit="%" icon={Droplets} data={chartData} gradient="from-emerald-500 to-teal-500" />
@@ -1675,9 +1614,7 @@ const SmartHiveDashboard = () => {
               </div>
 
               {selectedHive === 1 && (
-                <div className="mb-5">
-                  <GasChartCard />
-                </div>
+                <div className="mb-5"><GasChartCard /></div>
               )}
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 mb-5">
@@ -1700,7 +1637,6 @@ const SmartHiveDashboard = () => {
                 </div>
               </div>
 
-              {/* Historical table */}
               <div className={`rounded-2xl shadow-md ${t.card} overflow-hidden mb-5`}>
                 <div className={`px-5 py-4 border-b ${t.divider} flex items-center gap-3`}>
                   <div className="p-2.5 rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 shadow-md flex-shrink-0">
@@ -1743,7 +1679,6 @@ const SmartHiveDashboard = () => {
         </main>
       </div>
 
-      {/* ── AI Assistant (floating, always visible) ── */}
       {!loading && hasAccess && (
         <SmartHiveAIAssistant
           latestData={latestData}
