@@ -63,28 +63,25 @@ export default function AdminAccessManagement() {
 
   const dm = mounted && darkMode;
 
-  // ── Theme tokens ──
-  // FIX: dark mode sub/muted text changed from gray-400/500 to gray-200/300
-  // so it's actually readable on dark backgrounds
   const t = {
-    card:       dm ? 'bg-gray-900/40 border border-white/10 backdrop-blur-md' : 'bg-white/40 border border-white/50 backdrop-blur-md',
-    text:       dm ? 'text-white'        : 'text-gray-900',
-    textSub:    dm ? 'text-gray-200'     : 'text-gray-600',   // was text-gray-400 — now visible
-    textMuted:  dm ? 'text-gray-300'     : 'text-gray-500',   // was text-gray-500 — now visible
-    divider:    dm ? 'border-white/10'   : 'border-black/10',
-    input:      dm ? 'bg-gray-800/60 border-white/10 text-white placeholder-gray-400 focus:ring-amber-500'
-                   : 'bg-white/60 border-white/40 text-gray-900 placeholder-gray-400 focus:ring-amber-500',
-    pill:       dm ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15',
-    pillActive: 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-lg shadow-amber-500/30',
-    tableHead:  dm ? 'bg-white/5 text-gray-300'   : 'bg-black/5 text-gray-500',  // was gray-400
-    tableRow:   dm ? 'hover:bg-white/5 border-white/10' : 'hover:bg-black/[0.03] border-black/10',
-    sidebar:    dm ? 'bg-gray-950 border-r border-gray-800' : 'bg-white border-r border-gray-100',
-    modalBg:    dm ? 'bg-gray-900 border border-white/10' : 'bg-white border border-gray-200',
-    innerCard:  dm ? 'bg-white/5' : 'bg-black/[0.04]',
-    mobileCard: dm ? 'bg-gray-900/50 border border-white/10' : 'bg-white/60 border border-black/10',
+    card:        dm ? 'bg-gray-900/40 border border-white/10 backdrop-blur-md' : 'bg-white/40 border border-white/50 backdrop-blur-md',
+    text:        dm ? 'text-white'        : 'text-gray-900',
+    textSub:     dm ? 'text-gray-200'     : 'text-gray-600',
+    textMuted:   dm ? 'text-gray-300'     : 'text-gray-500',
+    divider:     dm ? 'border-white/10'   : 'border-black/10',
+    input:       dm ? 'bg-gray-800/60 border-white/10 text-white placeholder-gray-400 focus:ring-amber-500'
+                    : 'bg-white/60 border-white/40 text-gray-900 placeholder-gray-400 focus:ring-amber-500',
+    pill:        dm ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-black/10 text-gray-700 hover:bg-black/15',
+    pillActive:  'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-lg shadow-amber-500/30',
+    tableHead:   dm ? 'bg-white/5 text-gray-300'   : 'bg-black/5 text-gray-500',
+    tableRow:    dm ? 'hover:bg-white/5 border-white/10' : 'hover:bg-black/[0.03] border-black/10',
+    sidebar:     dm ? 'bg-gray-950 border-r border-gray-800' : 'bg-white border-r border-gray-100',
+    modalBg:     dm ? 'bg-gray-900 border border-white/10' : 'bg-white border border-gray-200',
+    innerCard:   dm ? 'bg-white/5' : 'bg-black/[0.04]',
+    mobileCard:  dm ? 'bg-gray-900/50 border border-white/10' : 'bg-white/60 border border-black/10',
     sidebarText: dm ? 'text-white'    : 'text-gray-900',
-    sidebarSub:  dm ? 'text-gray-200' : 'text-gray-600',   // was gray-400
-    sidebarMuted:dm ? 'text-gray-300' : 'text-gray-500',   // was gray-500
+    sidebarSub:  dm ? 'text-gray-200' : 'text-gray-600',
+    sidebarMuted:dm ? 'text-gray-300' : 'text-gray-500',
   };
 
   const loadApiaryLocations = async () => {
@@ -345,22 +342,35 @@ export default function AdminAccessManagement() {
   return (
     <div className="min-h-screen relative transition-colors duration-300">
 
-      {/* Background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className={`absolute inset-0 ${dm ? 'bg-gradient-to-br from-gray-950 via-amber-950/20 to-gray-950' : 'bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50'}`} />
-        <div className={`absolute top-0 right-0 w-[700px] h-[700px] rounded-full blur-3xl opacity-20 ${dm ? 'bg-amber-700' : 'bg-amber-300'} animate-pulse`} />
-        <div className={`absolute bottom-0 left-0 w-[500px] h-[500px] rounded-full blur-3xl opacity-15 ${dm ? 'bg-yellow-700' : 'bg-yellow-300'} animate-pulse`} style={{ animationDelay: '1.5s' }} />
-      </div>
+      {/* =====================================================================
+          BACKGROUND PLACEHOLDER
+          -----------------------------------------------------------------------
+          This div is fixed, full-screen, and sits behind all page content.
+          Replace its contents with your own background — e.g.:
+            • An <Image> component:    <Image src="..." fill style={{objectFit:'cover'}} />
+            • A video element:         <video autoPlay loop muted .../>
+            • A CSS/Tailwind gradient: className="absolute inset-0 bg-gradient-to-br from-... to-..."
+            • A canvas/WebGL element
+            • Any other component
+          The rest of the UI uses backdrop-blur + semi-transparent cards,
+          so your background will show through naturally.
+          ===================================================================== */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden" 
+  style={{ 
+    backgroundImage: "url('/bee.jpg')",  // ← your image goes here
+    backgroundSize: 'cover', 
+    backgroundPosition: 'center', 
+    backgroundRepeat: 'no-repeat' 
+  }}>
+  <div className={`absolute inset-0 ${dm ? 'bg-black/40' : 'bg-white/20'}`} />
+</div>
+      {/* ===================================================================== */}
 
       {/* Sidebar backdrop */}
       {sidebarOpen && <div className="fixed inset-0 z-40 backdrop-blur-sm bg-black/40" onClick={() => setSidebarOpen(false)} />}
 
-      {/* ── Sidebar ──
-          FIX: bottom section uses paddingBottom with safe-area-inset-bottom
-          so Dark Mode and Sign Out buttons never hide behind the gesture bar */}
+      {/* ── Sidebar ── */}
       <aside className={`fixed top-0 left-0 h-full w-72 z-50 transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${t.sidebar} shadow-2xl flex flex-col`}>
-
-        {/* Sidebar header — also safe area aware for top */}
         <div
           className={`px-6 flex items-center justify-between border-b ${t.divider}`}
           style={{ paddingTop: 'max(20px, env(safe-area-inset-top, 20px))', paddingBottom: '16px' }}
@@ -377,14 +387,12 @@ export default function AdminAccessManagement() {
           </button>
         </div>
 
-        {/* Access level badge */}
         <div className={`mx-4 my-4 px-4 py-3 rounded-xl ${dm ? 'bg-amber-950/60 border border-amber-900/60' : 'bg-amber-50 border border-amber-100'}`}>
           <p className={`text-xs font-semibold uppercase tracking-widest mb-1 ${dm ? 'text-amber-400' : 'text-amber-600'}`}>Access Level</p>
           <p className={`text-sm font-bold ${t.sidebarText}`}>Administrator</p>
           <p className={`text-xs truncate mt-0.5 ${t.sidebarMuted}`}>{adminInfo?.email || 'admin'}</p>
         </div>
 
-        {/* Nav links */}
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           <p className={`text-xs font-semibold uppercase tracking-widest px-2 py-2 ${t.sidebarMuted}`}>Navigation</p>
           {[
@@ -402,7 +410,6 @@ export default function AdminAccessManagement() {
             <UserCheck className="w-4 h-4" />Access Management
           </div>
 
-          {/* Mobile-only quick actions */}
           <div className={`md:hidden pt-2 border-t ${t.divider} space-y-1`}>
             <p className={`text-xs font-semibold uppercase tracking-widest px-2 py-2 ${t.sidebarMuted}`}>Quick Actions</p>
             <button onClick={() => { setShowLocationsPanel(!showLocationsPanel); setSidebarOpen(false); }}
@@ -420,14 +427,9 @@ export default function AdminAccessManagement() {
           </div>
         </nav>
 
-        {/* ── Sidebar footer — FIX: safe area bottom padding ──
-            This pushes Dark Mode and Sign Out above the phone's gesture/nav bar */}
         <div
           className={`px-4 border-t ${t.divider} space-y-2`}
-          style={{
-            paddingTop: '16px',
-            paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))',
-          }}
+          style={{ paddingTop: '16px', paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
         >
           <button onClick={() => setDarkMode(!dm)}
             className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold ${dm ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
@@ -443,8 +445,7 @@ export default function AdminAccessManagement() {
 
       <div className="relative min-h-screen flex flex-col">
 
-        {/* ── Header ── 
-            FIX: safe area top padding so header clears status bar properly */}
+        {/* ── Header ── */}
         <header
           className={`sticky top-0 z-30 ${dm ? 'bg-gray-900/30 border-b border-white/10' : 'bg-white/20 border-b border-white/30'} backdrop-blur-xl`}
           style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}

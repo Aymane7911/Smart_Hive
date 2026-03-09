@@ -224,12 +224,10 @@ export default function WelcomePage() {
   return (
     <div className="min-h-screen relative transition-colors duration-300">
 
-      {/* Background blobs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className={`absolute inset-0 ${dm ? 'bg-gradient-to-br from-gray-950 via-amber-950/20 to-gray-950' : 'bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50'}`} />
-        <div className={`absolute top-0 right-0 w-[700px] h-[700px] rounded-full blur-3xl opacity-20 ${dm ? 'bg-amber-700' : 'bg-amber-300'} animate-pulse`} />
-        <div className={`absolute bottom-0 left-0 w-[500px] h-[500px] rounded-full blur-3xl opacity-15 ${dm ? 'bg-yellow-700' : 'bg-yellow-300'} animate-pulse`} style={{ animationDelay: '1.5s' }} />
-      </div>
+      {/* Background image */}
+<div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ backgroundImage: "url('/bee.jpg')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+  <div className={`absolute inset-0 ${dm ? 'bg-black/40' : 'bg-white/20'}`} />
+</div>
 
       <Sidebar />
 
