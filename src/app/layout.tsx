@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Smart Hive",
+  title: "NahalAI",
   description: "AI-Powered Beekeeping Intelligence",
 };
 

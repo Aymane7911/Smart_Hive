@@ -324,7 +324,7 @@ export default function WelcomePage() {
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg text-xl">🐝</div>
             <div>
-              <h2 className={`text-sm font-black tracking-tight ${t.text}`}>Smart Hive</h2>
+              <h2 className={`text-sm font-black tracking-tight ${t.text}`}>NahalAI</h2>
               <p className={`text-xs ${t.textMuted}`}>Colony Monitoring</p>
             </div>
           </div>
@@ -346,7 +346,7 @@ export default function WelcomePage() {
           <p className={`text-xs font-semibold uppercase tracking-widest px-2 py-2 ${t.textMuted}`}>Navigation</p>
           {[
             { label: 'Home',     icon: Home,            action: () => { router.push('/welcome'); setSidebarOpen(false); } },
-            { label: 'Purchase', icon: ShoppingCart,    action: () => { router.push('/payment'); setSidebarOpen(false); } },
+            { label: 'Purchase', icon: ShoppingCart,    action: () => { router.push('/order'); setSidebarOpen(false); } },
           ].map(item => (
             <button key={item.label} onClick={item.action}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${t.text} ${dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
@@ -396,21 +396,14 @@ export default function WelcomePage() {
               <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-lg flex items-center justify-center text-sm">🐝</div>
                 <div>
-                  <h1 className={`text-sm font-black tracking-tight leading-none ${t.text}`}>Smart Hive</h1>
+                  <h1 className={`text-sm font-black tracking-tight leading-none ${t.text}`}>NahalAI</h1>
                   <p className={`text-[10px] mt-0.5 ${t.textMuted}`}>Apiary Selection</p>
                 </div>
               </div>
             </div>
 
             <div className="hidden md:flex items-center gap-3">
-              <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${dm ? 'text-emerald-400 bg-emerald-950/60 border-emerald-900/60' : 'text-emerald-700 bg-emerald-50 border-emerald-100'}`}>
-                {apiaries.length} Active
-              </span>
-              {userData && (
-                <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${dm ? 'text-amber-400 bg-amber-950/60 border-amber-900/60' : 'text-amber-700 bg-amber-50 border-amber-100'}`}>
-                  {userData.firstname} {userData.lastname}
-                </span>
-              )}
+            
             </div>
 
             <div className="flex items-center gap-2">

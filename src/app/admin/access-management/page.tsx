@@ -917,7 +917,7 @@ export default function AdminAccessManagement() {
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg text-xl">🐝</div>
             <div>
-              <h2 className={`text-sm font-black tracking-tight ${t.sidebarText}`}>Smart Hive</h2>
+              <h2 className={`text-sm font-black tracking-tight ${t.sidebarText}`}>NahalAI</h2>
               <p className={`text-xs ${t.sidebarMuted}`}>Admin Panel</p>
             </div>
           </div>
@@ -936,9 +936,9 @@ export default function AdminAccessManagement() {
           <p className={`text-xs font-semibold uppercase tracking-widest px-2 py-2 ${t.sidebarMuted}`}>Navigation</p>
           {[
             { label: 'Home',        icon: Home,            path: '/welcome' },
-            { label: 'Smart Hive',  icon: LayoutDashboard, path: '/smart-hive' },
+            { label: 'Dashboard',  icon: LayoutDashboard, path: '/smart-hive' },
             { label: 'Calibration', icon: Settings,        path: '/admin/correction' },
-            { label: 'Purchase',    icon: ShoppingCart,    path: '/purchase' },
+            { label: 'Purchase',    icon: ShoppingCart,    path: '/order' },
           ].map(item => (
             <button key={item.label} onClick={() => { router.push(item.path); setSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${t.sidebarText} ${dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
@@ -982,7 +982,7 @@ export default function AdminAccessManagement() {
             <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               <button onClick={() => router.push('/smart-hive')}
                 className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-white px-3 py-2 rounded-lg hover:from-amber-600 hover:to-yellow-600 transition-all shadow-md font-semibold text-xs">
-                <LayoutDashboard className="w-3.5 h-3.5" /><span className="hidden sm:inline">Smart Hive</span>
+                <LayoutDashboard className="w-3.5 h-3.5" /><span className="hidden sm:inline">Dashboard</span>
               </button>
               <button onClick={fetchAll}
                 className="hidden md:flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-white px-3 py-2 rounded-lg hover:from-amber-600 hover:to-yellow-600 transition-all shadow-md font-semibold text-xs">

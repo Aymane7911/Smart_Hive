@@ -161,7 +161,7 @@ function LoginForm() {
       </div>
 
       {/* Register */}
-      <a href="/register-purchase"
+      <a href="/register"
         className="flex items-center justify-center w-full px-4 py-3 border border-white/30 hover:border-amber-400/70 text-white/80 hover:text-white rounded-xl hover:bg-white/10 transition-all font-semibold text-sm">
         Create an Account &amp; Purchase
       </a>
@@ -194,7 +194,7 @@ export default function LoginPage() {
       </video>
 
       {/* Dark overlay for text readability */}
-      <div className="absolute inset-0 bg-black/45" style={{ zIndex: 1 }} />
+      <div className="absolute inset-0 bg-black/60" style={{ zIndex: 1, minHeight: '120dvh' }} />
 
       {/* Nav */}
       <header

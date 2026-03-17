@@ -361,8 +361,8 @@ const SmartHiveAIAssistant = ({ latestData, historicalData, selectedContainer, t
       <div className="flex items-center gap-3 min-w-0">
         <div className="bg-white/20 p-2 rounded-xl flex-shrink-0"><Sparkles className="w-5 h-5 text-white" /></div>
         <div className="min-w-0">
-          <h3 className="font-black text-white text-base">AI Hive Assistant</h3>
-          <p className="text-xs text-white/80">Powered by Groq · {totalHives} hive{totalHives !== 1 ? 's' : ''}</p>
+          <h3 className="font-black text-white text-base">Nahla</h3>
+          
         </div>
       </div>
       <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/20 rounded-xl ml-2 flex-shrink-0"><X className="w-5 h-5 text-white" /></button>
@@ -571,11 +571,28 @@ const SmartHiveDashboard = () => {
 
   // ── Data fetching ───────────────────────────────────────────────────────────
   const flattenData = useCallback((data: any): SensorData[] => {
-    if (!data) return [];
-    if (Array.isArray(data)) return data[0]?.data ? data.flatMap((i: any) => i.data || []) : data;
-    if (data.data) return Array.isArray(data.data) ? data.data : [data.data];
-    return [data];
-  }, []);
+  if (!data) return [];
+  let flat: SensorData[];
+  if (Array.isArray(data)) {
+    flat = data[0]?.data ? data.flatMap((i: any) => i.data || []) : data;
+  } else if (data.data) {
+    flat = Array.isArray(data.data) ? data.data : [data.data];
+  } else {
+    flat = [data];
+  }
+
+  // Filter out ghost records — rows where every sensor field is undefined/null
+  return flat.filter(item => {
+    return (
+      getTemperature(item, 'internal') !== null ||
+      getTemperature(item, 'external') !== null ||
+      getHumidity(item, 'internal')    !== null ||
+      getHumidity(item, 'external')    !== null ||
+      getWeight(item)                  !== null ||
+      getBattery(item)                 !== null
+    );
+  });
+}, []);
 
   const fetchData = useCallback(async () => {
     if (!selectedContainer || !isMountedRef.current) return;
@@ -1080,26 +1097,17 @@ const SmartHiveDashboard = () => {
           style={{ paddingTop: 'max(20px, env(safe-area-inset-top, 20px))', paddingBottom: 16 }}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg text-xl">🐝</div>
-            <h2 className={`text-sm font-black tracking-tight ${t.text}`}>Smart Hive</h2>
+            <h2 className={`text-sm font-black tracking-tight ${t.text}`}>NahalAI</h2>
           </div>
           <button onClick={() => setSidebarOpen(false)} className={`p-1.5 rounded-lg ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-500'}`}><X className="w-5 h-5" /></button>
         </div>
-        {selectedContainer && (
-          <div className={`mx-4 my-4 px-4 py-3 rounded-xl ${dm ? 'bg-amber-950/60 border border-amber-900/60' : 'bg-amber-50 border border-amber-100'}`}>
-            <p className={`text-xs font-semibold uppercase tracking-widest mb-1 ${dm ? 'text-amber-400' : 'text-amber-600'}`}>Active Apiary</p>
-            <p className={`text-sm font-bold truncate ${t.text}`}>{getApiaryName(selectedContainer)}</p>
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}`} />
-              <span className={`text-xs ${isOnline ? (dm ? 'text-emerald-400' : 'text-emerald-600') : 'text-red-500'}`}>{isOnline ? 'Live' : 'Offline'}</span>
-            </div>
-          </div>
-        )}
+        
         <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
           <p className={`text-xs font-semibold uppercase tracking-widest px-2 py-2 ${t.textMuted}`}>Navigation</p>
           {[
             { label: 'Home',      icon: Home,            action: () => { router.push('/welcome'); setSidebarOpen(false); } },
             { label: 'Dashboard', icon: LayoutDashboard, action: () => { setSelectedHive(null); setSidebarOpen(false); } },
-            { label: 'Purchase',  icon: ShoppingCart,    action: () => { router.push('/payment'); setSidebarOpen(false); } },
+            { label: 'Purchase',  icon: ShoppingCart,    action: () => { router.push('/order'); setSidebarOpen(false); } },
           ].map(item => (
             <button key={item.label} onClick={item.action}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${t.text} ${dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
@@ -1224,7 +1232,7 @@ const SmartHiveDashboard = () => {
               <div className={`w-px h-5 flex-shrink-0 ${dm ? 'bg-gray-800' : 'bg-gray-200'}`} />
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-7 h-7 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-lg flex items-center justify-center text-sm flex-shrink-0">🐝</div>
-                <h1 className={`text-sm font-black tracking-tight truncate ${t.text}`}>Smart Hive</h1>
+                <h1 className={`text-sm font-black tracking-tight truncate ${t.text}`}>NahalAI</h1>
               </div>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">

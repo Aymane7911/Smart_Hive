@@ -43,7 +43,6 @@ function VerificationModal({
   const [timer, setTimer]     = useState(60);
   const [resending, setResending] = useState(false);
 
-  // ── Stable individual refs (fixes Turbopack panic with array-ref pattern) ──
   const ref0 = useRef<HTMLInputElement>(null);
   const ref1 = useRef<HTMLInputElement>(null);
   const ref2 = useRef<HTMLInputElement>(null);
@@ -223,12 +222,10 @@ export default function RegisterPage() {
     return true;
   };
 
-  // ── Step 1: Create account + claim device ─────────────────────────────────
   const handleSubmit = async () => {
     if (!validate()) return;
     setLoading(true); setError('');
     try {
-      // Register
       const regRes  = await fetch('/api/auth/register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -242,7 +239,6 @@ export default function RegisterPage() {
       const regData = await regRes.json();
       if (!regData.success) { setError(regData.error || 'Registration failed'); return; }
 
-      // Send verification email
       await fetch('/api/auth/send-verification', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: form.email.trim().toLowerCase(), firstname: form.firstname.trim() }),
@@ -256,7 +252,6 @@ export default function RegisterPage() {
     }
   };
 
-  // ── Step 2: Verify email → redirect to login ──────────────────────────────
   const handleVerify = async (code: string) => {
     const res  = await fetch('/api/auth/send-verification', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -280,7 +275,7 @@ export default function RegisterPage() {
           style={{ zIndex: 0, filter: 'blur(8px)', transform: 'scale(1.08)' }}>
           <source src="/littlebee.mp4" type="video/mp4" />
         </video>
-        <div className="absolute inset-0 bg-black/50" style={{ zIndex: 1 }} />
+        <div className="absolute inset-0 bg-black/60" style={{ zIndex: 1 }} />
         <div className="relative text-center px-6" style={{ zIndex: 10 }}>
           <div className="w-20 h-20 mx-auto mb-6 rounded-2xl flex items-center justify-center shadow-xl"
             style={{ background: 'linear-gradient(135deg, #10b981, #34d399)' }}>
@@ -310,7 +305,7 @@ export default function RegisterPage() {
           style={{ zIndex: 0, filter: 'blur(8px)', transform: 'scale(1.08)' }}>
           <source src="/littlebee.mp4" type="video/mp4" />
         </video>
-        <div className="absolute inset-0 bg-black/45" style={{ zIndex: 1 }} />
+        <div className="absolute inset-0 bg-black/60" style={{ zIndex: 1, minHeight: '170dvh' }} />
 
         {/* Nav */}
         <header
