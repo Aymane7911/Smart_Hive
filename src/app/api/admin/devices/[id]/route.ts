@@ -6,14 +6,9 @@ import { verifyAdminToken } from '@/lib/auth'
 
 const prisma = new PrismaClient()
 
-// ─────────────────────────────────────────────────────────────────
-// PATCH /api/admin/devices/:id
-// Update hiveCount, model, or status (suspend / restore).
-// Body: { hiveCount?, model?, status? }
-// ─────────────────────────────────────────────────────────────────
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const admin = await verifyAdminToken(req)
@@ -21,7 +16,8 @@ export async function PATCH(
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const id = parseInt(params.id)
+    const { id: rawId } = await params
+    const id = parseInt(rawId)
     if (isNaN(id)) {
       return NextResponse.json({ success: false, error: 'Invalid device ID' }, { status: 400 })
     }
@@ -34,7 +30,6 @@ export async function PATCH(
     const body = await req.json()
     const { hiveCount, model, status } = body
 
-    // Validate status transition
     const allowedStatuses = ['unclaimed', 'claimed', 'suspended']
     if (status !== undefined && !allowedStatuses.includes(status)) {
       return NextResponse.json(
@@ -43,7 +38,6 @@ export async function PATCH(
       )
     }
 
-    // Validate hiveCount if provided
     if (hiveCount !== undefined) {
       const parsed = parseInt(hiveCount)
       if (isNaN(parsed) || parsed < 1 || parsed > 50) {
@@ -70,14 +64,9 @@ export async function PATCH(
   }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// DELETE /api/admin/devices/:id
-// Only allowed if device is unclaimed.
-// Claimed devices must be suspended instead.
-// ─────────────────────────────────────────────────────────────────
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const admin = await verifyAdminToken(req)
@@ -85,7 +74,8 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 
-    const id = parseInt(params.id)
+    const { id: rawId } = await params
+    const id = parseInt(rawId)
     if (isNaN(id)) {
       return NextResponse.json({ success: false, error: 'Invalid device ID' }, { status: 400 })
     }
@@ -99,8 +89,7 @@ export async function DELETE(
       return NextResponse.json(
         {
           success: false,
-          error:
-            'Cannot delete a claimed device. Use PATCH to suspend it, or revoke the user\'s access first.',
+          error: "Cannot delete a claimed device. Use PATCH to suspend it, or revoke the user's access first.",
         },
         { status: 400 }
       )
