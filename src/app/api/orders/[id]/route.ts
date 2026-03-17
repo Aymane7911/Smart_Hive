@@ -13,13 +13,14 @@ const prisma = new PrismaClient()
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const admin = await verifyAdminToken(req)
     if (!admin) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
 
-    const id = parseInt(params.id)
+    const { id: rawId } = await params
+    const id = parseInt(rawId)
     if (isNaN(id)) return NextResponse.json({ success: false, error: 'Invalid ID' }, { status: 400 })
 
     const order = await prisma.order.findUnique({ where: { id } })
