@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import {
   ArrowRight, LogIn, UserPlus, Mail, Send,
-  Activity, Brain, TrendingUp, Shield, Hexagon,
+  Activity, Brain, TrendingUp, Shield, Hexagon, Package,
 } from 'lucide-react'
 
 type View = 'home' | 'info' | 'contact'
@@ -61,7 +61,6 @@ export default function SmartHivePage() {
     <div
       className="relative w-full bg-black"
       style={{
-        // 100dvh fills the exact visible viewport — no gray/black gaps
         minHeight: '100dvh',
         height: view === 'home' ? '100dvh' : 'auto',
         overflow: view === 'home' ? 'hidden' : 'auto',
@@ -89,10 +88,7 @@ export default function SmartHivePage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '0.5s' }} />
       </div>
 
-      {/* ── TOP NAV ──
-          - gradient fade so nav is readable over any background
-          - paddingTop: max(44px, safe-area-inset-top) keeps it below status bar on ALL phones
-            (44px is enough for phones without a notch; notched phones will use the larger inset) */}
+      {/* ── TOP NAV ── */}
       <header
         className={`fixed left-0 right-0 flex items-center justify-between px-5 sm:px-8 transition-all duration-700 ${
           isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
@@ -105,15 +101,17 @@ export default function SmartHivePage() {
           background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)',
         }}
       >
+        {/* Logo */}
         <div className="flex items-center gap-2">
           <div className="p-1.5 bg-gradient-to-br from-amber-400 to-yellow-400 rounded-lg">
             <Hexagon className="w-5 h-5 text-white" />
           </div>
           <span className="text-2xl font-black bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
-            Smart Hive
+            NahalAI
           </span>
         </div>
 
+        {/* Nav buttons */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('contact')}
@@ -121,6 +119,13 @@ export default function SmartHivePage() {
           >
             Contact Us
           </button>
+          <a
+            href="/order"
+            className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white text-sm font-bold py-2 px-4 rounded-lg transition-all"
+          >
+            <Package className="w-4 h-4" />
+            <span className="hidden sm:inline">Order</span>
+          </a>
           <a
             href="/login"
             className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white text-sm font-bold py-2 px-4 rounded-lg transition-all"
@@ -138,8 +143,7 @@ export default function SmartHivePage() {
         </div>
       </header>
 
-      {/* ── FOOTER ──
-          paddingBottom clears Android gesture navigation bar */}
+      {/* ── FOOTER ── */}
       <footer
         className={`fixed left-0 right-0 flex justify-center transition-all duration-700 ${
           isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
@@ -157,8 +161,7 @@ export default function SmartHivePage() {
         </div>
       </footer>
 
-      {/* ── PAGE CONTENT ──
-          flex + min-height fills the screen; padding clears the fixed header and footer */}
+      {/* ── PAGE CONTENT ── */}
       <div
         className="relative flex flex-col items-center justify-center px-4 sm:px-6 w-full"
         style={{
@@ -178,22 +181,31 @@ export default function SmartHivePage() {
           >
             <h2 className="text-5xl sm:text-6xl font-black mb-4 leading-tight">
               <span className="bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
-                Smart Hive
+                NahalAI
               </span>
             </h2>
             <p className="text-xl sm:text-2xl text-white font-bold mb-3">
-              AI-Powered Beekeeping Intelligence
+              Beekeeping Monitoring Platform
             </p>
             <p className="text-base text-gray-300 mb-10 leading-relaxed">
               Data-driven insights for modern beekeepers
             </p>
-            <button
-              onClick={() => navigate('info')}
-              className="inline-flex items-center gap-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white font-bold py-4 px-10 rounded-2xl shadow-2xl hover:shadow-yellow-500/40 transition-all duration-300 hover:-translate-y-1 text-lg"
-            >
-              Get Started
-              <ArrowRight className="w-5 h-5" />
-            </button>
+            <div className="flex items-center justify-center gap-3 flex-wrap">
+              <button
+                onClick={() => navigate('info')}
+                className="inline-flex items-center gap-3 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-white font-bold py-4 px-10 rounded-2xl shadow-2xl hover:shadow-yellow-500/40 transition-all duration-300 hover:-translate-y-1 text-lg"
+              >
+                About Us
+                <ArrowRight className="w-5 h-5" />
+              </button>
+              <a
+                href="/order"
+                className="inline-flex items-center gap-3 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white font-bold py-4 px-10 rounded-2xl transition-all duration-300 hover:-translate-y-1 text-lg"
+              >
+                <Package className="w-5 h-5" />
+                Order Now
+              </a>
+            </div>
           </div>
         )}
 
@@ -208,7 +220,7 @@ export default function SmartHivePage() {
               <h2 className="text-3xl sm:text-4xl font-black text-white mb-3">
                 About{' '}
                 <span className="bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
-                  Smart Hive
+                  NahalAI
                 </span>
               </h2>
               <p className="text-gray-300 text-sm sm:text-base">
@@ -217,7 +229,7 @@ export default function SmartHivePage() {
             </div>
 
             <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-5 sm:p-7 mb-4">
-              <h3 className="text-lg font-bold text-amber-400 mb-3">Why Smart Hive?</h3>
+              <h3 className="text-lg font-bold text-amber-400 mb-3">Why NahalAI?</h3>
               <p className="text-gray-300 text-sm leading-relaxed mb-2">
                 Beekeeping is an ancient practice, but management still relies heavily on personal experience and guesswork.
               </p>
@@ -271,7 +283,7 @@ export default function SmartHivePage() {
                 We believe the future of beekeeping will be safer, more productive, and more sustainable.
               </p>
               <p className="text-amber-300 text-base font-bold">
-                Smart Hive isn't just a tech tool — it's a cultural shift in understanding bee colony health.
+                NahalAI isn't just a tech tool — it's a cultural shift in understanding bee colony health.
               </p>
             </div>
 
