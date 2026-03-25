@@ -10,9 +10,13 @@ import {
   Activity, RefreshCw, AlertCircle, Menu, X, Home, BarChart3, Clock,
   ArrowLeft, LogOut, Calendar, Zap, Moon, SunMedium, Edit2, Check,
   XCircle, Search, Filter, ShoppingCart, LayoutDashboard, Thermometer,
-  MapPin, Wind, Droplets, ChevronDown, MessageSquare, Send, Loader2, Sparkles, ShieldCheck,
+  MapPin, Wind, Droplets, ChevronDown, MessageSquare, Send, Loader2,
+  Sparkles, ShieldCheck, Bell,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import AlertConfigPage from '@/components/AlertConfigPage'; // ← adjust path if needed
+import { initPushNotifications } from '@/lib/pushNotifications';
+import { clearPushToken } from '@/lib/pushNotifications';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface SensorData {
@@ -260,7 +264,7 @@ const LocationMap = dynamic(() => Promise.resolve(LocationMapInner), {
   loading: () => <div className="flex items-center justify-center h-full"><div className="animate-spin w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full" /></div>,
 });
 
-// ─── AI Input Bar (hoisted outside component to prevent remount on keystroke) ──
+// ─── AI Input Bar ──────────────────────────────────────────────────────────────
 const AIInputBar = ({ inputMessage, setInputMessage, onSend, isLoading, isDarkMode }: {
   inputMessage: string;
   setInputMessage: (v: string) => void;
@@ -362,7 +366,6 @@ const SmartHiveAIAssistant = ({ latestData, historicalData, selectedContainer, t
         <div className="bg-white/20 p-2 rounded-xl flex-shrink-0"><Sparkles className="w-5 h-5 text-white" /></div>
         <div className="min-w-0">
           <h3 className="font-black text-white text-base">Nahla</h3>
-          
         </div>
       </div>
       <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/20 rounded-xl ml-2 flex-shrink-0"><X className="w-5 h-5 text-white" /></button>
@@ -470,6 +473,7 @@ const SmartHiveDashboard = () => {
   const [sidebarOpen, setSidebarOpen]                 = useState(false);
   const [apiarySheetOpen, setApiarySheetOpen]         = useState(false);
   const [selectedHive, setSelectedHive]               = useState<number | null>(null);
+  const [currentView, setCurrentView]                 = useState<'dashboard' | 'alerts'>('dashboard'); // ← NEW
   const [timeFilter, setTimeFilter]                   = useState('all');
   const [startDate, setStartDate]                     = useState('');
   const [endDate, setEndDate]                         = useState('');
@@ -521,20 +525,20 @@ const SmartHiveDashboard = () => {
   };
 
   // ── Init ────────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const d = localStorage.getItem('hive-darkMode');
-    const an = localStorage.getItem('hive-apiaryNames');
-    const hn = localStorage.getItem('hive-hiveNames');
-    const ui = localStorage.getItem('userInfo') || localStorage.getItem('adminInfo');
-    if (ui) { try { const parsed = JSON.parse(ui); if (parsed?.role) setUserRole(parsed.role); } catch {} }
-    if (d === 'true') setDarkMode(true);
-    if (an) { try { setApiaryNames(JSON.parse(an)); } catch {} }
-    if (hn) { try { setHiveNames(JSON.parse(hn)); } catch {} }
-    setMounted(true);
-    isMountedRef.current = true;
-    return () => { isMountedRef.current = false; };
-  }, []);
-
+ useEffect(() => {
+  const d = localStorage.getItem('hive-darkMode');
+  const an = localStorage.getItem('hive-apiaryNames');
+  const hn = localStorage.getItem('hive-hiveNames');
+  const ui = localStorage.getItem('userInfo') || localStorage.getItem('adminInfo');
+  if (ui) { try { const parsed = JSON.parse(ui); if (parsed?.role) setUserRole(parsed.role); } catch {} }
+  if (d === 'true') setDarkMode(true);
+  if (an) { try { setApiaryNames(JSON.parse(an)); } catch {} }
+  if (hn) { try { setHiveNames(JSON.parse(hn)); } catch {} }
+  setMounted(true);
+  initPushNotifications(); // ← just call it, no .then() needed
+  isMountedRef.current = true;
+  return () => { isMountedRef.current = false; };
+}, []);
   useEffect(() => { if (mounted) localStorage.setItem('hive-darkMode', String(darkMode)); }, [darkMode, mounted]);
 
   // ── Access check ────────────────────────────────────────────────────────────
@@ -571,28 +575,24 @@ const SmartHiveDashboard = () => {
 
   // ── Data fetching ───────────────────────────────────────────────────────────
   const flattenData = useCallback((data: any): SensorData[] => {
-  if (!data) return [];
-  let flat: SensorData[];
-  if (Array.isArray(data)) {
-    flat = data[0]?.data ? data.flatMap((i: any) => i.data || []) : data;
-  } else if (data.data) {
-    flat = Array.isArray(data.data) ? data.data : [data.data];
-  } else {
-    flat = [data];
-  }
-
-  // Filter out ghost records — rows where every sensor field is undefined/null
-  return flat.filter(item => {
-    return (
+    if (!data) return [];
+    let flat: SensorData[];
+    if (Array.isArray(data)) {
+      flat = data[0]?.data ? data.flatMap((i: any) => i.data || []) : data;
+    } else if (data.data) {
+      flat = Array.isArray(data.data) ? data.data : [data.data];
+    } else {
+      flat = [data];
+    }
+    return flat.filter(item => (
       getTemperature(item, 'internal') !== null ||
       getTemperature(item, 'external') !== null ||
       getHumidity(item, 'internal')    !== null ||
       getHumidity(item, 'external')    !== null ||
       getWeight(item)                  !== null ||
       getBattery(item)                 !== null
-    );
-  });
-}, []);
+    ));
+  }, []);
 
   const fetchData = useCallback(async () => {
     if (!selectedContainer || !isMountedRef.current) return;
@@ -782,11 +782,8 @@ const SmartHiveDashboard = () => {
     </div>
   );
 
-  // ── Gas chart — fake data, bar/spike style ──────────────────────────────────
   const GasChartCard = () => {
     const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
-
-    // Custom bar shape — renders the bar + a glowing dot on top when hovered
     const SpikeBar = (props: any) => {
       const { x, y, width, height, fill, index } = props;
       if (!height || height <= 0) return null;
@@ -795,99 +792,65 @@ const SmartHiveDashboard = () => {
       const r = isHovered ? 6 : 4;
       return (
         <g>
-          {/* Bar body */}
           <rect x={x} y={y} width={width} height={height} fill={fill} opacity={0.9} rx={2} ry={2} />
-          {/* Dot on top */}
-          <circle
-            cx={cx} cy={y} r={r}
-            fill={fill}
-            stroke="white"
-            strokeWidth={isHovered ? 2.5 : 1.5}
-            opacity={isHovered ? 1 : 0.7}
-            style={{ filter: isHovered ? `drop-shadow(0 0 6px ${fill})` : 'none', transition: 'all 0.15s ease' }}
-          />
-          {/* Pulse ring on hover */}
-          {isHovered && (
-            <circle cx={cx} cy={y} r={r + 5} fill="none" stroke={fill} strokeWidth={1.5} opacity={0.4} />
-          )}
+          <circle cx={cx} cy={y} r={r} fill={fill} stroke="white" strokeWidth={isHovered ? 2.5 : 1.5} opacity={isHovered ? 1 : 0.7} style={{ filter: isHovered ? `drop-shadow(0 0 6px ${fill})` : 'none', transition: 'all 0.15s ease' }} />
+          {isHovered && <circle cx={cx} cy={y} r={r + 5} fill="none" stroke={fill} strokeWidth={1.5} opacity={0.4} />}
         </g>
       );
     };
-
     return (
-    <div className={`rounded-2xl shadow-md ${t.card} p-4 sm:p-6 hover:shadow-xl transition-all`}>
-      <div className="flex items-center mb-4 gap-3">
-        <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-md flex-shrink-0"><Wind className="w-4 h-4 text-white" /></div>
-        <div>
-          <h3 className={`text-sm sm:text-base font-bold ${t.text}`}>Gas Sensor Monitoring</h3>
-          <p className={`text-xs ${t.textMuted}`}>Master Hive · Simulated sensor data</p>
+      <div className={`rounded-2xl shadow-md ${t.card} p-4 sm:p-6 hover:shadow-xl transition-all`}>
+        <div className="flex items-center mb-4 gap-3">
+          <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-md flex-shrink-0"><Wind className="w-4 h-4 text-white" /></div>
+          <div>
+            <h3 className={`text-sm sm:text-base font-bold ${t.text}`}>Gas Sensor Monitoring</h3>
+            <p className={`text-xs ${t.textMuted}`}>Master Hive · Simulated sensor data</p>
+          </div>
         </div>
-      </div>
-
-      {/* Toggle buttons */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {GAS_CONFIGS.map(g => {
-          const active = activeGases.includes(g.key);
-          return (
-            <button key={g.key}
-              onClick={() => setActiveGases(prev => active ? (prev.length > 1 ? prev.filter(x => x !== g.key) : prev) : [...prev, g.key])}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                active ? 'text-white border-transparent' : dm ? 'border-white/10 text-gray-300 hover:bg-white/5' : 'border-black/10 text-gray-500 hover:bg-black/5'
-              }`}
-              style={active ? { backgroundColor: g.color + 'cc', borderColor: g.color } : {}}>
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.color }} />
-              {g.key}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Bar/spike chart with dot-on-top hover effect */}
-      <ResponsiveContainer width="100%" height={260}>
-        <ComposedChart
-          data={filteredGasData}
-          margin={{ top: 16, right: 5, left: 0, bottom: 5 }}
-          barCategoryGap="60%" barGap={3}
-          onMouseMove={(state: any) => { if (state?.activeTooltipIndex !== undefined) setHoveredIndex(state.activeTooltipIndex); }}
-          onMouseLeave={() => setHoveredIndex(null)}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke={t.gridStroke} opacity={0.5} />
-          <XAxis dataKey="time" stroke={t.axisStroke} tick={{ fill: t.axisStroke, fontSize: 10 }} tickMargin={8} interval="preserveStartEnd" minTickGap={50} tickFormatter={v => fmtX(v, timeFilter)} />
-          <YAxis stroke={t.axisStroke} tick={{ fill: t.axisStroke, fontSize: 10 }} tickMargin={8} width={36} />
-          <Tooltip
-            contentStyle={{ backgroundColor: t.tooltip, border: 'none', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', padding: 12 }}
-            labelStyle={{ fontWeight: 700, color: t.tooltipText, marginBottom: 4 }}
-            labelFormatter={(v: any) => { const d = new Date(v); return isNaN(d.getTime()) ? String(v) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }}
-            formatter={(v: any, name: string) => { const g = GAS_CONFIGS.find(x => x.key === name); return [`${Number(v).toFixed(2)} ${g?.unit ?? ''}`, g?.name ?? name]; }}
-            cursor={{ fill: dm ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', radius: 4 }}
-          />
-          {GAS_CONFIGS.filter(g => activeGases.includes(g.key)).map(g => (
-            <Bar key={`bar-${g.key}`} dataKey={g.key} barSize={16} shape={<SpikeBar fill={g.color} />} />
-          ))}
-          {/* Waveform lines connecting the tops of each gas's bars — only visible on hover */}
-          {GAS_CONFIGS.filter(g => activeGases.includes(g.key)).map(g => (
-            <Line
-              key={`line-${g.key}`}
-              type="monotone"
-              dataKey={g.key}
-              stroke={g.color}
-              strokeWidth={2}
-              dot={false}
-              activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff', fill: g.color }}
-              strokeOpacity={hoveredIndex !== null ? 0.9 : 0}
-              style={{ transition: 'stroke-opacity 0.2s ease' }}
-              tooltipType="none"
-              legendType="none"
-              connectNulls
+        <div className="flex flex-wrap gap-2 mb-4">
+          {GAS_CONFIGS.map(g => {
+            const active = activeGases.includes(g.key);
+            return (
+              <button key={g.key}
+                onClick={() => setActiveGases(prev => active ? (prev.length > 1 ? prev.filter(x => x !== g.key) : prev) : [...prev, g.key])}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${active ? 'text-white border-transparent' : dm ? 'border-white/10 text-gray-300 hover:bg-white/5' : 'border-black/10 text-gray-500 hover:bg-black/5'}`}
+                style={active ? { backgroundColor: g.color + 'cc', borderColor: g.color } : {}}>
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.color }} />
+                {g.key}
+              </button>
+            );
+          })}
+        </div>
+        <ResponsiveContainer width="100%" height={260}>
+          <ComposedChart data={filteredGasData} margin={{ top: 16, right: 5, left: 0, bottom: 5 }} barCategoryGap="60%" barGap={3}
+            onMouseMove={(state: any) => { if (state?.activeTooltipIndex !== undefined) setHoveredIndex(state.activeTooltipIndex); }}
+            onMouseLeave={() => setHoveredIndex(null)}>
+            <CartesianGrid strokeDasharray="3 3" stroke={t.gridStroke} opacity={0.5} />
+            <XAxis dataKey="time" stroke={t.axisStroke} tick={{ fill: t.axisStroke, fontSize: 10 }} tickMargin={8} interval="preserveStartEnd" minTickGap={50} tickFormatter={v => fmtX(v, timeFilter)} />
+            <YAxis stroke={t.axisStroke} tick={{ fill: t.axisStroke, fontSize: 10 }} tickMargin={8} width={36} />
+            <Tooltip
+              contentStyle={{ backgroundColor: t.tooltip, border: 'none', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', padding: 12 }}
+              labelStyle={{ fontWeight: 700, color: t.tooltipText, marginBottom: 4 }}
+              labelFormatter={(v: any) => { const d = new Date(v); return isNaN(d.getTime()) ? String(v) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }}
+              formatter={(v: any, name: string) => { const g = GAS_CONFIGS.find(x => x.key === name); return [`${Number(v).toFixed(2)} ${g?.unit ?? ''}`, g?.name ?? name]; }}
+              cursor={{ fill: dm ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', radius: 4 }}
             />
-          ))}
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
+            {GAS_CONFIGS.filter(g => activeGases.includes(g.key)).map(g => (
+              <Bar key={`bar-${g.key}`} dataKey={g.key} barSize={16} shape={<SpikeBar fill={g.color} />} />
+            ))}
+            {GAS_CONFIGS.filter(g => activeGases.includes(g.key)).map(g => (
+              <Line key={`line-${g.key}`} type="monotone" dataKey={g.key} stroke={g.color} strokeWidth={2} dot={false}
+                activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff', fill: g.color }}
+                strokeOpacity={hoveredIndex !== null ? 0.9 : 0}
+                style={{ transition: 'stroke-opacity 0.2s ease' }}
+                tooltipType="none" legendType="none" connectNulls />
+            ))}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
     );
   };
 
-  // ── Health Radial ────────────────────────────────────────────────────────────
   const HealthRadial = ({ hiveNum }: { hiveNum: number }) => {
     const combined = useMemo(() => [...historicalData, ...latestData], []);
     const rows     = useMemo(() => getHiveData(combined, hiveNum, hiveIds), [hiveNum, combined]);
@@ -952,7 +915,6 @@ const SmartHiveDashboard = () => {
     );
   };
 
-  // ── Hive card ────────────────────────────────────────────────────────────────
   const HiveRect = ({ hiveNumber }: { hiveNumber: number }) => {
     const temp   = getLastValidForHive(latestData, historicalData, hiveNumber, hiveIds, i => getTemperature(i, 'internal'));
     const hum    = getLastValidForHive(latestData, historicalData, hiveNumber, hiveIds, i => getHumidity(i, 'internal'));
@@ -1016,7 +978,6 @@ const SmartHiveDashboard = () => {
     );
   };
 
-  // ── Apiary sidebar (desktop) ─────────────────────────────────────────────────
   const ApiarySidebar = () => (
     <div className="hidden lg:block w-72 flex-shrink-0">
       <div className={`rounded-2xl shadow-xl ${t.card} p-5 sticky top-24`}>
@@ -1048,7 +1009,6 @@ const SmartHiveDashboard = () => {
     </div>
   );
 
-  // ── Apiary bottom sheet (mobile) ─────────────────────────────────────────────
   const ApiarySheet = () => (
     <>
       {apiarySheetOpen && <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 lg:hidden" onClick={() => setApiarySheetOpen(false)} />}
@@ -1101,16 +1061,21 @@ const SmartHiveDashboard = () => {
           </div>
           <button onClick={() => setSidebarOpen(false)} className={`p-1.5 rounded-lg ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-500'}`}><X className="w-5 h-5" /></button>
         </div>
-        
-        <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
+
+        <nav className="flex-1 px-4 space-y-1 overflow-y-auto pt-3">
           <p className={`text-xs font-semibold uppercase tracking-widest px-2 py-2 ${t.textMuted}`}>Navigation</p>
           {[
             { label: 'Home',      icon: Home,            action: () => { router.push('/welcome'); setSidebarOpen(false); } },
-            { label: 'Dashboard', icon: LayoutDashboard, action: () => { setSelectedHive(null); setSidebarOpen(false); } },
+            { label: 'Dashboard', icon: LayoutDashboard, action: () => { setCurrentView('dashboard'); setSelectedHive(null); setSidebarOpen(false); } },
+            { label: 'Alerts',    icon: Bell,            action: () => { setCurrentView('alerts'); setSelectedHive(null); setSidebarOpen(false); } }, // ← NEW
             { label: 'Purchase',  icon: ShoppingCart,    action: () => { router.push('/order'); setSidebarOpen(false); } },
           ].map(item => (
             <button key={item.label} onClick={item.action}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${t.text} ${dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50'}`}>
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                (item.label === 'Alerts' && currentView === 'alerts') || (item.label === 'Dashboard' && currentView === 'dashboard' && selectedHive === null)
+                  ? 'bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border border-amber-500/30 ' + (dm ? 'text-amber-300' : 'text-amber-700')
+                  : t.text + ' ' + (dm ? 'hover:bg-gray-800' : 'hover:bg-gray-50')
+              }`}>
               <item.icon className="w-4 h-4" />{item.label}
             </button>
           ))}
@@ -1131,7 +1096,11 @@ const SmartHiveDashboard = () => {
           <button onClick={() => setDarkMode(!dm)} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold ${dm ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
             {dm ? <SunMedium className="w-4 h-4 text-yellow-400" /> : <Moon className="w-4 h-4" />}{dm ? 'Light Mode' : 'Dark Mode'}
           </button>
-          <button onClick={() => fetch('/api/auth/logout', { method: 'POST' }).then(() => router.push('/'))}
+          <button onClick={async () => {
+  await clearPushToken();
+  await fetch('/api/auth/logout', { method: 'POST' });
+  router.push('/');
+}}
             className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold ${dm ? 'bg-red-950/50 text-red-400 border border-red-900/40 hover:bg-red-950' : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'}`}>
             <LogOut className="w-4 h-4" />Sign Out
           </button>
@@ -1226,24 +1195,27 @@ const SmartHiveDashboard = () => {
           <div className="flex items-center justify-between px-4 sm:px-5 py-3">
             <div className="flex items-center gap-2 min-w-0">
               <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-2 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}><Menu className="w-5 h-5" /></button>
-              {selectedHive && (
-                <button onClick={() => setSelectedHive(null)} className={`p-2 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}><ArrowLeft className="w-5 h-5" /></button>
+              {(selectedHive || currentView === 'alerts') && (
+                <button onClick={() => { setSelectedHive(null); setCurrentView('dashboard'); }} className={`p-2 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}><ArrowLeft className="w-5 h-5" /></button>
               )}
               <div className={`w-px h-5 flex-shrink-0 ${dm ? 'bg-gray-800' : 'bg-gray-200'}`} />
               <div className="flex items-center gap-2 min-w-0">
                 <div className="w-7 h-7 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-lg flex items-center justify-center text-sm flex-shrink-0">🐝</div>
                 <h1 className={`text-sm font-black tracking-tight truncate ${t.text}`}>NahalAI</h1>
+                {currentView === 'alerts' && (
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${dm ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-100 text-amber-700'}`}>Alerts</span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-              {availableContainers.length > 1 && !selectedHive && (
+              {availableContainers.length > 1 && !selectedHive && currentView === 'dashboard' && (
                 <button onClick={() => setApiarySheetOpen(true)}
                   className={`lg:hidden flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold max-w-[120px] ${dm ? 'bg-amber-950/60 text-amber-300 border border-amber-900/60' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
                   <span className="truncate">{getApiaryName(selectedContainer) || 'Apiary'}</span>
                   <ChevronDown className="w-3 h-3 flex-shrink-0" />
                 </button>
               )}
-              {lastUpdated && (
+              {lastUpdated && currentView === 'dashboard' && (
                 <div className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${dm ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
                   <Clock className="w-3.5 h-3.5" />
                   {new Date(lastUpdated).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
@@ -1252,246 +1224,252 @@ const SmartHiveDashboard = () => {
               <button onClick={() => setDarkMode(!dm)} className={`p-2 rounded-lg ${dm ? 'hover:bg-gray-800 text-yellow-400' : 'hover:bg-gray-100 text-gray-600'}`}>
                 {dm ? <SunMedium className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
-              <button onClick={fetchData} disabled={isRefreshing}
-                className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-white px-3 sm:px-4 py-2 rounded-lg shadow-md font-semibold text-xs disabled:opacity-60 hover:from-amber-600 hover:to-yellow-600 transition-all">
-                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
-              </button>
+              {currentView === 'dashboard' && (
+                <button onClick={fetchData} disabled={isRefreshing}
+                  className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-white px-3 sm:px-4 py-2 rounded-lg shadow-md font-semibold text-xs disabled:opacity-60 hover:from-amber-600 hover:to-yellow-600 transition-all">
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  <span className="hidden sm:inline">{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
+                </button>
+              )}
             </div>
           </div>
         </header>
 
-        {/* Main content */}
-        <main className="flex-1 px-4 py-5 md:px-6 lg:px-8 max-w-screen-2xl mx-auto w-full">
+        {/* ── ALERTS VIEW ── */}
+        {currentView === 'alerts' && (
+          <AlertConfigPage
+            containerId={selectedContainer}
+            totalHives={totalHives}
+            isDarkMode={dm}
+            onBack={() => setCurrentView('dashboard')}
+            getHiveName={getHiveName}
+          />
+        )}
 
-          {/* ── OVERVIEW (no hive selected) ── */}
-          {selectedHive === null && (
-            <>
-              {/* Apiary info bar */}
-              <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="relative flex-shrink-0">
-                      <div className="w-10 h-10 sm:w-11 sm:h-11 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-md text-xl">🐝</div>
-                      <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white animate-pulse" />
+        {/* ── DASHBOARD VIEW ── */}
+        {currentView === 'dashboard' && (
+          <main className="flex-1 px-4 py-5 md:px-6 lg:px-8 max-w-screen-2xl mx-auto w-full">
+
+            {/* ── OVERVIEW (no hive selected) ── */}
+            {selectedHive === null && (
+              <>
+                <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex-shrink-0">
+                        <div className="w-10 h-10 sm:w-11 sm:h-11 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-md text-xl">🐝</div>
+                        <span className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white animate-pulse" />
+                      </div>
+                      <h2 className={`text-sm font-black ${t.text}`}>{getApiaryName(selectedContainer) || 'My Apiary'}</h2>
                     </div>
-                    <h2 className={`text-sm font-black ${t.text}`}>{getApiaryName(selectedContainer) || 'My Apiary'}</h2>
+                    <div className="flex gap-2">
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-xl flex-1 sm:flex-none ${dm ? 'bg-white/10' : 'bg-white/50'} border ${t.divider}`}>
+                        <Activity className={`w-4 h-4 flex-shrink-0 ${dm ? 'text-amber-400' : 'text-amber-500'}`} />
+                        <div>
+                          <p className={`text-[10px] uppercase tracking-widest font-semibold ${t.textMuted}`}>Active</p>
+                          <p className={`text-xs font-bold ${dm ? 'text-amber-300' : 'text-amber-700'}`}>{activeHives} / {totalHives}</p>
+                        </div>
+                      </div>
+                      {lastUpdated && (
+                        <div className={`flex items-center gap-2 px-3 py-2 rounded-xl flex-1 sm:flex-none ${dm ? 'bg-white/10' : 'bg-white/50'} border ${t.divider}`}>
+                          <Clock className={`w-4 h-4 flex-shrink-0 ${dm ? 'text-amber-400' : 'text-amber-500'}`} />
+                          <div>
+                            <p className={`text-[10px] uppercase tracking-widest font-semibold ${t.textMuted}`}>Updated</p>
+                            <p className={`text-xs font-bold ${dm ? 'text-amber-300' : 'text-amber-700'}`}>{formatTimeAgo(lastUpdated)}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-xl flex-1 sm:flex-none ${dm ? 'bg-white/10' : 'bg-white/50'} border ${t.divider}`}>
-                      <Activity className={`w-4 h-4 flex-shrink-0 ${dm ? 'text-amber-400' : 'text-amber-500'}`} />
-                      <div>
-                        <p className={`text-[10px] uppercase tracking-widest font-semibold ${t.textMuted}`}>Active</p>
-                        <p className={`text-xs font-bold ${dm ? 'text-amber-300' : 'text-amber-700'}`}>{activeHives} / {totalHives}</p>
+                </div>
+
+                <div className="flex gap-5 lg:gap-6">
+                  {availableContainers.length > 1 && <ApiarySidebar />}
+                  <div className="flex-1 min-w-0">
+                    <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`text-xs font-bold uppercase tracking-widest ${t.textSub}`}>Filter</span>
+                        {(['all', 'active', 'inactive'] as const).map(f => (
+                          <button key={f} onClick={() => setFilterStatus(f)}
+                            className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all capitalize ${filterStatus === f ? t.pillActive : t.pill}`}>
+                            {f}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                    {lastUpdated && (
-                      <div className={`flex items-center gap-2 px-3 py-2 rounded-xl flex-1 sm:flex-none ${dm ? 'bg-white/10' : 'bg-white/50'} border ${t.divider}`}>
-                        <Clock className={`w-4 h-4 flex-shrink-0 ${dm ? 'text-amber-400' : 'text-amber-500'}`} />
-                        <div>
-                          <p className={`text-[10px] uppercase tracking-widest font-semibold ${t.textMuted}`}>Updated</p>
-                          <p className={`text-xs font-bold ${dm ? 'text-amber-300' : 'text-amber-700'}`}>{formatTimeAgo(lastUpdated)}</p>
-                        </div>
+
+                    <div className="text-center mb-6">
+                      <h2 className={`text-3xl sm:text-4xl font-black mb-2 ${t.text}`}>All Hives</h2>
+                      <p className={`text-sm ${t.textSub}`}>Tap any hive to view detailed analytics</p>
+                    </div>
+
+                    {hiveNumbers.length === 0 ? (
+                      <div className={`rounded-2xl shadow-md ${t.card} p-16 text-center`}>
+                        <div className="text-6xl mb-4">🐝</div>
+                        <h3 className={`text-xl font-bold mb-2 ${t.text}`}>No Hives Found</h3>
+                        <p className={`text-sm ${t.textSub}`}>No sensor data available. Check your sensor connections.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+                        {hiveNumbers
+                          .filter(n => filterStatus === 'all' || (filterStatus === 'active' ? isHiveActive(n) : !isHiveActive(n)))
+                          .map(n => <HiveRect key={n} hiveNumber={n} />)}
                       </div>
                     )}
                   </div>
                 </div>
-              </div>
+              </>
+            )}
 
-              <div className="flex gap-5 lg:gap-6">
-                {availableContainers.length > 1 && <ApiarySidebar />}
-                <div className="flex-1 min-w-0">
-                  {/* Filter bar */}
-                  <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`text-xs font-bold uppercase tracking-widest ${t.textSub}`}>Filter</span>
-                      {(['all', 'active', 'inactive'] as const).map(f => (
-                        <button key={f} onClick={() => setFilterStatus(f)}
-                          className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all capitalize ${filterStatus === f ? t.pillActive : t.pill}`}>
-                          {f}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="text-center mb-6">
-                    <h2 className={`text-3xl sm:text-4xl font-black mb-2 ${t.text}`}>All Hives</h2>
-                    <p className={`text-sm ${t.textSub}`}>Tap any hive to view detailed analytics</p>
-                  </div>
-
-                  {hiveNumbers.length === 0 ? (
-                    <div className={`rounded-2xl shadow-md ${t.card} p-16 text-center`}>
-                      <div className="text-6xl mb-4">🐝</div>
-                      <h3 className={`text-xl font-bold mb-2 ${t.text}`}>No Hives Found</h3>
-                      <p className={`text-sm ${t.textSub}`}>No sensor data available. Check your sensor connections.</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
-                      {hiveNumbers
-                        .filter(n => filterStatus === 'all' || (filterStatus === 'active' ? isHiveActive(n) : !isHiveActive(n)))
-                        .map(n => <HiveRect key={n} hiveNumber={n} />)}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-
-          {/* ── HIVE DETAIL ── */}
-          {selectedHive !== null && (
-            <>
-              {/* Hive info bar */}
-              <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="relative flex-shrink-0">
-                      <div className="w-10 h-10 sm:w-11 sm:h-11 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-md font-black text-white text-lg">{selectedHive}</div>
-                      <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${isHiveActive(selectedHive) ? 'bg-emerald-400 animate-pulse' : 'bg-gray-400'}`} />
-                    </div>
-                    <div>
-                      <h2 className={`text-sm font-black ${t.text}`}>{getHiveName(selectedHive)}</h2>
-                      <p className={`text-xs ${t.textSub}`}>{getApiaryName(selectedContainer)} · {isHiveActive(selectedHive) ? 'Active' : 'Inactive'}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-xl flex-1 sm:flex-none ${dm ? 'bg-white/10' : 'bg-white/50'} border ${t.divider}`}>
-                      <Clock className={`w-4 h-4 flex-shrink-0 ${dm ? 'text-amber-400' : 'text-amber-500'}`} />
+            {/* ── HIVE DETAIL ── */}
+            {selectedHive !== null && (
+              <>
+                <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex-shrink-0">
+                        <div className="w-10 h-10 sm:w-11 sm:h-11 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-xl flex items-center justify-center shadow-md font-black text-white text-lg">{selectedHive}</div>
+                        <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${isHiveActive(selectedHive) ? 'bg-emerald-400 animate-pulse' : 'bg-gray-400'}`} />
+                      </div>
                       <div>
-                        <p className={`text-[10px] uppercase tracking-widest font-semibold ${t.textMuted}`}>Last Reading</p>
-                        <p className={`text-xs font-bold ${dm ? 'text-amber-300' : 'text-amber-700'}`}>{formatTimeAgo(getLastHiveReading(selectedHive))}</p>
+                        <h2 className={`text-sm font-black ${t.text}`}>{getHiveName(selectedHive)}</h2>
+                        <p className={`text-xs ${t.textSub}`}>{getApiaryName(selectedContainer)} · {isHiveActive(selectedHive) ? 'Active' : 'Inactive'}</p>
                       </div>
                     </div>
-                    <button onClick={() => { setEditingHive(selectedHive); setTempName(getHiveName(selectedHive)); }}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${dm ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-black/5 text-gray-600 hover:bg-black/10'}`}>
-                      <Edit2 className="w-3.5 h-3.5" /><span className="hidden sm:inline">Rename</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stat cards */}
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 sm:gap-4 mb-5">
-                <StatCard icon={Thermometer} title="Temp Int"  value={hiveStatVal(i => getTemperature(i, 'internal'))?.toFixed(1) ?? '0'} unit="°C" gradient="from-rose-500 to-pink-500" />
-                <StatCard icon={Thermometer} title="Temp Ext"  value={hiveStatVal(i => getTemperature(i, 'external'))?.toFixed(1) ?? '0'} unit="°C" gradient="from-orange-500 to-red-500" />
-                <StatCard icon={Droplets}    title="Humidity"  value={hiveStatVal(i => getHumidity(i, 'internal'))?.toFixed(0) ?? '0'}    unit="%"  gradient="from-emerald-500 to-teal-500" />
-                <StatCard icon={Activity}    title="Weight"    value={hiveStatVal(getWeight)?.toFixed(1) ?? '0'}                          unit="kg" gradient="from-amber-500 to-yellow-500" />
-                <StatCard icon={Zap}         title="Battery"   value={(hiveStatVal(getBattery) ?? 100).toFixed(0)}                        unit="%"  gradient="from-sky-500 to-cyan-500" />
-              </div>
-
-              {/* Time filter */}
-              <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-500 shadow-md flex-shrink-0"><BarChart3 className="w-4 h-4 text-white" /></div>
-                    <div>
-                      <h2 className={`text-sm font-bold ${t.text}`}>Time Range</h2>
-                      <p className={`text-xs ${t.textSub}`}>{chartData.length} points shown</p>
-                    </div>
-                  </div>
-                  <button onClick={() => setShowDatePicker(!showDatePicker)}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-semibold text-xs transition-all self-start sm:self-auto ${showDatePicker ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-md' : dm ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
-                    <Calendar className="w-3.5 h-3.5" />Custom Range
-                  </button>
-                </div>
-                {showDatePicker && (
-                  <div className={`mb-4 p-4 rounded-xl border ${t.divider} ${dm ? 'bg-white/5' : 'bg-white/30'}`}>
-                    <div className="flex flex-col sm:flex-row items-end gap-4">
-                      {[{ label: 'Start Date', val: startDate, set: setStartDate }, { label: 'End Date', val: endDate, set: setEndDate }].map(({ label, val, set }) => (
-                        <div key={label} className="flex-1 w-full">
-                          <label className={`block text-xs font-semibold mb-2 ${t.textSub}`}>{label}</label>
-                          <input type="date" value={val} onChange={e => set(e.target.value)} className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:outline-none ${t.input}`} />
+                    <div className="flex gap-2">
+                      <div className={`flex items-center gap-2 px-3 py-2 rounded-xl flex-1 sm:flex-none ${dm ? 'bg-white/10' : 'bg-white/50'} border ${t.divider}`}>
+                        <Clock className={`w-4 h-4 flex-shrink-0 ${dm ? 'text-amber-400' : 'text-amber-500'}`} />
+                        <div>
+                          <p className={`text-[10px] uppercase tracking-widest font-semibold ${t.textMuted}`}>Last Reading</p>
+                          <p className={`text-xs font-bold ${dm ? 'text-amber-300' : 'text-amber-700'}`}>{formatTimeAgo(getLastHiveReading(selectedHive))}</p>
                         </div>
-                      ))}
-                      <button onClick={() => { setStartDate(''); setEndDate(''); }} className={`px-4 py-2 rounded-lg font-semibold text-xs ${dm ? 'bg-gray-700 text-gray-200' : 'bg-gray-200 text-gray-700'}`}>Clear</button>
+                      </div>
+                      <button onClick={() => { setEditingHive(selectedHive); setTempName(getHiveName(selectedHive)); }}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${dm ? 'bg-white/10 text-gray-200 hover:bg-white/20' : 'bg-black/5 text-gray-600 hover:bg-black/10'}`}>
+                        <Edit2 className="w-3.5 h-3.5" /><span className="hidden sm:inline">Rename</span>
+                      </button>
                     </div>
                   </div>
-                )}
-                <div className="flex gap-2 flex-wrap">
-                  {TIME_FILTERS.map(({ key, label }) => (
-                    <button key={key} onClick={() => { setTimeFilter(key); setStartDate(''); setEndDate(''); setShowDatePicker(false); }}
-                      className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg font-bold text-xs transition-all ${timeFilter === key ? t.pillActive : t.pill}`}>
-                      {label}
+                </div>
+
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 sm:gap-4 mb-5">
+                  <StatCard icon={Thermometer} title="Temp Int"  value={hiveStatVal(i => getTemperature(i, 'internal'))?.toFixed(1) ?? '0'} unit="°C" gradient="from-rose-500 to-pink-500" />
+                  <StatCard icon={Thermometer} title="Temp Ext"  value={hiveStatVal(i => getTemperature(i, 'external'))?.toFixed(1) ?? '0'} unit="°C" gradient="from-orange-500 to-red-500" />
+                  <StatCard icon={Droplets}    title="Humidity"  value={hiveStatVal(i => getHumidity(i, 'internal'))?.toFixed(0) ?? '0'}    unit="%"  gradient="from-emerald-500 to-teal-500" />
+                  <StatCard icon={Activity}    title="Weight"    value={hiveStatVal(getWeight)?.toFixed(1) ?? '0'}                          unit="kg" gradient="from-amber-500 to-yellow-500" />
+                  <StatCard icon={Zap}         title="Battery"   value={(hiveStatVal(getBattery) ?? 100).toFixed(0)}                        unit="%"  gradient="from-sky-500 to-cyan-500" />
+                </div>
+
+                <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-500 shadow-md flex-shrink-0"><BarChart3 className="w-4 h-4 text-white" /></div>
+                      <div>
+                        <h2 className={`text-sm font-bold ${t.text}`}>Time Range</h2>
+                        <p className={`text-xs ${t.textSub}`}>{chartData.length} points shown</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setShowDatePicker(!showDatePicker)}
+                      className={`flex items-center gap-2 px-3.5 py-2 rounded-lg font-semibold text-xs transition-all self-start sm:self-auto ${showDatePicker ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-md' : dm ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+                      <Calendar className="w-3.5 h-3.5" />Custom Range
                     </button>
-                  ))}
+                  </div>
+                  {showDatePicker && (
+                    <div className={`mb-4 p-4 rounded-xl border ${t.divider} ${dm ? 'bg-white/5' : 'bg-white/30'}`}>
+                      <div className="flex flex-col sm:flex-row items-end gap-4">
+                        {[{ label: 'Start Date', val: startDate, set: setStartDate }, { label: 'End Date', val: endDate, set: setEndDate }].map(({ label, val, set }) => (
+                          <div key={label} className="flex-1 w-full">
+                            <label className={`block text-xs font-semibold mb-2 ${t.textSub}`}>{label}</label>
+                            <input type="date" value={val} onChange={e => set(e.target.value)} className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:outline-none ${t.input}`} />
+                          </div>
+                        ))}
+                        <button onClick={() => { setStartDate(''); setEndDate(''); }} className={`px-4 py-2 rounded-lg font-semibold text-xs ${dm ? 'bg-gray-700 text-gray-200' : 'bg-gray-200 text-gray-700'}`}>Clear</button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex gap-2 flex-wrap">
+                    {TIME_FILTERS.map(({ key, label }) => (
+                      <button key={key} onClick={() => { setTimeFilter(key); setStartDate(''); setEndDate(''); setShowDatePicker(false); }}
+                        className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg font-bold text-xs transition-all ${timeFilter === key ? t.pillActive : t.pill}`}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Charts */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 mb-5">
-                <TemperatureChart data={chartData} />
-                <ChartCard title="Humidity" dataKey="humidity" dataKey2="humidityExt" color="#10b981" color2="#06b6d4" unit="%" icon={Droplets} data={chartData} gradient="from-emerald-500 to-teal-500" />
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 mb-5">
-                <ChartCard title="Hive Weight"   dataKey="weight"  color="#f59e0b" unit="kg" icon={Activity} data={chartData} gradient="from-amber-500 to-yellow-500" />
-                <ChartCard title="Battery Level" dataKey="battery" color="#3b82f6" unit="%" icon={Zap}      data={chartData} gradient="from-sky-500 to-blue-500" />
-              </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 mb-5">
+                  <TemperatureChart data={chartData} />
+                  <ChartCard title="Humidity" dataKey="humidity" dataKey2="humidityExt" color="#10b981" color2="#06b6d4" unit="%" icon={Droplets} data={chartData} gradient="from-emerald-500 to-teal-500" />
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 mb-5">
+                  <ChartCard title="Hive Weight"   dataKey="weight"  color="#f59e0b" unit="kg" icon={Activity} data={chartData} gradient="from-amber-500 to-yellow-500" />
+                  <ChartCard title="Battery Level" dataKey="battery" color="#3b82f6" unit="%" icon={Zap}      data={chartData} gradient="from-sky-500 to-blue-500" />
+                </div>
 
-              {/* Gas chart — master hive (hive 1) only */}
-              {selectedHive === 1 && <div className="mb-5"><GasChartCard /></div>}
+                {selectedHive === 1 && <div className="mb-5"><GasChartCard /></div>}
 
-              {/* Health + Map */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 mb-5">
-                <HealthRadial hiveNum={selectedHive} />
-                <div className={`rounded-2xl shadow-md ${t.card} overflow-hidden flex flex-col`} style={{ minHeight: 380 }}>
-                  <div className={`p-4 border-b ${t.divider} flex items-center gap-3`}>
-                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-md flex-shrink-0"><MapPin className="w-4 h-4 text-white" /></div>
-                    <div className="min-w-0">
-                      <h3 className={`text-sm sm:text-base font-bold truncate ${t.text}`}>{getApiaryName(selectedContainer)} · Locations</h3>
-                      <p className={`text-xs ${t.textMuted}`}>{apiaryLocation ? `${apiaryLocation.lat.toFixed(5)}, ${apiaryLocation.lon.toFixed(5)}` : 'Location not configured'}</p>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 mb-5">
+                  <HealthRadial hiveNum={selectedHive} />
+                  <div className={`rounded-2xl shadow-md ${t.card} overflow-hidden flex flex-col`} style={{ minHeight: 380 }}>
+                    <div className={`p-4 border-b ${t.divider} flex items-center gap-3`}>
+                      <div className="p-2.5 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 shadow-md flex-shrink-0"><MapPin className="w-4 h-4 text-white" /></div>
+                      <div className="min-w-0">
+                        <h3 className={`text-sm sm:text-base font-bold truncate ${t.text}`}>{getApiaryName(selectedContainer)} · Locations</h3>
+                        <p className={`text-xs ${t.textMuted}`}>{apiaryLocation ? `${apiaryLocation.lat.toFixed(5)}, ${apiaryLocation.lon.toFixed(5)}` : 'Location not configured'}</p>
+                      </div>
+                    </div>
+                    <div className="flex-1" style={{ minHeight: 300 }}>
+                      <LocationMap apiaryLocation={apiaryLocation} hiveCount={totalHives} isDarkMode={dm} />
                     </div>
                   </div>
-                  <div className="flex-1" style={{ minHeight: 300 }}>
-                    <LocationMap apiaryLocation={apiaryLocation} hiveCount={totalHives} isDarkMode={dm} />
-                  </div>
                 </div>
-              </div>
 
-              {/* Historical table */}
-              <div className={`rounded-2xl shadow-md ${t.card} overflow-hidden mb-5`}>
-                <div className={`px-5 py-4 border-b ${t.divider} flex items-center gap-3`}>
-                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 shadow-md flex-shrink-0"><Activity className="w-4 h-4 text-white" /></div>
-                  <div>
-                    <h3 className={`text-sm sm:text-base font-bold ${t.text}`}>Historical Readings</h3>
-                    <p className={`text-xs ${t.textSub}`}>{chartData.length} points · latest 10 shown</p>
+                <div className={`rounded-2xl shadow-md ${t.card} overflow-hidden mb-5`}>
+                  <div className={`px-5 py-4 border-b ${t.divider} flex items-center gap-3`}>
+                    <div className="p-2.5 rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 shadow-md flex-shrink-0"><Activity className="w-4 h-4 text-white" /></div>
+                    <div>
+                      <h3 className={`text-sm sm:text-base font-bold ${t.text}`}>Historical Readings</h3>
+                      <p className={`text-xs ${t.textSub}`}>{chartData.length} points · latest 10 shown</p>
+                    </div>
                   </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full">
-                    <thead>
-                      <tr className={t.tableHead}>
-                        {['Time', 'Temp (Int)', 'Temp (Ext)', 'Humidity', 'Hum (Ext)', 'Weight', 'Battery'].map(h => (
-                          <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className={`divide-y ${t.divider}`}>
-                      {chartData.slice().reverse().slice(0, 10).map((row, i) => (
-                        <tr key={i} className={`transition-colors ${t.tableRow}`}>
-                          <td className={`px-4 py-3 text-xs font-semibold whitespace-nowrap ${t.text}`}>
-                            {row.time ? new Date(row.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
-                          </td>
-                          {[
-                            row.temp    != null ? `${(row.temp    as number).toFixed(1)}°C` : '—',
-                            row.tempExt != null ? `${(row.tempExt as number).toFixed(1)}°C` : '—',
-                            row.humidity    != null ? `${(row.humidity    as number).toFixed(0)}%` : '—',
-                            row.humidityExt != null ? `${(row.humidityExt as number).toFixed(0)}%` : '—',
-                            row.weight  != null ? `${(row.weight  as number).toFixed(2)} kg` : '—',
-                            row.battery != null ? `${(row.battery as number).toFixed(0)}%`  : '—',
-                          ].map((val, j) => (
-                            <td key={j} className={`px-4 py-3 text-xs ${t.textSub}`}>{val}</td>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                      <thead>
+                        <tr className={t.tableHead}>
+                          {['Time', 'Temp (Int)', 'Temp (Ext)', 'Humidity', 'Hum (Ext)', 'Weight', 'Battery'].map(h => (
+                            <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">{h}</th>
                           ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className={`divide-y ${t.divider}`}>
+                        {chartData.slice().reverse().slice(0, 10).map((row, i) => (
+                          <tr key={i} className={`transition-colors ${t.tableRow}`}>
+                            <td className={`px-4 py-3 text-xs font-semibold whitespace-nowrap ${t.text}`}>
+                              {row.time ? new Date(row.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                            </td>
+                            {[
+                              row.temp    != null ? `${(row.temp    as number).toFixed(1)}°C` : '—',
+                              row.tempExt != null ? `${(row.tempExt as number).toFixed(1)}°C` : '—',
+                              row.humidity    != null ? `${(row.humidity    as number).toFixed(0)}%` : '—',
+                              row.humidityExt != null ? `${(row.humidityExt as number).toFixed(0)}%` : '—',
+                              row.weight  != null ? `${(row.weight  as number).toFixed(2)} kg` : '—',
+                              row.battery != null ? `${(row.battery as number).toFixed(0)}%`  : '—',
+                            ].map((val, j) => (
+                              <td key={j} className={`px-4 py-3 text-xs ${t.textSub}`}>{val}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </main>
+              </>
+            )}
+          </main>
+        )}
       </div>
 
-      {!loading && hasAccess && (
+      {!loading && hasAccess && currentView === 'dashboard' && (
         <SmartHiveAIAssistant
           latestData={latestData} historicalData={historicalData}
           selectedContainer={selectedContainer} totalHives={totalHives}

@@ -14,10 +14,12 @@
     "@capacitor/android": "^8.1.0",
     "@capacitor/core": "^8.1.0",
     "@capacitor/ios": "^8.1.0",
+    "@capacitor/push-notifications": "^8.0.2",
     "@capacitor/status-bar": "^8.0.1",
     "@prisma/client": "^6.19.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.2.3",
+    "firebase-admin": "^13.7.0",
     "framer-motion": "^12.25.0",
     "jsonwebtoken": "^9.0.2",
     "leaflet": "^1.9.4",
@@ -29,7 +31,10 @@
     "react-dom": "^19.2.3",
     "react-leaflet": "^5.0.0",
     "recharts": "^3.4.1",
-    "tailwindcss": "^4.1.17"
+    "server-only": "^0.0.1",
+    "tailwindcss": "^4.1.17",
+    "twilio": "^5.13.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.1.0",

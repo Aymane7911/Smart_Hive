@@ -1,12 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+
+ 
   /* config options here */
   reactCompiler: true,
   
   // Enable Turbopack (required for Next.js 16)
   turbopack: {},
   assetPrefix: process.env.NEXT_PUBLIC_APP_URL || '',
+  serverExternalPackages: ['firebase-admin'],
   
   // Webpack configuration for audio/video files
   webpack: (config, { isServer }) => {

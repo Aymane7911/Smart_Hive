@@ -29,14 +29,14 @@ model User {
 
   purchases    Purchase[]
   calibrations Calibration[]
-
+  alertConfigs AlertConfig[]   // ← added
+  fcmToken   String?
+  
   @@map("users")
 }
 
 // ─────────────────────────────────────────────────────────────────
 // ORDER INQUIRY
-// Submitted from /order page — no account needed.
-// Admin reviews → ships box with serial number → customer registers.
 // ─────────────────────────────────────────────────────────────────
 model Order {
   id          Int       @id @default(autoincrement())
@@ -49,7 +49,6 @@ model Order {
   city        String?
   message     String?
 
-  // new | reviewed | shipped | rejected
   status      String    @default("new")
   adminNotes  String?
   shippedAt   DateTime?
@@ -88,8 +87,6 @@ model Device {
 
 // ─────────────────────────────────────────────────────────────────
 // PURCHASE
-// Created automatically when a user registers with a serial number.
-// Admin grants dashboard access here.
 // ─────────────────────────────────────────────────────────────────
 model Purchase {
   id     Int  @id @default(autoincrement())
@@ -116,9 +113,9 @@ model Purchase {
   cardExpiry    String?
   paymentMethod String? @default("card")
 
-  status          String    @default("pending")
-  accessGranted   Boolean   @default(false)
-  accessGrantedAt DateTime?
+  status             String    @default("pending")
+  accessGranted      Boolean   @default(false)
+  accessGrantedAt    DateTime?
   assignedContainers String[]
 
   purchaseDate DateTime  @default(now())
@@ -211,6 +208,50 @@ model Calibration {
 
   @@unique([userId, containerId, hiveNumber])
   @@map("calibrations")
+  @@index([userId, containerId])
+  @@index([containerId])
+}
+
+// ─────────────────────────────────────────────────────────────────
+// ALERT CONFIG
+// ─────────────────────────────────────────────────────────────────
+model AlertConfig {
+  id          Int    @id @default(autoincrement())
+  userId      Int
+  containerId String
+  hiveNumber  Int    // 0 = applies to ALL hives in this container
+
+  phoneNumber String
+  callmebotApiKey String? 
+
+  tempInternalMin Float?
+  tempInternalMax Float?
+  tempExternalMin Float?
+  tempExternalMax Float?
+  humidityMin     Float?
+  humidityMax     Float?
+  weightMin       Float?
+  weightMax       Float?
+  batteryMin      Float?
+
+  co2Max  Float?
+  nh3Max  Float?
+  o2Min   Float?
+  vocsMax Float?
+  coMax   Float?
+  no2Max  Float?
+
+  isEnabled       Boolean  @default(true)
+  cooldownMinutes Int      @default(60)
+
+  lastAlertAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, containerId, hiveNumber])
+  @@map("alert_configs")
   @@index([userId, containerId])
   @@index([containerId])
 }
