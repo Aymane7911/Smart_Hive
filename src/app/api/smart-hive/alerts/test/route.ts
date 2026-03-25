@@ -34,7 +34,6 @@ export async function POST(req: NextRequest) {
     const containerId = body.containerId || 'unknown';
     const hiveNumber  = Number(body.hiveNumber ?? 1);
 
-    // Look up the user's FCM token
     const user = await prisma.user.findUnique({
       where:  { id: userId },
       select: { fcmToken: true },
@@ -46,6 +45,9 @@ export async function POST(req: NextRequest) {
         error:   'No device token found. Open the app on your Android device first so it can register for notifications.',
       }, { status: 400 });
     }
+
+    console.log('[alerts/test] FCM token found, length:', user.fcmToken.length);
+    console.log('[alerts/test] Token preview:', user.fcmToken.substring(0, 20) + '...');
 
     const message = [
       '🧪 NahalAI TEST Alert',
@@ -59,7 +61,9 @@ export async function POST(req: NextRequest) {
       })}`,
     ].join('\n');
 
-    await admin.messaging().send({
+    console.log('[alerts/test] Attempting FCM send...');
+
+    const result = await admin.messaging().send({
       token: user.fcmToken,
       notification: {
         title: '🧪 NahalAI Test Alert',
@@ -76,15 +80,18 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    console.log('✅ [alerts/test] FCM send success, messageId:', result);
+
     return NextResponse.json({
       success: true,
       message: 'Test notification sent ✓ — should arrive within a few seconds!',
     });
 
   } catch (err: any) {
-    console.error('[alerts/test POST]', err);
+    console.error('❌ [alerts/test] FCM error code:', err?.code);
+    console.error('❌ [alerts/test] FCM error message:', err?.message);
+    console.error('❌ [alerts/test] FCM full error:', JSON.stringify(err, null, 2));
 
-    // FCM token expired or unregistered — clear it from DB
     if (err?.code === 'messaging/registration-token-not-registered' ||
         err?.code === 'messaging/invalid-registration-token') {
       await prisma.user.update({
