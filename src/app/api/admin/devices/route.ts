@@ -87,15 +87,7 @@ export async function POST(req: NextRequest) {
     const normalizedContainer = azureContainerId.trim()
 
     // ── Check for duplicates ────────────────────────────────────
-    const existingSerial = await prisma.device.findUnique({
-      where: { serialNumber: normalizedSerial },
-    })
-    if (existingSerial) {
-      return NextResponse.json(
-        { success: false, error: `Serial number "${normalizedSerial}" is already registered` },
-        { status: 409 }
-      )
-    }
+    
 
     
 
