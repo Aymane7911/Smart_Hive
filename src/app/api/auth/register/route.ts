@@ -51,26 +51,31 @@ export async function POST(req: NextRequest) {
       )
 
     // ── 3. Validate serial number ────────────────────────────────────────────
-    const device = await prisma.device.findUnique({ where: { serialNumber: normalizedSerial } })
+   const device = await prisma.device.findFirst({
+  where: {
+    serialNumber: normalizedSerial,
+    status: 'unclaimed',   // prefer unclaimed devices
+  },
+})
 
-    if (!device)
-      return NextResponse.json(
-        { success: false, error: 'Serial number not found. Check the sticker inside your SmartHive box.' },
-        { status: 400 }
-      )
+if (!device) {
+  // Check if the serial exists at all (to give a better error message)
+  const anyDevice = await prisma.device.findFirst({
+    where: { serialNumber: normalizedSerial },
+  })
 
-    if (device.status === 'claimed')
-      return NextResponse.json(
-        { success: false, error: 'This device is already registered to another account.' },
-        { status: 409 }
-      )
+  if (!anyDevice)
+    return NextResponse.json(
+      { success: false, error: 'Serial number not found. Check the sticker inside your SmartHive box.' },
+      { status: 400 }
+    )
 
-    if (device.status === 'suspended')
-      return NextResponse.json(
-        { success: false, error: 'This device has been suspended. Please contact support.' },
-        { status: 400 }
-      )
-
+  // Serial exists but all devices are claimed or suspended
+  return NextResponse.json(
+    { success: false, error: 'This serial number has no available devices. Please contact support.' },
+    { status: 409 }
+  )
+}
     // ── 4. Hash password ─────────────────────────────────────────────────────
     const hashedPassword = await bcrypt.hash(password, 12)
 
