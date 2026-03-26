@@ -71,12 +71,6 @@ export async function POST(req: NextRequest) {
       },
       android: {
         priority: 'high',
-        notification: {
-          sound:      'default',
-          channelId:  'hive-alerts',
-          priority:   'max',
-          visibility: 'public',
-        },
       },
     });
 
