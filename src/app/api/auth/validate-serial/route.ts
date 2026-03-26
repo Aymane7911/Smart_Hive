@@ -26,8 +26,12 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    const device = await prisma.device.findUnique({
-      where: { serialNumber: serial },
+    // Serial numbers are no longer unique — find an unclaimed device first
+    const unclaimedDevice = await prisma.device.findFirst({
+      where: {
+        serialNumber: serial,
+        status: 'unclaimed',
+      },
       select: {
         status:    true,
         hiveCount: true,
@@ -36,7 +40,24 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    if (!device) {
+    if (unclaimedDevice) {
+      // Found an available device — valid and ready to register
+      return NextResponse.json({
+        success:   true,
+        valid:     true,
+        hiveCount: unclaimedDevice.hiveCount,
+        model:     unclaimedDevice.model,
+        message:   `Valid device · ${unclaimedDevice.hiveCount} hive${unclaimedDevice.hiveCount !== 1 ? 's' : ''} · ${unclaimedDevice.model}`,
+      })
+    }
+
+    // No unclaimed device found — check if the serial exists at all
+    const anyDevice = await prisma.device.findFirst({
+      where: { serialNumber: serial },
+      select: { status: true },
+    })
+
+    if (!anyDevice) {
       return NextResponse.json({
         success: false,
         valid:   false,
@@ -44,15 +65,7 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    if (device.status === 'claimed') {
-      return NextResponse.json({
-        success: false,
-        valid:   false,
-        error:   'This device is already registered to another account. Contact support if this is a mistake.',
-      })
-    }
-
-    if (device.status === 'suspended') {
+    if (anyDevice.status === 'suspended') {
       return NextResponse.json({
         success: false,
         valid:   false,
@@ -60,14 +73,13 @@ export async function GET(req: NextRequest) {
       })
     }
 
-    // Valid and unclaimed — safe to proceed with registration
+    // Serial exists but all matching devices are claimed
     return NextResponse.json({
-      success:   true,
-      valid:     true,
-      hiveCount: device.hiveCount,
-      model:     device.model,
-      message:   `Valid device · ${device.hiveCount} hive${device.hiveCount !== 1 ? 's' : ''} · ${device.model}`,
+      success: false,
+      valid:   false,
+      error:   'This device is already registered to another account. Contact support if this is a mistake.',
     })
+
   } catch (error: any) {
     console.error('[GET /api/auth/validate-serial]', error)
     return NextResponse.json({ success: false, error: error.message }, { status: 500 })
