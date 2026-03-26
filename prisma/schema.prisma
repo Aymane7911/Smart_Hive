@@ -67,7 +67,7 @@ model Order {
 model Device {
   id               Int       @id @default(autoincrement())
   serialNumber     String    @unique
-  azureContainerId String    @unique
+  azureContainerId String
   hiveCount        Int       @default(1)
   model            String    @default("STANDARD")
   status           String    @default("unclaimed")

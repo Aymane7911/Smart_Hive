@@ -97,18 +97,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const existingContainer = await prisma.device.findUnique({
-      where: { azureContainerId: normalizedContainer },
-    })
-    if (existingContainer) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Azure container "${normalizedContainer}" is already linked to device "${existingContainer.serialNumber}"`,
-        },
-        { status: 409 }
-      )
-    }
+    
 
     // ── Create ──────────────────────────────────────────────────
     const device = await prisma.device.create({

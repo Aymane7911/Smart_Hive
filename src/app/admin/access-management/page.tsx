@@ -1078,15 +1078,28 @@ export default function AdminAccessManagement() {
                 <p className={`text-[10px] mt-1 ${t.textMuted}`}>Printed on the sticker inside the physical box</p>
               </div>
               <div>
-                <label className={`block text-xs font-bold mb-1.5 ${t.textSub}`}>Azure Container ID <span className="text-red-400">*</span></label>
-                <div className="relative">
-                  <Database className={`absolute left-3 top-3 w-4 h-4 ${t.textMuted}`} />
-                  <input type="text" placeholder="e.g. apiary-container-001234" value={deviceForm.azureContainerId}
-                    onChange={e => setDeviceForm(p => ({ ...p, azureContainerId: e.target.value }))}
-                    className={`w-full pl-10 pr-4 py-3 border rounded-xl text-sm focus:ring-2 focus:outline-none transition-all ${t.input}`} />
-                </div>
-                <p className={`text-[10px] mt-1 ${t.textMuted}`}>Exact container name in Azure Blob Storage</p>
-              </div>
+  <label className={`block text-xs font-bold mb-1.5 ${t.textSub}`}>
+    Azure Container <span className="text-red-400">*</span>
+  </label>
+  <div className="relative">
+    <Database className={`absolute left-3 top-3.5 w-4 h-4 ${t.textMuted} pointer-events-none`} />
+    <select
+      value={deviceForm.azureContainerId}
+      onChange={e => setDeviceForm(p => ({ ...p, azureContainerId: e.target.value }))}
+      className={`w-full pl-10 pr-4 py-3 border rounded-xl text-sm focus:ring-2 focus:outline-none transition-all appearance-none ${t.input}`}
+    >
+      <option value="">— Select a container —</option>
+      {containers.map(c => (
+        <option key={c.name} value={c.name}>{c.name}</option>
+      ))}
+    </select>
+  </div>
+  {containers.length === 0 && (
+    <p className={`text-[10px] mt-1 text-amber-400`}>
+      No containers found — make sure Azure containers are loaded.
+    </p>
+  )}
+</div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={`block text-xs font-bold mb-1.5 ${t.textSub}`}>Hive Count</label>
