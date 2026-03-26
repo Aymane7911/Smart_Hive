@@ -1,6 +1,7 @@
 // src/lib/pushNotifications.ts
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
+import { LocalNotifications } from '@capacitor/local-notifications';
 
 /**
  * Call this once on app load (inside your root useEffect).
@@ -40,9 +41,18 @@ export const initPushNotifications = async (): Promise<void> => {
     });
 
     // Foreground notification received
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('[push] Notification received in foreground:', notification);
-    });
+    PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+  console.log('[push] Notification received in foreground:', notification);
+  await LocalNotifications.schedule({
+    notifications: [{
+      title:     notification.title ?? '🐝 NahalAI Alert',
+      body:      notification.body  ?? '',
+      id:        Math.floor(Math.random() * 100000),
+      channelId: 'hive-alerts',
+      schedule:  { at: new Date(Date.now() + 300) },
+    }],
+  });
+});
 
     // User tapped a notification
     PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
