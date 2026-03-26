@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
     if (existing)
       return NextResponse.json({ success: false, error: 'An account with this email already exists' }, { status: 409 })
 
+    // Find an unclaimed device with this serial number
     const device = await prisma.device.findFirst({
       where: { serialNumber: normalizedSerial, status: 'unclaimed' },
     })
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
     const hashedPassword = await bcrypt.hash(password, 12)
 
     const result = await prisma.$transaction(async (tx) => {
+      // 1. Create user
       const user = await tx.user.create({
         data: {
           email:     normalizedEmail,
@@ -53,9 +55,23 @@ export async function POST(req: NextRequest) {
         },
       })
 
+      // 2. Claim the device
       await tx.device.update({
         where: { id: device.id },
         data: { status: 'claimed', ownerId: user.id, claimedAt: new Date() },
+      })
+
+      // 3. Create a pending purchase so user appears in the admin Access tab
+      await tx.purchase.create({
+        data: {
+          userId:             user.id,
+          status:             'pending',
+          accessGranted:      false,
+          masterHives:        device.hiveCount,
+          normalHives:        0,
+          totalAmount:        0,
+          assignedContainers: [device.azureContainerId],
+        },
       })
 
       return user
