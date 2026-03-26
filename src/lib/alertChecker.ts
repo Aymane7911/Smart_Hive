@@ -81,7 +81,10 @@ const sendFCMNotification = async (
   try {
     await admin.messaging().send({
       token: fcmToken,
-      notification: { title, body },
+      data: {
+    title: title,
+    body:  body,
+  },
       android: {
   priority: 'high',
   notification: {

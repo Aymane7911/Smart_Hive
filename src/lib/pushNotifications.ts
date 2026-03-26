@@ -42,11 +42,13 @@ export const initPushNotifications = async (): Promise<void> => {
 
     // Foreground notification received
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
-  console.log('[push] Notification received in foreground:', notification);
+  const title = notification.title ?? (notification.data?.title) ?? '🐝 NahalAI Alert';
+  const body  = notification.body  ?? (notification.data?.body)  ?? '';
+
   await LocalNotifications.schedule({
     notifications: [{
-      title:     notification.title ?? '🐝 NahalAI Alert',
-      body:      notification.body  ?? '',
+      title,
+      body,
       id:        Math.floor(Math.random() * 100000),
       channelId: 'hive-alerts',
       schedule:  { at: new Date(Date.now() + 300) },
