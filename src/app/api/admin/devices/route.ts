@@ -1,14 +1,11 @@
 // app/api/admin/devices/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { verifyAdminToken } from '@/lib/auth'
-
-const prisma = new PrismaClient()
 
 // ─────────────────────────────────────────────────────────────────
 // GET /api/admin/devices
-// Returns all registered devices with owner info if claimed.
 // ─────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
@@ -48,7 +45,6 @@ export async function GET(req: NextRequest) {
 
 // ─────────────────────────────────────────────────────────────────
 // POST /api/admin/devices
-// Register a new device — links a serial number to an Azure container.
 // Body: { serialNumber, azureContainerId, hiveCount?, model? }
 // ─────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
@@ -61,37 +57,21 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { serialNumber, azureContainerId, hiveCount, model } = body
 
-    // ── Validation ──────────────────────────────────────────────
     if (!serialNumber?.trim()) {
-      return NextResponse.json(
-        { success: false, error: 'Serial number is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: 'Serial number is required' }, { status: 400 })
     }
     if (!azureContainerId?.trim()) {
-      return NextResponse.json(
-        { success: false, error: 'Azure container ID is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: 'Azure container ID is required' }, { status: 400 })
     }
 
     const parsedHiveCount = hiveCount ? parseInt(hiveCount) : 1
     if (isNaN(parsedHiveCount) || parsedHiveCount < 1 || parsedHiveCount > 50) {
-      return NextResponse.json(
-        { success: false, error: 'Hive count must be between 1 and 50' },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: 'Hive count must be between 1 and 50' }, { status: 400 })
     }
 
     const normalizedSerial    = serialNumber.trim().toUpperCase()
     const normalizedContainer = azureContainerId.trim()
 
-    // ── Check for duplicates ────────────────────────────────────
-    
-
-    
-
-    // ── Create ──────────────────────────────────────────────────
     const device = await prisma.device.create({
       data: {
         serialNumber:     normalizedSerial,
