@@ -102,7 +102,7 @@ export default function OrderPage() {
   // ── Success screen ──────────────────────────────────────────────
   if (success) {
     return (
-      <div className="relative w-full bg-black flex items-center justify-center" style={{ minHeight: '100dvh' }}>
+      <div className="relative w-full bg-black flex items-center justify-center overflow-hidden" style={{ minHeight: '100dvh' }}>
         <video autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover"
           style={{ zIndex: 0, filter: 'blur(8px)', transform: 'scale(1.08)' }}>
           <source src="/littlebee.mp4" type="video/mp4" />
@@ -151,7 +151,7 @@ export default function OrderPage() {
 
   // ── Main form ───────────────────────────────────────────────────
   return (
-    <div className="relative w-full bg-black" style={{ minHeight: '100dvh' }}>
+    <div className="relative w-full bg-black overflow-hidden" style={{ minHeight: '100dvh' }}>
 
       {/* Video background */}
       <video autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover"

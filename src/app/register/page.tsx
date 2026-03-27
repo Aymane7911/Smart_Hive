@@ -123,7 +123,7 @@ export default function RegisterPage() {
   // ── Success screen ────────────────────────────────────────────────────────
   if (success) {
     return (
-      <div className="relative w-full bg-black flex items-center justify-center" style={{ minHeight: '100dvh' }}>
+      <div className="relative w-full bg-black flex items-center justify-center overflow-hidden" style={{ minHeight: '100dvh' }}>
         <video autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover"
           style={{ zIndex: 0, filter: 'blur(8px)', transform: 'scale(1.08)' }}>
           <source src="/littlebee.mp4" type="video/mp4" />
@@ -144,12 +144,12 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="relative w-full bg-black" style={{ minHeight: '100dvh' }}>
+    <div className="relative w-full bg-black overflow-hidden" style={{ minHeight: '100dvh' }}>
       <video autoPlay muted loop playsInline className="absolute inset-0 w-full h-full object-cover"
         style={{ zIndex: 0, filter: 'blur(8px)', transform: 'scale(1.08)' }}>
         <source src="/littlebee.mp4" type="video/mp4" />
       </video>
-      <div className="absolute inset-0 bg-black/60" style={{ zIndex: 1, minHeight: '170dvh' }} />
+      <div className="absolute inset-0 bg-black/60" style={{ zIndex: 1 }} />
 
       {/* Nav */}
       <header
@@ -273,14 +273,6 @@ export default function RegisterPage() {
                   </p>
                 )}
                 <p className="mt-1.5 text-white/35 text-xs">Printed on the sticker inside your SmartHive box.</p>
-              </div>
-
-              {/* Info box */}
-              <div className="rounded-xl p-4" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                <p className="text-amber-400 text-xs font-bold mb-1">⏳ Dashboard access</p>
-                <p className="text-white/50 text-xs leading-relaxed">
-                  After registering, your account will be reviewed. Our team will grant you access to your hive dashboard shortly.
-                </p>
               </div>
 
               {/* Submit */}

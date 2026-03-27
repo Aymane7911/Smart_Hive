@@ -178,23 +178,19 @@ export default function LoginPage() {
   }, []);
 
   return (
-    <div className="relative w-full bg-black" style={{ minHeight: '100dvh' }}>
+    <div className="relative w-full bg-black overflow-hidden" style={{ minHeight: '100dvh' }}>
 
-      {/* VIDEO — blurred at source so the background is blurred, card stays sharp */}
+      {/* VIDEO */}
       <video
         autoPlay muted loop playsInline
         className="absolute inset-0 w-full h-full object-cover"
-        style={{
-          zIndex: 0,
-          filter: 'blur(8px)',
-          transform: 'scale(1.08)', /* scale up slightly to hide blur edges */
-        }}
+        style={{ zIndex: 0, filter: 'blur(8px)', transform: 'scale(1.08)' }}
       >
         <source src="/littlebee.mp4" type="video/mp4" />
       </video>
 
-      {/* Dark overlay for text readability */}
-      <div className="absolute inset-0 bg-black/60" style={{ zIndex: 1, minHeight: '120dvh' }} />
+      {/* Dark overlay */}
+      <div className="absolute inset-0 bg-black/60" style={{ zIndex: 1 }} />
 
       {/* Nav */}
       <header
@@ -234,7 +230,7 @@ export default function LoginPage() {
       >
         <div className={`w-full max-w-md transition-all duration-700 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
 
-          {/* Heading — above the card, no blur */}
+          {/* Heading */}
           <div className="text-center mb-8">
             <div
               className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-xl shadow-amber-500/30"
@@ -248,7 +244,7 @@ export default function LoginPage() {
             <p className="text-white/55 text-sm">Sign in to access your SmartHive dashboard</p>
           </div>
 
-          {/* Card — solid semi-transparent, NO blur on the card itself */}
+          {/* Card */}
           <div
             className="rounded-2xl p-8"
             style={{

@@ -198,13 +198,7 @@ export default function SmartHivePage() {
                 About Us
                 <ArrowRight className="w-5 h-5" />
               </button>
-              <a
-                href="/order"
-                className="inline-flex items-center gap-3 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/30 text-white font-bold py-4 px-10 rounded-2xl transition-all duration-300 hover:-translate-y-1 text-lg"
-              >
-                <Package className="w-5 h-5" />
-                Order Now
-              </a>
+              
             </div>
           </div>
         )}

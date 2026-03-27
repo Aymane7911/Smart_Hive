@@ -1215,12 +1215,7 @@ const SmartHiveDashboard = () => {
                   <ChevronDown className="w-3 h-3 flex-shrink-0" />
                 </button>
               )}
-              {lastUpdated && currentView === 'dashboard' && (
-                <div className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ${dm ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
-                  <Clock className="w-3.5 h-3.5" />
-                  {new Date(lastUpdated).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              )}
+              
               <button onClick={() => setDarkMode(!dm)} className={`p-2 rounded-lg ${dm ? 'hover:bg-gray-800 text-yellow-400' : 'hover:bg-gray-100 text-gray-600'}`}>
                 {dm ? <SunMedium className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
