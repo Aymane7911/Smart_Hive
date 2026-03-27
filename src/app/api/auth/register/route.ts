@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
           masterHives:        device.hiveCount,
           normalHives:        0,
           totalAmount:        0,
-          assignedContainers: [device.azureContainerId],
+          assignedContainers: device.azureContainerIds,
         },
       })
 
