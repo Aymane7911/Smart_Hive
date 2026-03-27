@@ -1,10 +1,5 @@
 'use client'
 // app/admin/access-management/page.tsx
-//
-// Three tabs:
-//   📦 Orders   — inquiry forms submitted from /order (new flow)
-//   🔐 Access   — registered users awaiting / granted dashboard access
-//   📡 Devices  — physical SmartHive boxes (serial ↔ Azure container)
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -35,7 +30,7 @@ interface Purchase {
 interface Container { name: string; lastModified?: string; blobCount?: number; }
 interface ApiaryLocation { containerId: string; lat: number; lon: number; address?: string; }
 interface Device {
-  id: number; serialNumber: string; azureContainerId: string; hiveCount: number;
+  id: number; serialNumber: string; azureContainerIds: string[]; hiveCount: number;
   model: string; status: 'unclaimed' | 'claimed' | 'suspended';
   ownerId?: number; claimedAt?: string; createdAt: string;
   purchases?: { user: { email: string; firstname: string; lastname: string } }[];
@@ -91,7 +86,12 @@ export default function AdminAccessManagement() {
   const [deviceFilter,      setDeviceFilter]      = useState('all');
   const [showAddDevice,     setShowAddDevice]     = useState(false);
   const [addingDevice,      setAddingDevice]      = useState(false);
-  const [deviceForm,        setDeviceForm]        = useState({ serialNumber: '', azureContainerId: '', hiveCount: '1', model: 'STANDARD' });
+  const [deviceForm,        setDeviceForm]        = useState({
+    serialNumber: '',
+    azureContainerIds: [] as string[],
+    hiveCount: '1',
+    model: 'STANDARD',
+  });
   const [deviceFormError,   setDeviceFormError]   = useState('');
   const [deviceFormSuccess, setDeviceFormSuccess] = useState('');
 
@@ -265,20 +265,25 @@ export default function AdminAccessManagement() {
   // ─────────────────────────────────────────────────────────────────────────────
   const handleAddDevice = async () => {
     setDeviceFormError(''); setDeviceFormSuccess('');
-    if (!deviceForm.serialNumber.trim())    { setDeviceFormError('Serial number is required'); return; }
-    if (!deviceForm.azureContainerId.trim()){ setDeviceFormError('Azure Container ID is required'); return; }
+    if (!deviceForm.serialNumber.trim())          { setDeviceFormError('Serial number is required'); return; }
+    if (deviceForm.azureContainerIds.length === 0){ setDeviceFormError('Select at least one container'); return; }
     const hc = parseInt(deviceForm.hiveCount);
-    if (isNaN(hc) || hc < 1 || hc > 50)   { setDeviceFormError('Hive count must be 1–50'); return; }
+    if (isNaN(hc) || hc < 1 || hc > 50)          { setDeviceFormError('Hive count must be 1–50'); return; }
     setAddingDevice(true);
     try {
       const res  = await fetch('/api/admin/devices', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ serialNumber: deviceForm.serialNumber.trim().toUpperCase(), azureContainerId: deviceForm.azureContainerId.trim(), hiveCount: hc, model: deviceForm.model }),
+        body: JSON.stringify({
+          serialNumber:      deviceForm.serialNumber.trim().toUpperCase(),
+          azureContainerIds: deviceForm.azureContainerIds,
+          hiveCount:         hc,
+          model:             deviceForm.model,
+        }),
       });
       const data = await res.json();
       if (data.success) {
         setDeviceFormSuccess(`Device "${deviceForm.serialNumber.toUpperCase()}" registered!`);
-        setDeviceForm({ serialNumber: '', azureContainerId: '', hiveCount: '1', model: 'STANDARD' });
+        setDeviceForm({ serialNumber: '', azureContainerIds: [], hiveCount: '1', model: 'STANDARD' });
         await fetchDevices();
         setTimeout(() => { setShowAddDevice(false); setDeviceFormSuccess(''); }, 2000);
       } else { setDeviceFormError(data.error || 'Failed to add device'); }
@@ -332,7 +337,8 @@ export default function AdminAccessManagement() {
   );
 
   const filteredDevices = devices.filter(d =>
-    (d.serialNumber.toLowerCase().includes(deviceSearch.toLowerCase()) || d.azureContainerId.toLowerCase().includes(deviceSearch.toLowerCase())) &&
+    (d.serialNumber.toLowerCase().includes(deviceSearch.toLowerCase()) ||
+     d.azureContainerIds.some(c => c.toLowerCase().includes(deviceSearch.toLowerCase()))) &&
     (deviceFilter === 'all' || d.status === deviceFilter)
   );
 
@@ -399,7 +405,6 @@ export default function AdminAccessManagement() {
   // ─────────────────────────────────────────────────────────────────────────────
   const OrdersTab = () => (
     <>
-      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-5">
         <StatCard icon={Package}      title="Total Orders"  value={stats.totalOrders}    gradient="from-sky-500 to-blue-500" badge={stats.newOrders} />
         <StatCard icon={Clock}        title="New"           value={stats.newOrders}      gradient="from-amber-500 to-yellow-500" />
@@ -407,7 +412,6 @@ export default function AdminAccessManagement() {
         <StatCard icon={Eye}          title="Reviewed"      value={stats.reviewedOrders} gradient="from-emerald-500 to-teal-500" />
       </div>
 
-      {/* Filters */}
       <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
         <div className="relative mb-3">
           <Search className={`absolute left-3.5 top-3 w-4 h-4 ${t.textMuted}`} />
@@ -425,7 +429,6 @@ export default function AdminAccessManagement() {
         </div>
       </div>
 
-      {/* Orders list */}
       {ordersLoading ? (
         <div className={`rounded-2xl ${t.card} p-16 text-center`}>
           <RefreshCw className="w-8 h-8 animate-spin mx-auto text-amber-500" />
@@ -440,7 +443,6 @@ export default function AdminAccessManagement() {
         <div className="space-y-3">
           {filteredOrders.map(order => (
             <div key={order.id} className={`rounded-2xl shadow-sm ${t.card} overflow-hidden`}>
-              {/* Row header */}
               <div className="p-4 flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -469,7 +471,6 @@ export default function AdminAccessManagement() {
                 </button>
               </div>
 
-              {/* Expanded actions */}
               {expandedOrder === order.id && (
                 <div className={`px-4 pb-4 pt-3 border-t ${t.divider}`}>
                   {order.message && (
@@ -546,7 +547,6 @@ export default function AdminAccessManagement() {
         <StatCard icon={Cpu}      title="Devices"    value={stats.totalDevices}    gradient="from-violet-500 to-purple-600" />
       </div>
 
-      {/* Apiary locations panel */}
       {showLocationsPanel && (
         <div className={`rounded-2xl shadow-md ${t.card} p-5 mb-5`}>
           <div className="flex items-center gap-3 mb-5">
@@ -588,7 +588,6 @@ export default function AdminAccessManagement() {
         </div>
       )}
 
-      {/* Filters */}
       <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
         <div className="flex gap-2 mb-3">
           <div className="relative flex-1">
@@ -612,7 +611,6 @@ export default function AdminAccessManagement() {
         </div>
       </div>
 
-      {/* Table */}
       {filteredPurchases.length === 0 ? (
         <div className={`rounded-2xl ${t.card} p-16 text-center`}>
           <div className="text-6xl mb-4">🔐</div>
@@ -647,12 +645,10 @@ export default function AdminAccessManagement() {
                           <span className={`text-xs ${t.textMuted}`}>{new Date(p.purchaseDate).toLocaleDateString()}</span>
                         </td>
                         <td className="px-5 py-4">
-                          <div className="flex flex-col gap-1.5">
-                            {p.accessGranted
-                              ? <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500">Access Active</span>
-                              : <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-yellow-500">Pending</span>
-                            }
-                          </div>
+                          {p.accessGranted
+                            ? <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-500">Access Active</span>
+                            : <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold text-white bg-gradient-to-r from-amber-500 to-yellow-500">Pending</span>
+                          }
                         </td>
                         <td className="px-5 py-4">
                           <button onClick={() => handleOpenContainerModal(p)}
@@ -757,9 +753,9 @@ export default function AdminAccessManagement() {
   const DevicesTab = () => (
     <>
       <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-5">
-        <StatCard icon={Cpu}       title="Total"     value={stats.totalDevices}    gradient="from-violet-500 to-purple-600" />
+        <StatCard icon={Cpu}       title="Total"     value={stats.totalDevices}     gradient="from-violet-500 to-purple-600" />
         <StatCard icon={Package}   title="Unclaimed" value={stats.unclaimedDevices} gradient="from-sky-500 to-blue-500" />
-        <StatCard icon={UserCheck} title="Claimed"   value={stats.claimedDevices}  gradient="from-emerald-500 to-teal-500" />
+        <StatCard icon={UserCheck} title="Claimed"   value={stats.claimedDevices}   gradient="from-emerald-500 to-teal-500" />
       </div>
 
       <div className={`rounded-2xl shadow-md ${t.card} p-4 mb-5`}>
@@ -810,7 +806,11 @@ export default function AdminAccessManagement() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <p className={`text-sm font-black font-mono ${t.text}`}>{d.serialNumber}</p>
-                    <p className={`text-xs mt-0.5 ${t.textMuted}`}>{d.azureContainerId}</p>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {d.azureContainerIds.map(cid => (
+                        <span key={cid} className={`text-[10px] font-mono px-1.5 py-0.5 rounded-md ${t.innerCard} ${t.textMuted}`}>{cid}</span>
+                      ))}
+                    </div>
                   </div>
                   <StatusBadge status={d.status} />
                 </div>
@@ -846,7 +846,7 @@ export default function AdminAccessManagement() {
               <table className="min-w-full">
                 <thead>
                   <tr className={t.tableHead}>
-                    {['Serial Number', 'Azure Container', 'Hives', 'Model', 'Status', 'Owner', 'Created', 'Actions'].map(h => (
+                    {['Serial Number', 'Azure Containers', 'Hives', 'Model', 'Status', 'Owner', 'Created', 'Actions'].map(h => (
                       <th key={h} className="px-5 py-4 text-left text-[10px] font-bold uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -854,11 +854,27 @@ export default function AdminAccessManagement() {
                 <tbody className={`divide-y ${t.divider}`}>
                   {filteredDevices.map(d => (
                     <tr key={d.id} className={`transition-colors ${t.tableRow}`}>
-                      <td className="px-5 py-4"><span className={`text-sm font-black font-mono ${t.text}`}>{d.serialNumber}</span></td>
-                      <td className="px-5 py-4"><span className={`text-xs font-mono ${t.textSub}`}>{d.azureContainerId}</span></td>
-                      <td className="px-5 py-4"><span className={`text-sm font-bold ${t.text}`}>{d.hiveCount}</span></td>
-                      <td className="px-5 py-4"><span className={`text-xs px-2.5 py-1 rounded-lg font-bold ${t.innerCard} ${t.textSub}`}>{d.model}</span></td>
-                      <td className="px-5 py-4"><StatusBadge status={d.status} /></td>
+                      <td className="px-5 py-4">
+                        <span className={`text-sm font-black font-mono ${t.text}`}>{d.serialNumber}</span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {d.azureContainerIds.map(cid => (
+                            <span key={cid} className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md ${t.innerCard} ${t.textSub}`}>
+                              {cid}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`text-sm font-bold ${t.text}`}>{d.hiveCount}</span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`text-xs px-2.5 py-1 rounded-lg font-bold ${t.innerCard} ${t.textSub}`}>{d.model}</span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <StatusBadge status={d.status} />
+                      </td>
                       <td className="px-5 py-4">
                         {d.status === 'claimed' && d.purchases?.[0]?.user ? (
                           <div>
@@ -867,7 +883,9 @@ export default function AdminAccessManagement() {
                           </div>
                         ) : <span className={`text-xs ${t.textMuted}`}>—</span>}
                       </td>
-                      <td className="px-5 py-4"><span className={`text-xs ${t.textMuted}`}>{new Date(d.createdAt).toLocaleDateString()}</span></td>
+                      <td className="px-5 py-4">
+                        <span className={`text-xs ${t.textMuted}`}>{new Date(d.createdAt).toLocaleDateString()}</span>
+                      </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
                           {d.status !== 'unclaimed' && (
@@ -936,7 +954,7 @@ export default function AdminAccessManagement() {
           <p className={`text-xs font-semibold uppercase tracking-widest px-2 py-2 ${t.sidebarMuted}`}>Navigation</p>
           {[
             { label: 'Home',        icon: Home,            path: '/welcome' },
-            { label: 'Dashboard',  icon: LayoutDashboard, path: '/smart-hive' },
+            { label: 'Dashboard',   icon: LayoutDashboard, path: '/smart-hive' },
             { label: 'Calibration', icon: Settings,        path: '/admin/correction' },
             { label: 'Purchase',    icon: ShoppingCart,    path: '/order' },
           ].map(item => (
@@ -998,7 +1016,7 @@ export default function AdminAccessManagement() {
             </div>
           </div>
 
-          {/* Tab bar — 3 tabs */}
+          {/* Tab bar */}
           <div className={`flex px-4 sm:px-5 border-t ${t.divider} gap-1`}>
             {([
               { key: 'orders',  label: 'Orders',  icon: Package,   count: stats.totalOrders,  badge: stats.newOrders },
@@ -1047,13 +1065,14 @@ export default function AdminAccessManagement() {
               </div>
               <div>
                 <h3 className={`text-base font-black ${t.text}`}>Register New Device</h3>
-                <p className={`text-xs ${t.textMuted}`}>Link a serial number to an Azure container</p>
+                <p className={`text-xs ${t.textMuted}`}>Link a serial number to Azure containers</p>
               </div>
               <button onClick={() => { setShowAddDevice(false); setDeviceFormError(''); setDeviceFormSuccess(''); }}
                 className={`ml-auto p-1.5 rounded-lg ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-500'}`}>
                 <X className="w-4 h-4" />
               </button>
             </div>
+
             {deviceFormError && (
               <div className="bg-red-500/15 border border-red-400/40 rounded-xl p-3 mb-4 flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
@@ -1066,9 +1085,13 @@ export default function AdminAccessManagement() {
                 <p className="text-emerald-300 text-xs">{deviceFormSuccess}</p>
               </div>
             )}
+
             <div className="space-y-4 mb-6">
+              {/* Serial Number */}
               <div>
-                <label className={`block text-xs font-bold mb-1.5 ${t.textSub}`}>Serial Number <span className="text-red-400">*</span></label>
+                <label className={`block text-xs font-bold mb-1.5 ${t.textSub}`}>
+                  Serial Number <span className="text-red-400">*</span>
+                </label>
                 <div className="relative">
                   <Hash className={`absolute left-3 top-3 w-4 h-4 ${t.textMuted}`} />
                   <input type="text" placeholder="e.g. SH-2024-001234" value={deviceForm.serialNumber}
@@ -1077,29 +1100,51 @@ export default function AdminAccessManagement() {
                 </div>
                 <p className={`text-[10px] mt-1 ${t.textMuted}`}>Printed on the sticker inside the physical box</p>
               </div>
+
+              {/* Azure Containers — multi-select checkboxes */}
               <div>
-  <label className={`block text-xs font-bold mb-1.5 ${t.textSub}`}>
-    Azure Container <span className="text-red-400">*</span>
-  </label>
-  <div className="relative">
-    <Database className={`absolute left-3 top-3.5 w-4 h-4 ${t.textMuted} pointer-events-none`} />
-    <select
-      value={deviceForm.azureContainerId}
-      onChange={e => setDeviceForm(p => ({ ...p, azureContainerId: e.target.value }))}
-      className={`w-full pl-10 pr-4 py-3 border rounded-xl text-sm focus:ring-2 focus:outline-none transition-all appearance-none ${t.input}`}
-    >
-      <option value="">— Select a container —</option>
-      {containers.map(c => (
-        <option key={c.name} value={c.name}>{c.name}</option>
-      ))}
-    </select>
-  </div>
-  {containers.length === 0 && (
-    <p className={`text-[10px] mt-1 text-amber-400`}>
-      No containers found — make sure Azure containers are loaded.
-    </p>
-  )}
-</div>
+                <label className={`block text-xs font-bold mb-1.5 ${t.textSub}`}>
+                  Azure Containers <span className="text-red-400">*</span>
+                </label>
+                {containers.length === 0 ? (
+                  <p className="text-[10px] text-amber-400">No containers found — make sure Azure containers are loaded.</p>
+                ) : (
+                  <div className={`rounded-xl border overflow-hidden divide-y ${t.divider} ${dm ? 'border-white/10' : 'border-black/10'} max-h-48 overflow-y-auto`}>
+                    {containers.map(c => {
+                      const selected = deviceForm.azureContainerIds.includes(c.name);
+                      return (
+                        <label key={c.name}
+                          className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-all ${
+                            selected
+                              ? (dm ? 'bg-amber-500/15' : 'bg-amber-50')
+                              : (dm ? 'hover:bg-white/5' : 'hover:bg-black/[0.02]')
+                          }`}>
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => setDeviceForm(p => ({
+                              ...p,
+                              azureContainerIds: selected
+                                ? p.azureContainerIds.filter(x => x !== c.name)
+                                : [...p.azureContainerIds, c.name],
+                            }))}
+                            className="w-4 h-4 accent-amber-500 rounded flex-shrink-0"
+                          />
+                          <span className={`text-sm font-bold flex-1 ${t.text}`}>{c.name}</span>
+                          {selected && <Check className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+                {deviceForm.azureContainerIds.length > 0 && (
+                  <p className={`text-[10px] mt-1.5 font-semibold ${dm ? 'text-amber-400' : 'text-amber-600'}`}>
+                    {deviceForm.azureContainerIds.length} container{deviceForm.azureContainerIds.length > 1 ? 's' : ''} selected
+                  </p>
+                )}
+              </div>
+
+              {/* Hive Count + Model */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={`block text-xs font-bold mb-1.5 ${t.textSub}`}>Hive Count</label>
@@ -1118,12 +1163,15 @@ export default function AdminAccessManagement() {
                 </div>
               </div>
             </div>
+
+            {/* Info box */}
             <div className={`rounded-xl p-4 mb-5 ${dm ? 'bg-amber-950/60 border border-amber-900/40' : 'bg-amber-50 border border-amber-100'}`}>
               <p className={`text-xs font-bold mb-1 ${dm ? 'text-amber-400' : 'text-amber-700'}`}>💡 How this works</p>
               <p className={`text-xs ${dm ? 'text-amber-300' : 'text-amber-700'}`}>
-                The customer enters this serial number at /register. Their account is automatically linked to the Azure container — they never see the container name.
+                The customer enters this serial number at /register. Their account is automatically linked to all selected Azure containers — they never see the container names.
               </p>
             </div>
+
             <div className="flex gap-3">
               <button onClick={() => { setShowAddDevice(false); setDeviceFormError(''); setDeviceFormSuccess(''); }}
                 className={`flex-1 py-3 rounded-xl text-sm font-bold ${dm ? 'bg-gray-800 text-gray-200 hover:bg-gray-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>

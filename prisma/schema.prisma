@@ -67,7 +67,7 @@ model Order {
 model Device {
   id               Int       @id @default(autoincrement())
   serialNumber     String    
-  azureContainerId String
+  azureContainerIds String[]  // ← was: azureContainerId String
   hiveCount        Int       @default(1)
   model            String    @default("STANDARD")
   status           String    @default("unclaimed")
@@ -84,7 +84,6 @@ model Device {
   @@index([status])
   @@index([ownerId])
 }
-
 // ─────────────────────────────────────────────────────────────────
 // PURCHASE
 // ─────────────────────────────────────────────────────────────────

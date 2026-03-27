@@ -1,5 +1,3 @@
-// app/api/admin/devices/route.ts
-
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyAdminToken } from '@/lib/auth'
@@ -45,7 +43,7 @@ export async function GET(req: NextRequest) {
 
 // ─────────────────────────────────────────────────────────────────
 // POST /api/admin/devices
-// Body: { serialNumber, azureContainerId, hiveCount?, model? }
+// Body: { serialNumber, azureContainerIds: string[], hiveCount?, model? }
 // ─────────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
@@ -55,13 +53,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { serialNumber, azureContainerId, hiveCount, model } = body
+    const { serialNumber, azureContainerIds, hiveCount, model } = body
 
     if (!serialNumber?.trim()) {
       return NextResponse.json({ success: false, error: 'Serial number is required' }, { status: 400 })
     }
-    if (!azureContainerId?.trim()) {
-      return NextResponse.json({ success: false, error: 'Azure container ID is required' }, { status: 400 })
+    if (!Array.isArray(azureContainerIds) || azureContainerIds.length === 0) {
+      return NextResponse.json({ success: false, error: 'At least one Azure container is required' }, { status: 400 })
     }
 
     const parsedHiveCount = hiveCount ? parseInt(hiveCount) : 1
@@ -69,17 +67,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Hive count must be between 1 and 50' }, { status: 400 })
     }
 
-    const normalizedSerial    = serialNumber.trim().toUpperCase()
-    const normalizedContainer = azureContainerId.trim()
+    const normalizedSerial     = serialNumber.trim().toUpperCase()
+    const normalizedContainers = azureContainerIds.map((c: string) => c.trim()).filter(Boolean)
 
     const device = await prisma.device.create({
       data: {
-        serialNumber:     normalizedSerial,
-        azureContainerId: normalizedContainer,
-        hiveCount:        parsedHiveCount,
-        model:            model?.trim().toUpperCase() || 'STANDARD',
-        status:           'unclaimed',
-        createdByAdminId: parseInt(String(admin.id)),
+        serialNumber:      normalizedSerial,
+        azureContainerIds: normalizedContainers,
+        hiveCount:         parsedHiveCount,
+        model:             model?.trim().toUpperCase() || 'STANDARD',
+        status:            'unclaimed',
+        createdByAdminId:  parseInt(String(admin.id)),
       },
     })
 
