@@ -42,7 +42,7 @@ export const initPushNotifications = async (): Promise<void> => {
 
     // Foreground notification received
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
-  const title = notification.title ?? (notification.data?.title) ?? '🐝 NahalAI Alert';
+  const title = notification.title ?? (notification.data?.title) ?? 'NahalAI Alert';
   const body  = notification.body  ?? (notification.data?.body)  ?? '';
 
   await LocalNotifications.schedule({
