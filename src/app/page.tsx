@@ -5,6 +5,8 @@ import {
   ArrowRight, LogIn, UserPlus, Mail, Send,
   Activity, Brain, TrendingUp, Shield, Hexagon, Package,
 } from 'lucide-react'
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 
 type View = 'home' | 'info' | 'contact'
 
@@ -18,6 +20,12 @@ export default function SmartHivePage() {
     const t = setTimeout(() => setIsLoaded(true), 50)
     return () => clearTimeout(t)
   }, [])
+  useEffect(() => {
+  if (Capacitor.isNativePlatform()) {
+    StatusBar.setStyle({ style: Style.Dark }); // white icons for dark background
+    StatusBar.setOverlaysWebView({ overlay: true });
+  }
+}, []);
 
   const navigate = (next: View) => {
     setFadeOut(true)
