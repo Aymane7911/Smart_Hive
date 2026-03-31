@@ -39,3 +39,7 @@ body {
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
+
+body.is-native header {
+  background-color: rgb(17 24 39) !important;
+}
