@@ -1156,8 +1156,12 @@ const SmartHiveDashboard = () => {
   return (
     <div className="min-h-screen relative transition-colors duration-300">
       <div className="fixed inset-0 pointer-events-none overflow-hidden"
-        style={{ backgroundImage: "url('/bee.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        <div className={`absolute inset-0 ${dm ? 'bg-black/40' : 'bg-white/20'}`} />
+  style={{ 
+    backgroundImage: "url('/bee.jpg')", 
+    backgroundSize: 'cover', 
+    backgroundPosition: 'center',
+    top: '-50px', // ← extend above safe area
+  }}>
       </div>
 
       {/* Rename modal */}
