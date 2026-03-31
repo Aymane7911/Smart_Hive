@@ -10,6 +10,8 @@ import {
   Mail, Phone, User, Globe, MapPin, MessageSquare,
   Package, Check, AlertCircle, Hexagon, Loader2, Hash,
 } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 
 const inputStyle = {
   background: 'rgba(255, 255, 255, 0.95)',
@@ -53,6 +55,12 @@ export default function OrderPage() {
     const t = setTimeout(() => setIsLoaded(true), 50);
     return () => clearTimeout(t);
   }, []);
+useEffect(() => {
+  if (Capacitor.isNativePlatform()) {
+    StatusBar.setStyle({ style: Style.Dark }); // white icons for dark background
+    StatusBar.setOverlaysWebView({ overlay: true });
+  }
+}, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;

@@ -9,6 +9,9 @@ import {
   Check, AlertCircle, Hexagon, CheckCircle2, XCircle, Loader2,
 } from 'lucide-react';
 
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
+
 type SerialStatus = 'idle' | 'checking' | 'valid' | 'invalid';
 
 const inputStyle = {
@@ -50,6 +53,13 @@ export default function RegisterPage() {
     const t = setTimeout(() => setIsLoaded(true), 50);
     return () => clearTimeout(t);
   }, []);
+
+useEffect(() => {
+  if (Capacitor.isNativePlatform()) {
+    StatusBar.setStyle({ style: Style.Dark }); // white icons for dark background
+    StatusBar.setOverlaysWebView({ overlay: true });
+  }
+}, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;

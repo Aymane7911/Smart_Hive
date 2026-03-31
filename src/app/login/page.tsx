@@ -4,6 +4,9 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff, Mail, Lock, Check, AlertCircle, Hexagon } from 'lucide-react';
 
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -18,6 +21,13 @@ function LoginForm() {
       setSuccessMessage('Registration successful! Please log in to continue.');
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      StatusBar.setStyle({ style: Style.Dark }); // white icons for dark background
+      StatusBar.setOverlaysWebView({ overlay: true });
+    }
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
