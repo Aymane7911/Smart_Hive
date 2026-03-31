@@ -87,10 +87,7 @@ const sendFCMNotification = async (
   },
       android: {
   priority: 'high',
-  notification: {
-    channelId: 'hive-alerts', // ← match what MainActivity creates
-    sound: 'default',
-  },
+  
 },
     });
     console.log('✅ [alertChecker] FCM notification sent');
