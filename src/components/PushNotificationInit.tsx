@@ -11,7 +11,7 @@ export default function PushNotificationInit() {
     if (Capacitor.isNativePlatform()) {
       StatusBar.setOverlaysWebView({ overlay: true });
       StatusBar.setStyle({ style: Style.Dark });
-      document.body.classList.add('is-native');
+      
     }
   }, []);
 
