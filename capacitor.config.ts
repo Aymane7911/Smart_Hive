@@ -17,9 +17,10 @@ const config: CapacitorConfig = {
       showSpinner: false,
     },
     StatusBar: {
-      overlaysWebView: true,  // KEY: let webview go under status bar
-      backgroundColor: '#00000000',
-    },
+  overlaysWebView: false,
+  style: 'DARK',
+  backgroundColor: '#ffffff',
+},
   },
 };
 

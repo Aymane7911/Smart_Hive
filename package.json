@@ -16,7 +16,7 @@
     "@capacitor/ios": "^8.1.0",
     "@capacitor/local-notifications": "^8.0.2",
     "@capacitor/push-notifications": "^8.0.2",
-    "@capacitor/status-bar": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
     "@prisma/client": "^6.19.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.2.3",
