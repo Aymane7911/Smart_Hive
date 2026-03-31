@@ -16,6 +16,8 @@ import {
 import dynamic from 'next/dynamic';
 import AlertConfigPage from '@/components/AlertConfigPage';
 import { clearPushToken } from '@/lib/pushNotifications';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface SensorData {
@@ -538,6 +540,13 @@ const SmartHiveDashboard = () => {
   return () => { isMountedRef.current = false; };
 }, []);
   useEffect(() => { if (mounted) localStorage.setItem('hive-darkMode', String(darkMode)); }, [darkMode, mounted]);
+
+  useEffect(() => {
+  if (Capacitor.isNativePlatform()) {
+    StatusBar.setStyle({ style: Style.Light });
+    StatusBar.setOverlaysWebView({ overlay: true });
+  }
+}, []);
 
   // ── Access check ────────────────────────────────────────────────────────────
   const checkAccess = useCallback(async () => {

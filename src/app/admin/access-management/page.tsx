@@ -10,6 +10,8 @@ import {
   Mail, Phone, Globe, MessageSquare, Send, Eye,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar, Style } from '@capacitor/status-bar';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface Order {
@@ -107,7 +109,12 @@ export default function AdminAccessManagement() {
     fetchAll();
     loadApiaryLocations();
   }, []);
-
+useEffect(() => {
+  if (Capacitor.isNativePlatform()) {
+    StatusBar.setStyle({ style: Style.Light });
+    StatusBar.setOverlaysWebView({ overlay: true });
+  }
+}, []);
   useEffect(() => {
     if (mounted) localStorage.setItem('hive-darkMode', String(darkMode));
   }, [darkMode, mounted]);

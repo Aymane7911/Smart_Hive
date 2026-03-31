@@ -10,7 +10,7 @@ export default function PushNotificationInit() {
     initPushNotifications(); // ← changed
     if (Capacitor.isNativePlatform()) {
       StatusBar.setOverlaysWebView({ overlay: true });
-      StatusBar.setStyle({ style: Style.Dark });
+      StatusBar.setStyle({ style: Style.Light });
       
     }
   }, []);
