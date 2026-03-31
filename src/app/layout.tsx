@@ -23,7 +23,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: "cover", // critical for notch/island support
+  viewportFit: "contain", // critical for notch/island support
 };
 
 export default function RootLayout({
