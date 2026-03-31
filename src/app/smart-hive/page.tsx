@@ -14,8 +14,7 @@ import {
   Sparkles, ShieldCheck, Bell,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import AlertConfigPage from '@/components/AlertConfigPage'; // ← adjust path if needed
-import { initPushNotifications } from '@/lib/pushNotifications';
+import AlertConfigPage from '@/components/AlertConfigPage';
 import { clearPushToken } from '@/lib/pushNotifications';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -535,7 +534,6 @@ const SmartHiveDashboard = () => {
   if (an) { try { setApiaryNames(JSON.parse(an)); } catch {} }
   if (hn) { try { setHiveNames(JSON.parse(hn)); } catch {} }
   setMounted(true);
-  initPushNotifications(); // ← just call it, no .then() needed
   isMountedRef.current = true;
   return () => { isMountedRef.current = false; };
 }, []);
