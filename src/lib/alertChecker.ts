@@ -185,7 +185,7 @@ export const checkAndSendAlerts = async (
       );
 
       const title = isTest
-        ? '🧪 NahalAI Test Alert'
+        ? 'NahalAI Test Alert'
         : `🐝 Hive ${reading.hiveNumber} Alert`;
 
       const body = isTest

@@ -66,7 +66,6 @@ export async function POST(req: NextRequest) {
     const result = await admin.messaging().send({
       token: user.fcmToken,
       notification: {
-        title: '🧪 NahalAI Test Alert',
         body:  message,
       },
       android: {
