@@ -1188,25 +1188,13 @@ const SmartHiveDashboard = () => {
 
       <div className="relative min-h-screen flex flex-col">
         {/* Header */}
-        <header className={`sticky top-0 z-30 ${dm ? 'bg-gray-900/30 border-b border-white/10' : 'bg-white/20 border-b border-white/30'} backdrop-blur-xl`}
-          style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-
-         {/* TEMPORARY DEBUG - remove after testing */}
-  <div style={{ 
-    background: 'red', 
-    color: 'white', 
-    fontSize: 10, 
-    padding: 2,
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    zIndex: 9999,
-  }}
-    ref={el => {
-      if (el) el.textContent = `SAT: ${getComputedStyle(document.documentElement).getPropertyValue('--sat')} / inset: ${CSS.supports('padding-top', 'env(safe-area-inset-top)') ? 'supported' : 'NOT supported'}`;
-    }}
-  />
-
+        <header 
+  className={`sticky top-0 z-30 ${dm ? 'bg-gray-900/30 border-b border-white/10' : 'bg-white/20 border-b border-white/30'} backdrop-blur-xl`}
+  style={{ 
+    paddingTop: 'env(safe-area-inset-top, 0px)',
+    marginTop: '-env(safe-area-inset-top, 0px)',
+    backgroundClip: 'padding-box',
+  }}>
           <div className="flex items-center justify-between px-4 sm:px-5 py-3">
             <div className="flex items-center gap-2 min-w-0">
               <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-2 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}><Menu className="w-5 h-5" /></button>
