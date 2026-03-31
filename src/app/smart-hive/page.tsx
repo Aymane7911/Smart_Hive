@@ -1156,12 +1156,8 @@ const SmartHiveDashboard = () => {
   return (
     <div className="min-h-screen relative transition-colors duration-300">
       <div className="fixed inset-0 pointer-events-none overflow-hidden"
-  style={{ 
-    backgroundImage: "url('/bee.jpg')", 
-    backgroundSize: 'cover', 
-    backgroundPosition: 'center',
-    top: '-50px', // ← extend above safe area
-  }}>
+        style={{ backgroundImage: "url('/bee.jpg')", backgroundSize: 'cover', backgroundPosition: 'center' }}>
+        <div className={`absolute inset-0 ${dm ? 'bg-black/40' : 'bg-white/20'}`} />
       </div>
 
       {/* Rename modal */}
@@ -1199,6 +1195,9 @@ const SmartHiveDashboard = () => {
     marginTop: '-env(safe-area-inset-top, 0px)',
     backgroundClip: 'padding-box',
   }}>
+
+         
+
           <div className="flex items-center justify-between px-4 sm:px-5 py-3">
             <div className="flex items-center gap-2 min-w-0">
               <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-2 rounded-lg flex-shrink-0 ${dm ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100 text-gray-600'}`}><Menu className="w-5 h-5" /></button>
