@@ -220,7 +220,7 @@ model AlertConfig {
   containerId String
   hiveNumber  Int    // 0 = applies to ALL hives in this container
 
-  phoneNumber String
+  phoneNumber String?
   callmebotApiKey String? 
 
   tempInternalMin Float?
