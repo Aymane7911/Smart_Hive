@@ -3,7 +3,11 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { AzureBlobService } from '@/lib/azure';
 import { csvParser } from '@/lib/csvParser';
+import { checkAndSendAlerts } from '@/lib/alertChecker';
+import { PrismaClient } from '@prisma/client';
 import * as XLSX from 'xlsx';
+
+const prisma = new PrismaClient();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,7 +63,6 @@ function coerceRow(row: Record<string, any>): Record<string, any> {
 }
 
 function isDataRow(row: Record<string, any>): boolean {
-  // A row is useful if it has at least one recognised sensor field with a value
   const SENSOR_KEYS = [
     'int_temp', 'ext_temp', 'temp_internal', 'temp_external', 'Internal_temp',
     'tempInternal', 'temp_inte', 'temp_exte',
@@ -92,19 +95,16 @@ async function parseCSV(content: string): Promise<Record<string, any>[]> {
 
 function parseXLSX(buffer: Buffer): Record<string, any>[] {
   const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
-
   const rows: Record<string, any>[] = [];
-
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName];
     const sheetRows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, {
       defval: null,
-      raw: false,         // keep dates as strings
+      raw: false,
       dateNF: 'yyyy-mm-dd hh:mm:ss',
     });
     rows.push(...sheetRows);
   }
-
   return rows;
 }
 
@@ -129,10 +129,8 @@ async function parseBlob(
 
   try {
     if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
-      // Download as binary buffer for xlsx
       const buffer = await service.downloadBlobAsBuffer(blobName);
       const rawRows = parseXLSX(buffer);
-
       for (const row of rawRows) {
         if (!row || Object.keys(row).length === 0) continue;
         const coerced = coerceRow(row);
@@ -144,10 +142,8 @@ async function parseBlob(
         });
       }
     } else {
-      // CSV
       const content = await service.downloadBlob(blobName);
       const rawRows = await parseCSV(content);
-
       for (const row of rawRows) {
         if (!row || Object.keys(row).length === 0) continue;
         const coerced = coerceRow(row);
@@ -217,7 +213,6 @@ async function runAggregation(containerName: string): Promise<object> {
 
   // 4. Parse all new blobs (CSV + XLSX)
   const newRecords: SensorRecord[] = [];
-
   for (const blob of newBlobs) {
     const lastModified = new Date(blob.lastModified!).toISOString();
     const records      = await parseBlob(service, blob.name, lastModified, containerName);
@@ -236,7 +231,6 @@ async function runAggregation(containerName: string): Promise<object> {
 
   // 6. Build latest map — most-recent record per hive id
   const byHive = new Map<string, SensorRecord>();
-
   for (const record of allHistorical) {
     const hiveKey = String(
       record.id ?? record.ID ?? record.hive_id ?? record.hiveId ?? 'unknown',
@@ -246,7 +240,6 @@ async function runAggregation(containerName: string): Promise<object> {
     const existingTs = existing
       ? new Date(existing.timestamp ?? existing._metadata?.lastModified ?? 0).getTime()
       : 0;
-
     if (!existing || recordTs > existingTs) byHive.set(hiveKey, record);
   }
 
@@ -274,6 +267,47 @@ async function runAggregation(containerName: string): Promise<object> {
     `${allHistorical.length} historical pts (${newRecords.length} new from ${newBlobs.length} blobs)`,
   );
 
+  // 8. ── Send threshold alerts for new readings ──────────────────────────────
+  try {
+    // Find all users who have access to this container
+    const accesses = await (prisma as any).containerAccess.findMany({
+      where:  { containerId: containerName },
+      select: { userId: true },
+    });
+
+    if (accesses.length > 0) {
+      // Map latest records to SensorReading format
+      const readings = latest.map((r: any) => ({
+        hiveNumber:  Number(r.id ?? r.ID ?? r.hive_id ?? r.hiveId ?? 1),
+        containerId: containerName,
+        timestamp:   r.timestamp,
+        int_temp:    r.int_temp  ?? r.temp_internal ?? r.Internal_temp ?? null,
+        ext_temp:    r.ext_temp  ?? r.temp_external ?? null,
+        int_hum:     r.int_hum   ?? r.hum_internal  ?? null,
+        ext_hum:     r.ext_hum   ?? r.hum_external  ?? null,
+        weight:      r.weight    ?? r.Weight         ?? null,
+        battery:     r.battery   ?? r.Battery        ?? null,
+        CO2:         r.CO2       ?? null,
+        NH3:         r.NH3       ?? null,
+        O2:          r.O2        ?? null,
+        VOCs:        r.TVOC      ?? null,
+        CO:          r.CO        ?? null,
+        NO2:         r.NO2       ?? null,
+      }));
+
+      for (const { userId } of accesses) {
+        console.log(`🔔 Checking alerts for user ${userId}, container ${containerName}`);
+        await checkAndSendAlerts(readings, userId, containerName);
+      }
+    }
+  } catch (alertErr) {
+    // Never crash the aggregation pipeline due to alert errors
+    console.error(
+      '⚠️  Alert check failed:',
+      alertErr instanceof Error ? alertErr.message : alertErr,
+    );
+  }
+
   return {
     success:           true,
     container:         containerName,
@@ -288,16 +322,11 @@ async function runAggregation(containerName: string): Promise<object> {
 // ─── GET — Azure Event Grid validation + cron/manual trigger ──────────────────
 
 export async function GET(request: NextRequest) {
-  // Azure Event Grid sends a ?validationCode=... on first subscription
   const validationCode = request.nextUrl.searchParams.get('validationCode');
   if (validationCode) {
     console.log('🔐  Event Grid GET validation handshake');
     return NextResponse.json({ validationResponse: validationCode });
   }
-
-  // Optional secret guard (keep for manual/cron callers if you want it)
-  // const secret = request.headers.get('x-cron-secret') ?? request.nextUrl.searchParams.get('secret');
-  // if (secret !== process.env.CRON_SECRET) return NextResponse.json({ error: 'Forbidden' }, { status: 401 });
 
   const single     = request.nextUrl.searchParams.get('container');
   const containers = single
@@ -321,10 +350,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
 
-  // ── Azure Event Grid payload is always an array ───────────────────────────
   if (Array.isArray(body)) {
-
-    // Validation handshake (fired once when you create the Event Grid subscription)
     const validationEvent = body.find(
       (e: any) => e.eventType === 'Microsoft.EventGrid.SubscriptionValidationEvent',
     );
@@ -335,26 +361,19 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Real BlobCreated events
-    const seen = new Set<string>(); // deduplicate containers in one batch
+    const seen = new Set<string>();
     const results: Record<string, any> = {};
 
     for (const event of body) {
       if (event.eventType !== 'Microsoft.Storage.BlobCreated') continue;
-
       const subject: string = event.subject ?? '';
-      // subject: /blobServices/default/containers/MY-CONTAINER/blobs/file.csv
       const match         = subject.match(/\/containers\/([^/]+)\/blobs\/(.+)$/);
       const containerName = match?.[1];
       const blobName      = match?.[2];
-
-      // Skip if not a supported data file, or it's the aggregated.json write-back
       if (!containerName || !blobName || !isSupportedFile(blobName)) continue;
       if (seen.has(containerName)) continue;
       seen.add(containerName);
-
       console.log(`🔔  BlobCreated event → container="${containerName}", blob="${blobName}"`);
-
       try   { results[containerName] = await runAggregation(containerName); }
       catch (e) {
         console.error(`❌  Aggregation failed for ${containerName}:`, e);
@@ -365,7 +384,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, generatedAt: new Date().toISOString(), results });
   }
 
-  // ── Manual POST (curl / Postman / admin panel) ────────────────────────────
   const containerName: string =
     body.containerName ??
     body.container ??
