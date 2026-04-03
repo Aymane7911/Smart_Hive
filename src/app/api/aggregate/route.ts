@@ -197,14 +197,51 @@ async function runAggregation(containerName: string): Promise<object> {
   console.log(`📋  ${dataBlobs.length} total, ${newBlobs.length} new in "${containerName}"`);
 
   if (newBlobs.length === 0) {
-    return {
-      success:         true,
-      message:         'Nothing new to process',
-      container:       containerName,
-      totalHistorical: existingHistorical.length,
-      totalLatest:     existingLatest.length,
-    };
+  // ← Check alerts even when no new blobs
+  try {
+    const purchases = await prisma.purchase.findMany({
+      where: {
+        accessGranted:      true,
+        assignedContainers: { has: containerName },
+      },
+      select: { userId: true },
+    });
+
+    if (purchases.length > 0) {
+      const readings = existingLatest.map((r: any) => ({
+        hiveNumber:  Number(r.id ?? r.ID ?? r.hive_id ?? r.hiveId ?? 1),
+        containerId: containerName,
+        timestamp:   r.timestamp,
+        int_temp:    r.int_temp  ?? r.temp_internal ?? r.Internal_temp ?? null,
+        ext_temp:    r.ext_temp  ?? r.temp_external ?? null,
+        int_hum:     r.int_hum   ?? r.hum_internal  ?? null,
+        ext_hum:     r.ext_hum   ?? r.hum_external  ?? null,
+        weight:      r.weight    ?? r.Weight         ?? null,
+        battery:     r.battery   ?? r.Battery        ?? null,
+        CO2:         r.CO2       ?? null,
+        NH3:         r.NH3       ?? null,
+        O2:          r.O2        ?? null,
+        VOCs:        r.TVOC      ?? null,
+        CO:          r.CO        ?? null,
+        NO2:         r.NO2       ?? null,
+      }));
+
+      for (const { userId } of purchases) {
+        await checkAndSendAlerts(readings, userId, containerName);
+      }
+    }
+  } catch (alertErr) {
+    console.error('⚠️ Alert check failed:', alertErr instanceof Error ? alertErr.message : alertErr);
   }
+
+  return {
+    success:         true,
+    message:         'Nothing new to process',
+    container:       containerName,
+    totalHistorical: existingHistorical.length,
+    totalLatest:     existingLatest.length,
+  };
+}
 
   // 4. Parse new blobs
   const newRecords: SensorRecord[] = [];
