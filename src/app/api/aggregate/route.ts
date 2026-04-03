@@ -26,7 +26,7 @@ interface SensorRecord {
   };
 }
 
-// ─── Numeric fields that should be coerced from strings ──────────────────────
+// ─── Numeric fields ───────────────────────────────────────────────────────────
 
 const NUMERIC_FIELDS = new Set([
   'int_temp', 'ext_temp', 'temp_internal', 'temp_external',
@@ -37,7 +37,7 @@ const NUMERIC_FIELDS = new Set([
   'weight', 'Weight', 'weight_kg',
   'battery', 'Battery', 'battery_level', 'bat', 'batt',
   'lat', 'lon',
-  'H2S', 'CO2', 'O2', 'NH3', 'TVOC', 'CO',
+  'H2S', 'CO2', 'O2', 'NH3', 'TVOC', 'CO', 'NO2',
   'id', 'ID', 'hive_id', 'hiveId',
 ]);
 
@@ -75,10 +75,10 @@ function isDataRow(row: Record<string, any>): boolean {
 
 function extractTimestamp(row: Record<string, any>, blobModified: string): string {
   const ts =
-    row.timestamp   ?? row.Timestamp   ??
-    row.datetime    ?? row.DateTime    ??
-    row.time        ?? row.Time        ??
-    row.date        ?? row.Date        ?? null;
+    row.timestamp ?? row.Timestamp ??
+    row.datetime  ?? row.DateTime  ??
+    row.time      ?? row.Time      ??
+    row.date      ?? row.Date      ?? null;
   return ts ? String(ts) : blobModified;
 }
 
@@ -126,10 +126,9 @@ async function parseBlob(
 ): Promise<SensorRecord[]> {
   const lower = blobName.toLowerCase();
   const records: SensorRecord[] = [];
-
   try {
     if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
-      const buffer = await service.downloadBlobAsBuffer(blobName);
+      const buffer  = await service.downloadBlobAsBuffer(blobName);
       const rawRows = parseXLSX(buffer);
       for (const row of rawRows) {
         if (!row || Object.keys(row).length === 0) continue;
@@ -158,7 +157,6 @@ async function parseBlob(
   } catch (err) {
     console.warn(`⚠️  Skipped ${blobName}:`, err instanceof Error ? err.message : err);
   }
-
   return records;
 }
 
@@ -168,7 +166,7 @@ async function runAggregation(containerName: string): Promise<object> {
   const service         = new AzureBlobService(containerName);
   const containerClient = (service as any).containerClient;
 
-  // 1. Load existing aggregated.json (if any)
+  // 1. Load existing aggregated.json
   let existingLatest:     SensorRecord[] = [];
   let existingHistorical: SensorRecord[] = [];
   let lastProcessedBlob   = '';
@@ -179,39 +177,36 @@ async function runAggregation(containerName: string): Promise<object> {
     existingLatest     = parsed.latest     ?? [];
     existingHistorical = parsed.historical ?? [];
     lastProcessedBlob  = parsed.lastProcessedBlob ?? '';
-    console.log(`✅  Loaded existing aggregated.json — ${existingHistorical.length} historical pts`);
+    console.log(`✅  Loaded aggregated.json — ${existingHistorical.length} historical pts`);
   } catch {
     console.log('ℹ️  No existing aggregated.json — creating from scratch');
   }
 
-  // 2. List blobs, keep only supported data files, sort by date
+  // 2. List blobs
   const allBlobs: BlobItem[] = await service.listBlobs();
   const dataBlobs = allBlobs
     .filter(b => isSupportedFile(b.name))
-    .sort(
-      (a, b) =>
-        new Date(a.lastModified!).getTime() - new Date(b.lastModified!).getTime(),
+    .sort((a, b) =>
+      new Date(a.lastModified!).getTime() - new Date(b.lastModified!).getTime(),
     );
 
-  // 3. Find only new blobs since the last run
+  // 3. Find new blobs only
   const lastIdx  = dataBlobs.findIndex(b => b.name === lastProcessedBlob);
   const newBlobs = lastIdx === -1 ? dataBlobs : dataBlobs.slice(lastIdx + 1);
 
-  console.log(
-    `📋  ${dataBlobs.length} total data blobs, ${newBlobs.length} new to process in "${containerName}"`,
-  );
+  console.log(`📋  ${dataBlobs.length} total, ${newBlobs.length} new in "${containerName}"`);
 
   if (newBlobs.length === 0) {
     return {
-      success: true,
-      message: 'Nothing new to process',
-      container: containerName,
+      success:         true,
+      message:         'Nothing new to process',
+      container:       containerName,
       totalHistorical: existingHistorical.length,
-      totalLatest: existingLatest.length,
+      totalLatest:     existingLatest.length,
     };
   }
 
-  // 4. Parse all new blobs (CSV + XLSX)
+  // 4. Parse new blobs
   const newRecords: SensorRecord[] = [];
   for (const blob of newBlobs) {
     const lastModified = new Date(blob.lastModified!).toISOString();
@@ -220,21 +215,18 @@ async function runAggregation(containerName: string): Promise<object> {
     console.log(`   ✓ ${blob.name} → ${records.length} record(s)`);
   }
 
-  // 5. Merge with existing history (keep last 5 000 pts to avoid giant file)
+  // 5. Merge history
   const allHistorical = [...existingHistorical, ...newRecords]
-    .sort(
-      (a, b) =>
-        new Date(a.timestamp ?? a._metadata?.lastModified ?? 0).getTime() -
-        new Date(b.timestamp ?? b._metadata?.lastModified ?? 0).getTime(),
+    .sort((a, b) =>
+      new Date(a.timestamp ?? a._metadata?.lastModified ?? 0).getTime() -
+      new Date(b.timestamp ?? b._metadata?.lastModified ?? 0).getTime(),
     )
     .slice(-5000);
 
-  // 6. Build latest map — most-recent record per hive id
+  // 6. Build latest per hive
   const byHive = new Map<string, SensorRecord>();
   for (const record of allHistorical) {
-    const hiveKey = String(
-      record.id ?? record.ID ?? record.hive_id ?? record.hiveId ?? 'unknown',
-    );
+    const hiveKey    = String(record.id ?? record.ID ?? record.hive_id ?? record.hiveId ?? 'unknown');
     const existing   = byHive.get(hiveKey);
     const recordTs   = new Date(record.timestamp ?? record._metadata?.lastModified ?? 0).getTime();
     const existingTs = existing
@@ -242,10 +234,9 @@ async function runAggregation(containerName: string): Promise<object> {
       : 0;
     if (!existing || recordTs > existingTs) byHive.set(hiveKey, record);
   }
-
   const latest = Array.from(byHive.values());
 
-  // 7. Write aggregated.json back to the container
+  // 7. Write aggregated.json
   const lastBlob   = dataBlobs[dataBlobs.length - 1];
   const aggregated = JSON.stringify({
     generatedAt:       new Date().toISOString(),
@@ -262,20 +253,22 @@ async function runAggregation(containerName: string): Promise<object> {
     { blobHTTPHeaders: { blobContentType: 'application/json' } },
   );
 
-  console.log(
-    `✅  ${containerName} done — ${latest.length} latest hives, ` +
-    `${allHistorical.length} historical pts (${newRecords.length} new from ${newBlobs.length} blobs)`,
-  );
+  console.log(`✅  ${containerName} done — ${latest.length} hives, ${allHistorical.length} historical pts`);
 
-  // 8. ── Send threshold alerts for new readings ──────────────────────────────
+  // 8. ── Check & send threshold alerts ──────────────────────────────────────
   try {
-    // Find all users who have access to this container
-    const accesses = await (prisma as any).containerAccess.findMany({
-      where:  { containerId: containerName },
+    // Find all users with access to this container via approved purchases
+    const purchases = await prisma.purchase.findMany({
+      where: {
+        accessGranted:      true,
+        assignedContainers: { has: containerName },
+      },
       select: { userId: true },
     });
 
-    if (accesses.length > 0) {
+    if (purchases.length > 0) {
+      console.log(`🔔 Found ${purchases.length} user(s) with access to ${containerName}`);
+
       // Map latest records to SensorReading format
       const readings = latest.map((r: any) => ({
         hiveNumber:  Number(r.id ?? r.ID ?? r.hive_id ?? r.hiveId ?? 1),
@@ -295,17 +288,16 @@ async function runAggregation(containerName: string): Promise<object> {
         NO2:         r.NO2       ?? null,
       }));
 
-      for (const { userId } of accesses) {
-        console.log(`🔔 Checking alerts for user ${userId}, container ${containerName}`);
+      for (const { userId } of purchases) {
+        console.log(`🔔 Checking alerts for user ${userId}`);
         await checkAndSendAlerts(readings, userId, containerName);
       }
+    } else {
+      console.log(`ℹ️  No users with access to ${containerName} — skipping alerts`);
     }
   } catch (alertErr) {
-    // Never crash the aggregation pipeline due to alert errors
-    console.error(
-      '⚠️  Alert check failed:',
-      alertErr instanceof Error ? alertErr.message : alertErr,
-    );
+    // Never crash the aggregation pipeline
+    console.error('⚠️  Alert check failed:', alertErr instanceof Error ? alertErr.message : alertErr);
   }
 
   return {
@@ -319,7 +311,7 @@ async function runAggregation(containerName: string): Promise<object> {
   };
 }
 
-// ─── GET — Azure Event Grid validation + cron/manual trigger ──────────────────
+// ─── GET ──────────────────────────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
   const validationCode = request.nextUrl.searchParams.get('validationCode');
@@ -345,7 +337,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ ok: true, generatedAt: new Date().toISOString(), results });
 }
 
-// ─── POST — Azure Event Grid BlobCreated events + manual trigger ──────────────
+// ─── POST ─────────────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
@@ -356,24 +348,22 @@ export async function POST(request: NextRequest) {
     );
     if (validationEvent) {
       console.log('🔐  Event Grid POST validation handshake');
-      return NextResponse.json({
-        validationResponse: validationEvent.data.validationCode,
-      });
+      return NextResponse.json({ validationResponse: validationEvent.data.validationCode });
     }
 
-    const seen = new Set<string>();
+    const seen    = new Set<string>();
     const results: Record<string, any> = {};
 
     for (const event of body) {
       if (event.eventType !== 'Microsoft.Storage.BlobCreated') continue;
       const subject: string = event.subject ?? '';
-      const match         = subject.match(/\/containers\/([^/]+)\/blobs\/(.+)$/);
-      const containerName = match?.[1];
-      const blobName      = match?.[2];
+      const match           = subject.match(/\/containers\/([^/]+)\/blobs\/(.+)$/);
+      const containerName   = match?.[1];
+      const blobName        = match?.[2];
       if (!containerName || !blobName || !isSupportedFile(blobName)) continue;
       if (seen.has(containerName)) continue;
       seen.add(containerName);
-      console.log(`🔔  BlobCreated event → container="${containerName}", blob="${blobName}"`);
+      console.log(`🔔  BlobCreated → container="${containerName}", blob="${blobName}"`);
       try   { results[containerName] = await runAggregation(containerName); }
       catch (e) {
         console.error(`❌  Aggregation failed for ${containerName}:`, e);
@@ -392,7 +382,7 @@ export async function POST(request: NextRequest) {
   if (!containerName)
     return NextResponse.json({ error: 'containerName is required' }, { status: 400 });
 
-  console.log(`🔧  Manual aggregation trigger → container="${containerName}"`);
+  console.log(`🔧  Manual trigger → container="${containerName}"`);
 
   try {
     const result = await runAggregation(containerName);
