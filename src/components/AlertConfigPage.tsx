@@ -302,22 +302,7 @@ export default function AlertConfigPage({
           </button>
         </div>
 
-        {/* Info banner — FCM */}
-        <div className={`rounded-2xl p-4 mb-5 ${dm ? 'bg-blue-950/50 border border-blue-700/30' : 'bg-blue-50 border border-blue-200'}`}>
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-xl bg-blue-500/20 flex-shrink-0">
-              <Smartphone className={`w-4 h-4 ${dm ? 'text-blue-400' : 'text-blue-600'}`} />
-            </div>
-            <div>
-              <p className={`text-sm font-bold mb-1 ${dm ? 'text-blue-300' : 'text-blue-800'}`}>
-                Native Push Notifications
-              </p>
-              <p className={`text-xs ${dm ? 'text-blue-400' : 'text-blue-700'}`}>
-                Alerts are sent directly to your Android device. Make sure the NahalAI app is installed and you have accepted notification permissions.
-              </p>
-            </div>
-          </div>
-        </div>
+        
 
         {/* Hive selector */}
         <div className={`rounded-2xl ${card} p-4 mb-4`}>
@@ -482,14 +467,14 @@ export default function AlertConfigPage({
                   {saving ? 'Saving…' : 'Save Config'}
                 </button>
 
-                <button onClick={testAlert} disabled={testing}
+               {/* <button onClick={testAlert} disabled={testing}
                   className={`flex-1 flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all border ${
                     dm ? 'bg-blue-500/15 border-blue-500/30 text-blue-400 hover:bg-blue-500/25'
                        : 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100'
                   } disabled:opacity-50`}>
                   {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   {testing ? 'Sending…' : 'Send Test Notification'}
-                </button>
+                </button>*/}
 
                 {saved && (
                   <button onClick={del} disabled={deleting}
