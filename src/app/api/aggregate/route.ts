@@ -44,17 +44,49 @@ const NUMERIC_FIELDS = new Set([
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function coerceRow(row: Record<string, any>): Record<string, any> {
+  const TEMP_FIELDS = new Set([
+    'int_temp', 'ext_temp', 'temp_internal', 'temp_external',
+    'Internal_temp', 'tempInternal', 'temp_inte', 'temp_exte',
+  ]);
+  const HUM_FIELDS = new Set([
+    'int_hum', 'ext_hum', 'hum_internal', 'hum_external',
+    'Internal_hum', 'humInternal', 'inte_hum', 'exte_hum',
+    'humidity_internal', 'humidity_external',
+  ]);
+  const WEIGHT_FIELDS = new Set(['weight', 'Weight', 'weight_kg']);
+
   const out: Record<string, any> = {};
   for (const [k, v] of Object.entries(row)) {
     if (v == null) { out[k] = null; continue; }
     const str = typeof v === 'string' ? v.trim() : String(v);
-    if (!str || ['null', 'nan', 'undefined', 'n/a', ''].includes(str.toLowerCase())) {
-      out[k] = null;
+
+    // nan/null/empty string → 0 for numeric sensor fields, null for others
+    if (['null', 'nan', 'undefined', 'n/a', ''].includes(str.toLowerCase())) {
+      out[k] = NUMERIC_FIELDS.has(k) ? 0 : null;
       continue;
     }
+
     if (NUMERIC_FIELDS.has(k)) {
       const n = parseFloat(str);
-      out[k] = !isNaN(n) && isFinite(n) ? n : null;
+      if (isNaN(n) || !isFinite(n)) { out[k] = 0; continue; }
+
+      // Temperature: sensor error codes (e.g. -127) and negatives → 0
+      if (TEMP_FIELDS.has(k)) {
+        out[k] = (n < -50 || n > 100) ? 0 : (n < 0 ? 0 : n);
+        continue;
+      }
+      // Humidity: out-of-range or negative → 0
+      if (HUM_FIELDS.has(k)) {
+        out[k] = (n < 0 || n > 150) ? 0 : n;
+        continue;
+      }
+      // Weight: negative → 0, absurd values → 0
+      if (WEIGHT_FIELDS.has(k)) {
+        out[k] = (n < 0 || Math.abs(n) > 500) ? 0 : n;
+        continue;
+      }
+
+      out[k] = n;
     } else {
       out[k] = v;
     }

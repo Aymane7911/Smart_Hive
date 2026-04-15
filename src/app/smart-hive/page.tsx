@@ -54,10 +54,11 @@ interface AIMessage {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const toNumber = (v: any): number | null => {
   if (v == null) return null;
-  if (typeof v === 'number') return isNaN(v) ? null : v; // ← return null not 0
+  if (typeof v === 'number') return isNaN(v) ? 0 : v;   // NaN number → 0
   if (typeof v === 'string') {
     const l = v.trim().toLowerCase();
-    if (['nan', 'null', 'undefined', 'n/a', ''].includes(l)) return null; // ← return null
+    if (['nan', 'null', 'undefined', 'n/a'].includes(l)) return 0;  // nan string → 0
+    if (l === '') return null;   // empty string → still null (field not present)
     const p = parseFloat(v);
     return isNaN(p) ? null : p;
   }
@@ -70,8 +71,9 @@ const getTemperature = (item: any, type: 'internal' | 'external'): number | null
     ? (item.int_temp ?? item.temp_internal ?? item.temp_inte ?? item.Internal_temp ?? item.tempInternal)
     : (item.ext_temp ?? item.temp_external ?? item.temp_exte ?? item.external_temp ?? item.tempExternal);
   const n = toNumber(v);
-  if (n == null || n < -50 || n > 100) return null;
-  return n < 0 ? 0 : n; // ← clamp negatives to 0
+  if (n == null) return null;           // truly missing field → still null (no data)
+  if (n < -50 || n > 100) return 0;    // sensor error codes like -127 → 0
+  return n < 0 ? 0 : n;               // negative but in range → 0
 };
 
 const getHumidity = (item: any, type: 'internal' | 'external'): number | null => {
@@ -80,28 +82,33 @@ const getHumidity = (item: any, type: 'internal' | 'external'): number | null =>
     ? (item.int_hum ?? item.hum_internal ?? item.Internal_hum ?? item.humidity_internal ?? item.humInternal ?? item.inte_hum)
     : (item.ext_hum ?? item.hum_external ?? item.external_hum ?? item.humidity_external ?? item.humExternal ?? item.exte_hum);
   const n = toNumber(v);
-  if (n == null || n < 0 || n > 150) return null;
-  return n < 0 ? 0 : n; // ← clamp negatives to 0
+  if (n == null) return null;
+  if (n < 0 || n > 150) return 0;
+  return n;
 };
 
 const getWeight = (item: any): number | null => {
   if (!item) return null;
   const n = toNumber(item.weight ?? item.Weight ?? item.weight_kg);
-  if (n == null || Math.abs(n) > 500) return null;
-  return Math.abs(n); // ← make negative positive
+  if (n == null) return null;
+  if (Math.abs(n) > 500) return null;  // clearly invalid sensor value
+  return n < 0 ? 0 : n;              // negative weight → 0
 };
 
 const getBattery = (item: any): number | null => {
   if (!item) return null;
-  // voltage field (e.g. 1.14) → convert to percentage
   const raw = item.battery ?? item.Battery ?? item.battery_level ?? item.bat ?? item.batt;
   if (raw != null) {
     const n = toNumber(raw);
     if (n != null && n >= 0) return Math.min(n, 100);
+    if (n != null && n < 0) return 0;
   }
-  // fallback: voltage column (0–5V range → 0–100%)
+  // voltage field — map from LiPo range 3.0V–4.2V → 0–100%
   const v = toNumber(item.voltage ?? item.Voltage);
-  if (v != null && v > 0 && v <= 5) return Math.round((v / 5) * 100);
+  if (v != null && v > 0 && v <= 5) {
+    const pct = Math.round(((v - 3.0) / (4.2 - 3.0)) * 100);
+    return Math.max(0, Math.min(100, pct));
+  }
   return null;
 };
 
@@ -203,13 +210,16 @@ const formatTimeAgo = (ts: string | null): string => {
   } catch { return 'No data'; }
 };
 
-const fmtX = (s: string, filter: string): string => {
+const fmtX = (s: string, filter: string, data?: any[]): string => {
   if (!s) return '';
   const d = new Date(s);
   if (isNaN(d.getTime())) return '';
-  return ['1h','6h','24h'].includes(filter)
-    ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  // Always show time if filter is time-based
+  if (['1h','6h','24h'].includes(filter))
+    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  // For longer ranges, show date+time so same-day points are distinguishable
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+    ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 };
 
 // ─── Fake gas data ─────────────────────────────────────────────────────────────
