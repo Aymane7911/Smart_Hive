@@ -98,11 +98,12 @@ function isDataRow(row: Record<string, any>): boolean {
   const SENSOR_KEYS = [
     'int_temp', 'ext_temp', 'temp_internal', 'temp_external', 'Internal_temp',
     'tempInternal', 'temp_inte', 'temp_exte',
-    'int_hum',  'ext_hum',  'hum_internal',  'hum_external',
+    'int_hum', 'ext_hum', 'hum_internal', 'hum_external',
     'weight', 'Weight', 'weight_kg',
     'battery', 'Battery', 'battery_level',
   ];
-  return SENSOR_KEYS.some(k => row[k] != null && row[k] !== '');
+  // Row must have at least one sensor field that is non-null AND non-zero
+  return SENSOR_KEYS.some(k => row[k] != null && row[k] !== '' && row[k] !== 0);
 }
 
 function extractTimestamp(row: Record<string, any>, blobModified: string): string {
