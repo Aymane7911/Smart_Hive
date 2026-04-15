@@ -54,10 +54,10 @@ interface AIMessage {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const toNumber = (v: any): number | null => {
   if (v == null) return null;
-  if (typeof v === 'number') return isNaN(v) ? 0 : v;
+  if (typeof v === 'number') return isNaN(v) ? null : v; // ← return null not 0
   if (typeof v === 'string') {
     const l = v.trim().toLowerCase();
-    if (l === 'nan' || l === 'null' || l === 'undefined') return 0;
+    if (['nan', 'null', 'undefined', 'n/a', ''].includes(l)) return null; // ← return null
     const p = parseFloat(v);
     return isNaN(p) ? null : p;
   }
@@ -70,7 +70,8 @@ const getTemperature = (item: any, type: 'internal' | 'external'): number | null
     ? (item.int_temp ?? item.temp_internal ?? item.temp_inte ?? item.Internal_temp ?? item.tempInternal)
     : (item.ext_temp ?? item.temp_external ?? item.temp_exte ?? item.external_temp ?? item.tempExternal);
   const n = toNumber(v);
-  return n == null || n < -50 || n > 100 ? null : n;
+  if (n == null || n < -50 || n > 100) return null;
+  return n < 0 ? 0 : n; // ← clamp negatives to 0
 };
 
 const getHumidity = (item: any, type: 'internal' | 'external'): number | null => {
@@ -79,30 +80,53 @@ const getHumidity = (item: any, type: 'internal' | 'external'): number | null =>
     ? (item.int_hum ?? item.hum_internal ?? item.Internal_hum ?? item.humidity_internal ?? item.humInternal ?? item.inte_hum)
     : (item.ext_hum ?? item.hum_external ?? item.external_hum ?? item.humidity_external ?? item.humExternal ?? item.exte_hum);
   const n = toNumber(v);
-  return n == null || n < 0 || n > 150 ? null : n;
+  if (n == null || n < 0 || n > 150) return null;
+  return n < 0 ? 0 : n; // ← clamp negatives to 0
 };
 
 const getWeight = (item: any): number | null => {
   if (!item) return null;
   const n = toNumber(item.weight ?? item.Weight ?? item.weight_kg);
-  return n == null || n < 0 || n > 500 ? null : n;
+  if (n == null || Math.abs(n) > 500) return null;
+  return Math.abs(n); // ← make negative positive
 };
 
 const getBattery = (item: any): number | null => {
   if (!item) return null;
-  const n = toNumber(item.battery ?? item.Battery ?? item.battery_level ?? item.bat ?? item.batt);
-  return n == null || n < 0 || n > 200 ? null : n;
+  // voltage field (e.g. 1.14) → convert to percentage
+  const raw = item.battery ?? item.Battery ?? item.battery_level ?? item.bat ?? item.batt;
+  if (raw != null) {
+    const n = toNumber(raw);
+    if (n != null && n >= 0) return Math.min(n, 100);
+  }
+  // fallback: voltage column (0–5V range → 0–100%)
+  const v = toNumber(item.voltage ?? item.Voltage);
+  if (v != null && v > 0 && v <= 5) return Math.round((v / 5) * 100);
+  return null;
 };
 
-const getTimestamp = (item: any): string | null =>
-  item?.timestamp ?? item?._metadata?.lastModified ?? null;
+const getTimestamp = (item: any): string | null => {
+  const raw = item?.timestamp ?? item?.time ?? item?.Time ?? 
+              item?.datetime ?? item?.DateTime ??
+              item?._metadata?.lastModified ?? null;
+  if (!raw) return null;
+  // fix malformed timestamps like "2026-03-16T000:00:23"
+  const fixed = String(raw).replace(/T0+(\d+):/, 'T$1:');
+  const d = new Date(fixed);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+};
+
 
 const getUniqueHiveIds = (data: SensorData[]): (number | string)[] => {
   if (!data?.length) return [];
   const ids = new Set<number | string>();
   data.forEach(item => {
     const raw = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
-    if (raw != null) { const n = toNumber(raw); ids.add(n !== null ? n : String(raw)); }
+    if (raw != null) {
+      const n = toNumber(raw);
+      // normalize 0-based to 1-based
+      ids.add(n !== null ? n : String(raw));
+    }
   });
   return Array.from(ids).sort((a, b) => {
     const na = Number(a), nb = Number(b);
@@ -137,7 +161,10 @@ const getHiveDataByIndex = (data: SensorData[], hiveNumber: number): SensorData[
 };
 
 const getHiveData = (data: SensorData[], idx: number, ids: (number | string)[]): SensorData[] => {
-  if (ids.length > 0) { const id = ids[idx - 1]; return id !== undefined ? getHiveDataById(data, id) : []; }
+  if (ids.length > 0) {
+    const id = ids[idx - 1]; // idx is 1-based, ids array is 0-indexed
+    return id !== undefined ? getHiveDataById(data, id) : [];
+  }
   return getHiveDataByIndex(data, idx);
 };
 
