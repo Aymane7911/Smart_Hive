@@ -79,7 +79,14 @@ function extractTimestamp(row: Record<string, any>, blobModified: string): strin
     row.datetime  ?? row.DateTime  ??
     row.time      ?? row.Time      ??
     row.date      ?? row.Date      ?? null;
-  return ts ? String(ts) : blobModified;
+  
+  if (ts) {
+    // Fix invalid timestamps like "000:00" → "00:00"
+    const fixed = String(ts).replace(/T0+(\d+):/, 'T$1:');
+    const d = new Date(fixed);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+  return blobModified; // fallback to blob's lastModified
 }
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────

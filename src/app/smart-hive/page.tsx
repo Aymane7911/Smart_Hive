@@ -163,8 +163,12 @@ const getLastValidForHive = (
 const formatTimeAgo = (ts: string | null): string => {
   if (!ts) return 'No data';
   try {
-    const d = Date.now() - new Date(ts).getTime();
-    const m = Math.floor(d / 60000), h = Math.floor(d / 3600000), dy = Math.floor(d / 86400000);
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return 'No data'; // ← add this check
+    const diff = Date.now() - d.getTime();
+    const m = Math.floor(diff / 60000), 
+          h = Math.floor(diff / 3600000), 
+          dy = Math.floor(diff / 86400000);
     if (m < 1) return 'Just now';
     if (m < 60) return `${m}m ago`;
     if (h < 24) return `${h}h ago`;
