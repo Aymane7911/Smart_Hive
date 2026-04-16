@@ -827,6 +827,7 @@ const SmartHiveDashboard = () => {
 
   const buildChartData = useCallback((hiveNum: number) => {
     const combined = [...historicalData, ...latestData];
+
     const seen = new Set<string>();
 const sorted = getHiveData(combined, hiveNum, hiveIds)
   .filter(item => { 
@@ -836,7 +837,30 @@ const sorted = getHiveData(combined, hiveNum, hiveIds)
     seen.add(ts); 
     return true; 
   })
+
   .sort((a, b) => new Date(getTimestamp(a) ?? 0).getTime() - new Date(getTimestamp(b) ?? 0).getTime());
+
+   // ── ADD THIS DEBUG BLOCK ──────────────────────────────────────────
+  console.group(`[buildChartData] Hive ${hiveNum} — ${sorted.length} rows`);
+  sorted.forEach((item, i) => {
+    const ts = getTimestamp(item);
+    const blob = (item._metadata as any)?.sourceBlob ?? 'unknown';
+    const intTemp = item.int_temp ?? item.temp_internal ?? 'missing';
+    const intHum  = item.int_hum  ?? item.hum_internal  ?? 'missing';
+    const weight  = item.weight   ?? item.Weight         ?? 'missing';
+    const voltage = item.voltage  ?? 'missing';
+    const parsedTemp    = getTemperature(item, 'internal');
+    const parsedHum     = getHumidity(item, 'internal');
+    const parsedWeight  = getWeight(item);
+    const parsedBattery = getBattery(item);
+    console.log(
+      `[${i}] ts=${ts} | blob=${blob}\n` +
+      `     raw: int_temp=${intTemp}, int_hum=${intHum}, weight=${weight}, voltage=${voltage}\n` +
+      `  parsed: temp=${parsedTemp}, hum=${parsedHum}, weight=${parsedWeight}, battery=${parsedBattery}`
+    );
+  });
+  console.groupEnd();
+  // ── END DEBUG BLOCK ──────────────────────────────────────────────
 
 const meaningful = sorted.filter(item => getTimestamp(item) !== null);
 
