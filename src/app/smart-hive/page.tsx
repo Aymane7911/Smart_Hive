@@ -810,20 +810,20 @@ const SmartHiveDashboard = () => {
   const hiveNumbers = useMemo(() => Array.from({ length: totalHives }, (_, i) => i + 1), [totalHives]);
 
   const isHiveActive = useCallback((n: number): boolean => {
-    const rows = getHiveData([...historicalData, ...latestData], n, hiveIds);
-    if (!rows.length) return false;
-    const last = rows[rows.length - 1];
-    const ts = getTimestamp(last);
-    if (ts && Date.now() - new Date(ts).getTime() > 4 * 3600000) return false;
-    return getTemperature(last, 'internal') !== null || getHumidity(last, 'internal') !== null || getWeight(last) !== null;
-  }, [latestData, historicalData, hiveIds]);
+  const rows = getHiveData([...historicalData, ...latestData], n, hiveIds);
+  if (!rows.length) return false;
+  const last = rows[rows.length - 1];
+  const ts = getTimestamp(last);
+  if (!ts) return false;
+  return Date.now() - new Date(ts).getTime() <= 4 * 3600000;
+}, [latestData, historicalData, hiveIds]);
 
   const getLastHiveReading = useCallback((n: number): string | null => {
-    const rows = getHiveData([...historicalData, ...latestData], n, hiveIds)
-      .filter(item => { const ts = getTimestamp(item); return ts && (getTemperature(item, 'internal') !== null || getHumidity(item, 'internal') !== null || getWeight(item) !== null); })
-      .sort((a, b) => new Date(getTimestamp(b) ?? 0).getTime() - new Date(getTimestamp(a) ?? 0).getTime());
-    return rows[0] ? getTimestamp(rows[0]) : null;
-  }, [latestData, historicalData, hiveIds]);
+  const rows = getHiveData([...historicalData, ...latestData], n, hiveIds)
+    .filter(item => getTimestamp(item) !== null)
+    .sort((a, b) => new Date(getTimestamp(b)!).getTime() - new Date(getTimestamp(a)!).getTime());
+  return rows[0] ? getTimestamp(rows[0]) : null;
+}, [latestData, historicalData, hiveIds]);
 
   const buildChartData = useCallback((hiveNum: number) => {
     const combined = [...historicalData, ...latestData];
@@ -838,13 +838,7 @@ const sorted = getHiveData(combined, hiveNum, hiveIds)
   })
   .sort((a, b) => new Date(getTimestamp(a) ?? 0).getTime() - new Date(getTimestamp(b) ?? 0).getTime());
 
-const meaningful = sorted.filter(item =>
-  getTemperature(item, 'internal') !== null ||
-  getTemperature(item, 'external') !== null ||
-  getHumidity(item, 'internal')    !== null ||
-  getWeight(item)                  !== null ||
-  getBattery(item)                 !== null
-);
+const meaningful = sorted.filter(item => getTimestamp(item) !== null);
 
     let filtered = timeFilter in FILTER_MS
   ? meaningful.filter(item => { const ts = getTimestamp(item); return ts && Date.now() - new Date(ts).getTime() <= FILTER_MS[timeFilter]; })
