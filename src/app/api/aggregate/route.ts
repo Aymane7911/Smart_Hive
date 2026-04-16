@@ -132,27 +132,35 @@ async function parseBlob(
 
     console.log(`   [parseBlob] ${blobName} → ${rawRows.length} rows, ts=${lastModified}`);
 
-    for (const row of rawRows) {
-      if (!row || Object.keys(row).length === 0) continue;
-      const coerced = coerceRow(row);
-      if (!isDataRow(coerced)) continue;
-      records.push({
-        ...coerced,
-        timestamp: lastModified,
-        _metadata: {
-          lastModified,
-          sourceBlob: blobName,
-          containerId: containerName,
-        },
-      });
-    }
+    for (let rowIdx = 0; rowIdx < rawRows.length; rowIdx++) {
+  const row = rawRows[rowIdx];
+  if (!row || Object.keys(row).length === 0) continue;
+  const coerced = coerceRow(row);
+  if (!isDataRow(coerced)) continue;
+
+  // Use the CSV's own timestamp field if present, otherwise use blob lastModified
+  // Add rowIdx milliseconds so two rows in same blob get distinct timestamps
+  const rowTimestamp = coerced.timestamp
+    ? coerced.timestamp
+    : new Date(new Date(lastModified).getTime() + rowIdx).toISOString();
+
+  records.push({
+    ...coerced,
+    timestamp: rowTimestamp,
+    _metadata: {
+      lastModified,
+      sourceBlob: blobName,
+      containerId: containerName,
+    },
+  });
+}
   } catch (err) {
     console.warn(`⚠️  Skipped ${blobName}:`, err instanceof Error ? err.message : err);
   }
   return records;
 }
 
-async function runAggregation(containerName: string): Promise<object> {
+async function runAggregation(containerName: string, force = false): Promise<object> {
   const service = new AzureBlobService(containerName);
   const containerClient = (service as any).containerClient;
 
@@ -171,6 +179,14 @@ async function runAggregation(containerName: string): Promise<object> {
     console.log(`✅  Loaded aggregated.json — ${existingHistorical.length} historical pts, ${processedBlobNames.size} blobs processed`);
   } catch {
     console.log('ℹ️  No existing aggregated.json — creating from scratch');
+  }
+
+  // Force rebuild: wipe all tracking so every blob gets reprocessed
+  if (force) {
+    console.log('🔄 Force rebuild — clearing processedBlobs cache');
+    existingHistorical = [];
+    existingLatest = [];
+    processedBlobNames = new Set<string>();
   }
 
   // 2. List all blobs, sorted oldest → newest
@@ -323,6 +339,7 @@ export async function GET(request: NextRequest) {
   }
 
   const single = request.nextUrl.searchParams.get('container');
+  const force  = request.nextUrl.searchParams.get('force') === 'true';
   const containers = single
     ? [single]
     : (process.env.CONTAINER_IDS ?? '').split(',').map(c => c.trim()).filter(Boolean);
@@ -332,7 +349,7 @@ export async function GET(request: NextRequest) {
 
   const results: Record<string, any> = {};
   for (const c of containers) {
-    try   { results[c] = await runAggregation(c); }
+    try   { results[c] = await runAggregation(c, force); }
     catch (e) { results[c] = { error: e instanceof Error ? e.message : 'Unknown error' }; }
   }
 

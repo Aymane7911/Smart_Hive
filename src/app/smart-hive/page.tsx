@@ -828,9 +828,11 @@ const SmartHiveDashboard = () => {
 const sorted = getHiveData(combined, hiveNum, hiveIds)
   .filter(item => { 
     const ts = getTimestamp(item); 
-    if (!ts) return true;           // ← keep timestampless rows, can't dedup them
-    if (seen.has(ts)) return false; 
-    seen.add(ts); 
+    if (!ts) return true;
+    const hiveKey = String(item.id ?? item.ID ?? item.hive_id ?? item.hiveId ?? hiveNum);
+    const dedupeKey = `${ts}__${hiveKey}`;
+    if (seen.has(dedupeKey)) return false; 
+    seen.add(dedupeKey); 
     return true; 
   })
 
