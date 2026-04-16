@@ -163,7 +163,7 @@ const getUniqueHiveIds = (data: SensorData[]): (number | string)[] => {
 
 const getHiveDataById = (data: SensorData[], hiveId: number | string): SensorData[] => {
   if (!data?.length) return [];
-  return data
+  const matched = data
     .filter(item => {
       const raw = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
       if (raw == null) return false;
@@ -171,6 +171,19 @@ const getHiveDataById = (data: SensorData[], hiveId: number | string): SensorDat
       return (n !== null ? n : String(raw)) === hiveId;
     })
     .sort((a, b) => new Date(getTimestamp(a) ?? 0).getTime() - new Date(getTimestamp(b) ?? 0).getTime());
+ 
+  // ── DIAGNOSTIC ──────────────────────────────────────────────────────────
+  if (matched.length === 0) {
+    const allIds = new Set(data.map(item => {
+      const raw = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
+      return raw == null ? 'undefined' : String(raw);
+    }));
+    console.warn(`[getHiveDataById] id=${hiveId} → 0 matches. IDs in data: [${[...allIds].join(', ')}]`);
+  } else {
+    console.log(`[getHiveDataById] id=${hiveId} → ${matched.length} rows`);
+  }
+ 
+  return matched;
 };
 
 const getHiveDataByIndex = (data: SensorData[], hiveNumber: number): SensorData[] => {
@@ -643,48 +656,142 @@ const SmartHiveDashboard = () => {
 
   // ── Data fetching ───────────────────────────────────────────────────────────
   const flattenData = useCallback((data: any): SensorData[] => {
-    if (!data) return [];
-    let flat: SensorData[];
-    if (Array.isArray(data)) {
-      flat = data[0]?.data ? data.flatMap((i: any) => i.data || []) : data;
-    } else if (data.data) {
-      flat = Array.isArray(data.data) ? data.data : [data.data];
-    } else {
-      flat = [data];
-    }
-    return flat.filter(item => (
+  if (!data) return [];
+  let flat: SensorData[];
+ 
+  if (Array.isArray(data)) {
+    flat = data[0]?.data
+      ? data.flatMap((i: any) => i.data || [])
+      : data;
+  } else if (data.data) {
+    flat = Array.isArray(data.data) ? data.data : [data.data];
+  } else {
+    flat = [data];
+  }
+ 
+  // ── CHANGED: keep rows that have ANY id field, even if all sensors are null.
+  // This preserves id=1 (all-nan rows) so hive ID mapping stays intact.
+  const result = flat.filter(item => {
+    const hasId = item.id != null || item.ID != null || item.hive_id != null || item.hiveId != null;
+    const hasSensor =
       getTemperature(item, 'internal') !== null ||
       getTemperature(item, 'external') !== null ||
       getHumidity(item, 'internal')    !== null ||
       getHumidity(item, 'external')    !== null ||
       getWeight(item)                  !== null ||
-      getBattery(item)                 !== null
-    ));
-  }, []);
+      getBattery(item)                 !== null;
+ 
+    // Keep if it has valid sensor data OR if it has an id (preserves ID slot)
+    return hasId || hasSensor;
+  });
+ 
+  // ── DIAGNOSTIC LOG ────────────────────────────────────────────────────────
+  const ids = getUniqueHiveIds(result);
+  console.log(
+    `[flattenData] input=${flat.length} → kept=${result.length} | ` +
+    `detected IDs: [${ids.join(', ')}]`
+  );
+ 
+  // Log per-id sensor coverage so you can see which hive has what
+  ids.forEach(id => {
+    const rows = result.filter(item => {
+      const raw = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
+      const n = toNumber(raw);
+      return (n !== null ? n : String(raw)) === id;
+    });
+    const sample = rows[rows.length - 1];
+    if (!sample) return;
+    console.log(
+      `  id=${id}: rows=${rows.length}` +
+      ` | int_temp=${sample.int_temp ?? sample.temp_internal ?? 'n/a'}` +
+      ` | ext_temp=${sample.ext_temp ?? sample.temp_external ?? 'n/a'}` +
+      ` | int_hum=${sample.int_hum ?? sample.hum_internal ?? 'n/a'}` +
+      ` | weight=${sample.weight ?? sample.Weight ?? 'n/a'}` +
+      ` | voltage=${sample.voltage ?? 'n/a'}` +
+      ` → parsed temp_int=${getTemperature(sample, 'internal')}` +
+      ` temp_ext=${getTemperature(sample, 'external')}` +
+      ` hum=${getHumidity(sample, 'internal')}` +
+      ` weight=${getWeight(sample)}` +
+      ` battery=${getBattery(sample)}`
+    );
+  });
+ 
+  return result;
+}, []);
 
   const fetchData = useCallback(async () => {
-    if (!selectedContainer || !isMountedRef.current) return;
-    setIsRefreshing(true);
-    try {
-      const [latRes, histRes] = await Promise.allSettled([
-        fetch(`/api/smart-hive/data/latest?containerId=${encodeURIComponent(selectedContainer)}`),
-        fetch(`/api/smart-hive/data/historical?containerId=${encodeURIComponent(selectedContainer)}&limit=200`),
-      ]);
-      if (latRes.status === 'fulfilled' && latRes.value.ok) {
-        const d = await latRes.value.json();
-        const flat = flattenData(d.data ?? d);
-        setLatestData(flat);
-        const ts = flat.find((i: SensorData) => getTimestamp(i));
-        if (ts) setLastUpdated(getTimestamp(ts)!);
-        setIsOnline(true);
-      }
-      if (histRes.status === 'fulfilled' && histRes.value.ok) {
-        const d = await histRes.value.json();
-        setHistoricalData(flattenData(d.data ?? d));
-      }
-    } catch { setIsOnline(false); }
-    finally { if (isMountedRef.current) { setLoading(false); setIsRefreshing(false); } }
-  }, [selectedContainer, flattenData]);
+  if (!selectedContainer || !isMountedRef.current) return;
+  setIsRefreshing(true);
+  try {
+    const [latRes, histRes] = await Promise.allSettled([
+      fetch(`/api/smart-hive/data/latest?containerId=${encodeURIComponent(selectedContainer)}`),
+      fetch(`/api/smart-hive/data/historical?containerId=${encodeURIComponent(selectedContainer)}&limit=200`),
+    ]);
+ 
+    let flatLatest: SensorData[] = [];
+    let flatHist: SensorData[] = [];
+ 
+    if (latRes.status === 'fulfilled' && latRes.value.ok) {
+      const d = await latRes.value.json();
+      flatLatest = flattenData(d.data ?? d);
+      setLatestData(flatLatest);
+ 
+      const ts = flatLatest.find((i: SensorData) => getTimestamp(i));
+      if (ts) setLastUpdated(getTimestamp(ts)!);
+      setIsOnline(true);
+ 
+      // ── DIAGNOSTIC ──────────────────────────────────────────────────────
+      const latestIds = getUniqueHiveIds(flatLatest);
+      console.log(`[fetchData:latest] ${flatLatest.length} rows | IDs: [${latestIds.join(', ')}]`);
+      latestIds.forEach((id, i) => {
+        const rows = flatLatest.filter(item => {
+          const raw = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
+          const n = toNumber(raw);
+          return (n !== null ? n : String(raw)) === id;
+        });
+        const last = rows[rows.length - 1];
+        console.log(
+          `  [latest] Hive slot ${i + 1} (id=${id}): ` +
+          `int_temp_raw=${last?.int_temp ?? last?.temp_internal ?? 'n/a'} ` +
+          `→ parsed=${getTemperature(last, 'internal')} | ` +
+          `weight_raw=${last?.weight ?? 'n/a'} → parsed=${getWeight(last)} | ` +
+          `battery_raw=${last?.battery ?? last?.voltage ?? 'n/a'} → parsed=${getBattery(last)}`
+        );
+      });
+    } else {
+      console.warn('[fetchData:latest] FAILED:', latRes.status === 'rejected' ? latRes.reason : latRes.value.status);
+    }
+ 
+    if (histRes.status === 'fulfilled' && histRes.value.ok) {
+      const d = await histRes.value.json();
+      flatHist = flattenData(d.data ?? d);
+      setHistoricalData(flatHist);
+ 
+      // ── DIAGNOSTIC ──────────────────────────────────────────────────────
+      const histIds = getUniqueHiveIds(flatHist);
+      console.log(`[fetchData:historical] ${flatHist.length} rows | IDs: [${histIds.join(', ')}]`);
+    } else {
+      console.warn('[fetchData:historical] FAILED:', histRes.status === 'rejected' ? histRes.reason : histRes.value.status);
+    }
+ 
+    // ── COMBINED ID CHECK ────────────────────────────────────────────────
+    const combined = [...flatHist, ...flatLatest];
+    const combinedIds = getUniqueHiveIds(combined);
+    console.log(
+      `[fetchData:combined] ${combined.length} rows total | IDs: [${combinedIds.join(', ')}]` +
+      ` | totalHives will be: ${Math.max(combinedIds.length, getHiveCount(flatLatest), getHiveCount(flatHist))}`
+    );
+ 
+  } catch (err) {
+    console.error('[fetchData] Network error:', err);
+    setIsOnline(false);
+  } finally {
+    if (isMountedRef.current) {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  }
+}, [selectedContainer, flattenData]);
 
   useEffect(() => {
     if (!selectedContainer) return;
@@ -746,7 +853,25 @@ const SmartHiveDashboard = () => {
 
     const sr = filtered.length > 300 ? Math.ceil(filtered.length / 300) : 1;
     const sampled = sr === 1 ? filtered : [filtered[0], ...filtered.filter((_, i) => i > 0 && i < filtered.length - 1 && i % sr === 0), filtered[filtered.length - 1]].filter(Boolean);
-
+    console.log(
+  `[buildChartData] hive=${hiveNum} | combined rows=${[...historicalData, ...latestData].length}` +
+  ` | hiveIds=[${hiveIds.join(', ')}] | matched=${sorted.length}` +
+  ` | after time filter=${filtered.length} | sampled=${sampled.length}`
+);
+if (sorted.length === 0) {
+  // Diagnose WHY no rows matched
+  const allCombined = [...historicalData, ...latestData];
+  const targetId = hiveIds[hiveNum - 1];
+  console.warn(
+    `  [buildChartData] NO ROWS for hive ${hiveNum}. ` +
+    `ids[${hiveNum - 1}] = ${targetId}. ` +
+    `All IDs in dataset: [${getUniqueHiveIds(allCombined).join(', ')}]`
+  );
+  // Show first 3 raw rows so you can see what id field actually looks like
+  allCombined.slice(0, 3).forEach((row, i) => {
+    console.warn(`  raw[${i}]:`, JSON.stringify(row).slice(0, 200));
+  });
+}
     return sampled.map(item => ({
       time:        getTimestamp(item) ?? '',
       temp:        getTemperature(item, 'internal'),
@@ -756,6 +881,8 @@ const SmartHiveDashboard = () => {
       weight:      getWeight(item),
       battery:     getBattery(item),
     }));
+
+    
   }, [historicalData, latestData, hiveIds, timeFilter, startDate, endDate]);
 
   const filteredGasData = useMemo(() => {
