@@ -223,10 +223,17 @@ async function runAggregation(containerName: string): Promise<object> {
     );
 
   // 3. Find new blobs only
-  const lastIdx  = dataBlobs.findIndex(b => b.name === lastProcessedBlob);
-  const newBlobs = lastIdx === -1 ? dataBlobs : dataBlobs.slice(lastIdx + 1);
+ const lastProcessedTime = existingHistorical.length > 0
+  ? Math.max(...existingHistorical.map((r: SensorRecord) => 
+      new Date(r._metadata?.lastModified ?? 0).getTime()
+    ))
+  : 0;
 
-  console.log(`📋  ${dataBlobs.length} total, ${newBlobs.length} new in "${containerName}"`);
+const newBlobs = dataBlobs.filter(b => 
+  new Date(b.lastModified!).getTime() > lastProcessedTime
+);
+
+console.log(`📋  ${dataBlobs.length} total, ${newBlobs.length} new in "${containerName}" (after ${new Date(lastProcessedTime).toISOString()})`);
 
   if (newBlobs.length === 0) {
   // ← Check alerts even when no new blobs
