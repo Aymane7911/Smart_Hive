@@ -54,12 +54,12 @@ interface AIMessage {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const toNumber = (v: any): number | null => {
   if (v == null) return null;
-  if (typeof v === 'number') return isNaN(v) ? 0 : v;   // NaN number → 0
+  if (typeof v === 'number') return isNaN(v) ? null : v;
   if (typeof v === 'string') {
     const l = v.trim().toLowerCase();
-    if (['nan', 'null', 'undefined', 'n/a'].includes(l)) return 0;  // nan string → 0
-    if (l === '') return null;   // empty string → still null (field not present)
-    const p = parseFloat(v);
+    if (l === '') return null;
+    if (['nan', 'null', 'undefined', 'n/a', 'na'].includes(l)) return null;
+    const p = parseFloat(l);
     return isNaN(p) ? null : p;
   }
   return null;
@@ -67,59 +67,76 @@ const toNumber = (v: any): number | null => {
 
 const getTemperature = (item: any, type: 'internal' | 'external'): number | null => {
   if (!item) return null;
-  const v = type === 'internal'
+  const raw = type === 'internal'
     ? (item.int_temp ?? item.temp_internal ?? item.temp_inte ?? item.Internal_temp ?? item.tempInternal)
     : (item.ext_temp ?? item.temp_external ?? item.temp_exte ?? item.external_temp ?? item.tempExternal);
-  const n = toNumber(v);
-  if (n == null) return null;           // truly missing field → still null (no data)
-  if (n < -50 || n > 100) return 0;    // sensor error codes like -127 → 0
-  return n < 0 ? 0 : n;               // negative but in range → 0
+  const n = toNumber(raw);
+  if (n === null) return null;   // nan / missing
+  if (n > 40) return null;       // sensor garbage (e.g. 998) — per user rule: > 40 → null
+  if (n < -50) return null;      // sensor error code (e.g. -127)
+  if (n < 0) return null;        // negative in valid range — treat as bad reading
+  return n;
 };
 
 const getHumidity = (item: any, type: 'internal' | 'external'): number | null => {
   if (!item) return null;
-  const v = type === 'internal'
+  const raw = type === 'internal'
     ? (item.int_hum ?? item.hum_internal ?? item.Internal_hum ?? item.humidity_internal ?? item.humInternal ?? item.inte_hum)
     : (item.ext_hum ?? item.hum_external ?? item.external_hum ?? item.humidity_external ?? item.humExternal ?? item.exte_hum);
-  const n = toNumber(v);
-  if (n == null) return null;
-  if (n < 0 || n > 150) return 0;
+  const n = toNumber(raw);
+  if (n === null) return null;           // nan / missing
+  if (n < 0 || n > 100) return null;    // 998 or negative → sensor error
   return n;
 };
 
 const getWeight = (item: any): number | null => {
   if (!item) return null;
   const n = toNumber(item.weight ?? item.Weight ?? item.weight_kg);
-  if (n == null) return null;
-  if (Math.abs(n) > 500) return null;  // clearly invalid sensor value
-  return n < 0 ? 0 : n;              // negative weight → 0
+  if (n === null) return null;     // nan / missing
+  if (Math.abs(n) > 500) return null;
+  if (n < 0) return 0;             // negative weight → 0 (per user rule)
+  return n;
 };
 
 const getBattery = (item: any): number | null => {
   if (!item) return null;
-  const raw = item.battery ?? item.Battery ?? item.battery_level ?? item.bat ?? item.batt;
-  if (raw != null) {
-    const n = toNumber(raw);
-    if (n != null && n >= 0) return Math.min(n, 100);
-    if (n != null && n < 0) return 0;
+  const rawBat = item.battery ?? item.Battery ?? item.battery_level ?? item.bat ?? item.batt;
+  if (rawBat != null) {
+    const n = toNumber(rawBat);
+    if (n !== null) {
+      if (n < 0) return 0;
+      return Math.min(Math.round(n), 100);
+    }
   }
-  // voltage field — map from LiPo range 3.0V–4.2V → 0–100%
-  const v = toNumber(item.voltage ?? item.Voltage);
-  if (v != null && v > 0 && v <= 5) {
-    const pct = Math.round(((v - 3.0) / (4.2 - 3.0)) * 100);
-    return Math.max(0, Math.min(100, pct));
+  // Voltage → % conversion (LiPo 3.0 V – 4.2 V)
+  const rawV = item.voltage ?? item.Voltage;
+  if (rawV != null) {
+    const v = toNumber(rawV);
+    if (v !== null && v > 0 && v <= 5) {
+      const pct = Math.round(((v - 3.0) / (4.2 - 3.0)) * 100);
+      return Math.max(0, Math.min(100, pct));
+    }
   }
   return null;
 };
 
 const getTimestamp = (item: any): string | null => {
-  const raw = item?.timestamp ?? item?.time ?? item?.Time ?? 
+  const raw = item?.timestamp ?? item?.time ?? item?.Time ??
               item?.datetime ?? item?.DateTime ??
               item?._metadata?.lastModified ?? null;
   if (!raw) return null;
-  // fix malformed timestamps like "2026-03-16T000:00:23"
-  const fixed = String(raw).replace(/T0+(\d+):/, 'T$1:');
-  const d = new Date(fixed);
+ 
+  let str = String(raw).trim();
+ 
+  // Fix malformed ISO where hour has extra leading zeros:
+  // "2026-03-16T000:00:23" → "2026-03-16T00:00:23"
+  str = str.replace(/T(\d{3,}):(\d{2}):(\d{2})/, (_match, h, m, s) => {
+    const hour = parseInt(h, 10);
+    const clamped = Math.max(0, Math.min(hour, 23));
+    return `T${String(clamped).padStart(2, '0')}:${m}:${s}`;
+  });
+ 
+  const d = new Date(str);
   return isNaN(d.getTime()) ? null : d.toISOString();
 };
 
