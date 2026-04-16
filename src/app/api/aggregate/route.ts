@@ -140,13 +140,22 @@ async function parseBlob(
 
   // Use the CSV's own timestamp field if present, otherwise use blob lastModified
   // Add rowIdx milliseconds so two rows in same blob get distinct timestamps
-  const rowTimestamp = coerced.timestamp
-    ? coerced.timestamp
-    : new Date(new Date(lastModified).getTime() + rowIdx).toISOString();
+  const csvTime = coerced.time ?? coerced.Time ?? coerced.datetime ?? coerced.DateTime;
+let rowTimestamp: string;
 
-  records.push({
-    ...coerced,
-    timestamp: rowTimestamp,
+if (csvTime && !String(csvTime).includes('000:')) {
+  // Use the CSV's actual sensor time, parse it to ISO
+  const parsed = new Date(String(csvTime).replace(' ', 'T'));
+  rowTimestamp = !isNaN(parsed.getTime())
+    ? parsed.toISOString()
+    : new Date(new Date(lastModified).getTime() + rowIdx).toISOString();
+} else {
+  rowTimestamp = new Date(new Date(lastModified).getTime() + rowIdx).toISOString();
+}
+
+records.push({
+  ...coerced,
+  timestamp: rowTimestamp,
     _metadata: {
       lastModified,
       sourceBlob: blobName,

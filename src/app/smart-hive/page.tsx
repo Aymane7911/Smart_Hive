@@ -118,9 +118,8 @@ const getBattery = (item: any): number | null => {
 };
 
 const getTimestamp = (item: any): string | null => {
-  const raw = item?.timestamp ?? item?.time ?? item?.Time ??
-              item?.datetime ?? item?.DateTime ??
-              item?._metadata?.lastModified ?? null;
+  const raw = item?.time ?? item?.Time ?? item?.datetime ?? item?.DateTime ??
+              item?.timestamp ?? item?._metadata?.lastModified ?? null;
   if (!raw) return null;
  
   let str = String(raw).trim();
