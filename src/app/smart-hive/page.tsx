@@ -71,10 +71,10 @@ const getTemperature = (item: any, type: 'internal' | 'external'): number | null
     ? (item.int_temp ?? item.temp_internal ?? item.temp_inte ?? item.Internal_temp ?? item.tempInternal)
     : (item.ext_temp ?? item.temp_external ?? item.temp_exte ?? item.external_temp ?? item.tempExternal);
   const n = toNumber(raw);
-  if (n === null) return null;
-  if (n === 0) return null;        // 0 is always a sentinel from coerceRow, never real
-  if (n < -20) return null;        // below -20°C → sensor error
-  if (n > 80) return null;         // above 80°C → sensor error
+  if (n === null) return null;   // nan / missing
+  if (n > 40) return null;       // sensor garbage (e.g. 998) — per user rule: > 40 → null
+  if (n < -50) return null;      // sensor error code (e.g. -127)
+  if (n < 0) return null;        // negative in valid range — treat as bad reading
   return n;
 };
 
@@ -84,23 +84,24 @@ const getHumidity = (item: any, type: 'internal' | 'external'): number | null =>
     ? (item.int_hum ?? item.hum_internal ?? item.Internal_hum ?? item.humidity_internal ?? item.humInternal ?? item.inte_hum)
     : (item.ext_hum ?? item.hum_external ?? item.external_hum ?? item.humidity_external ?? item.humExternal ?? item.exte_hum);
   const n = toNumber(raw);
-  if (n === null) return null;
-  if (n < 0 || n > 100) return null;
-  if (n === 0) return null;        // 0 humidity is physically impossible in a hive
+  if (n === null) return null;           // nan / missing
+  if (n < 0 || n > 100) return null;    // 998 or negative → sensor error
   return n;
 };
 
 const getWeight = (item: any): number | null => {
   if (!item) return null;
   const n = toNumber(item.weight ?? item.Weight ?? item.weight_kg);
-  if (n === null) return null;
-  if (n < 0 || n > 100) return null;   // -/+100 kg → invalid
-  return n;                             // 0 is valid (empty hive stand)
+  if (n === null) return null;     // nan / missing
+  if (Math.abs(n) > 500) return null;
+  if (n < 0) return 0;             // negative weight → 0 (per user rule)
+  return n;
 };
 
 const getBattery = (item: any): number | null => {
   if (!item) return null;
-
+ 
+  // ── 1. Voltage → % (LiPo 3.0 V – 4.2 V) — check FIRST, most reliable ──
   const rawV = item.voltage ?? item.Voltage;
   if (rawV != null) {
     const v = toNumber(rawV);
@@ -109,14 +110,16 @@ const getBattery = (item: any): number | null => {
       return Math.max(0, Math.min(100, pct));
     }
   }
-
+ 
+  // ── 2. Direct battery % field — only if no voltage field ─────────────────
   const rawBat = item.battery ?? item.Battery ?? item.battery_level ?? item.bat ?? item.batt;
   if (rawBat != null) {
     const n = toNumber(rawBat);
-    if (n === null || n <= 0 || n > 100) return null;   // 0, negative, >100 → invalid
-    return Math.round(n);
+    if (n !== null && n > 0) {          // skip 0 — sentinel for "no data"
+      return Math.min(Math.round(n), 100);
+    }
   }
-
+ 
   return null;
 };
 
@@ -840,17 +843,9 @@ const sorted = getHiveData(combined, hiveNum, hiveIds)
   })
   .sort((a, b) => new Date(getTimestamp(a) ?? 0).getTime() - new Date(getTimestamp(b) ?? 0).getTime());
 
-const meaningful = sorted.filter(item =>
-  getTemperature(item, 'internal') !== null ||
-  getTemperature(item, 'external') !== null ||
-  getHumidity(item, 'internal')    !== null ||
-  getWeight(item)                  !== null ||
-  getBattery(item)                 !== null
-);
-
     let filtered = timeFilter in FILTER_MS
-  ? meaningful.filter(item => { const ts = getTimestamp(item); return ts && Date.now() - new Date(ts).getTime() <= FILTER_MS[timeFilter]; })
-  : meaningful;
+      ? sorted.filter(item => { const ts = getTimestamp(item); return ts && Date.now() - new Date(ts).getTime() <= FILTER_MS[timeFilter]; })
+      : sorted;
 
     if (startDate || endDate) {
       filtered = filtered.filter(item => {
