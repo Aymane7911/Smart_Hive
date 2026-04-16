@@ -833,9 +833,15 @@ const SmartHiveDashboard = () => {
   const buildChartData = useCallback((hiveNum: number) => {
     const combined = [...historicalData, ...latestData];
     const seen = new Set<string>();
-    const sorted = getHiveData(combined, hiveNum, hiveIds)
-      .filter(item => { const ts = getTimestamp(item) ?? ''; if (seen.has(ts)) return false; seen.add(ts); return true; })
-      .sort((a, b) => new Date(getTimestamp(a) ?? 0).getTime() - new Date(getTimestamp(b) ?? 0).getTime());
+const sorted = getHiveData(combined, hiveNum, hiveIds)
+  .filter(item => { 
+    const ts = getTimestamp(item); 
+    if (!ts) return true;           // ← keep timestampless rows, can't dedup them
+    if (seen.has(ts)) return false; 
+    seen.add(ts); 
+    return true; 
+  })
+  .sort((a, b) => new Date(getTimestamp(a) ?? 0).getTime() - new Date(getTimestamp(b) ?? 0).getTime());
 
     let filtered = timeFilter in FILTER_MS
       ? sorted.filter(item => { const ts = getTimestamp(item); return ts && Date.now() - new Date(ts).getTime() <= FILTER_MS[timeFilter]; })
