@@ -72,9 +72,9 @@ function coerceRow(row: Record<string, any>): Record<string, any> {
 
       // Temperature: sensor error codes (e.g. -127) and negatives → 0
       if (TEMP_FIELDS.has(k)) {
-        out[k] = (n < -50 || n > 100) ? 0 : (n < 0 ? 0 : n);
-        continue;
-      }
+  out[k] = (n < -20 || n > 80) ? null : n;
+  continue;
+}
       // Humidity: out-of-range or negative → 0
       if (HUM_FIELDS.has(k)) {
         out[k] = (n < 0 || n > 150) ? 0 : n;
@@ -82,9 +82,9 @@ function coerceRow(row: Record<string, any>): Record<string, any> {
       }
       // Weight: negative → 0, absurd values → 0
       if (WEIGHT_FIELDS.has(k)) {
-        out[k] = (n < 0 || Math.abs(n) > 500) ? 0 : n;
-        continue;
-      }
+  out[k] = (n < 0 || Math.abs(n) > 500) ? null : n;
+  continue;
+}
 
       out[k] = n;
     } else {
@@ -118,14 +118,23 @@ function extractTimestamp(row: Record<string, any>, blobModified: string): strin
     row.datetime  ?? row.DateTime  ??
     row.time      ?? row.Time      ??
     row.date      ?? row.Date      ?? null;
-  
-  if (ts) {
-    // Fix invalid timestamps like "000:00" → "00:00"
-    const fixed = String(ts).replace(/T0+(\d+):/, 'T$1:');
-    const d = new Date(fixed);
+
+  if (ts != null) {
+    let str = String(ts).trim();
+    if (!str || ['null','nan','undefined'].includes(str.toLowerCase())) {
+      return blobModified;
+    }
+    // Fix malformed ISO: "T000:00:23" → "T00:00:23"
+    str = str.replace(/T(\d{3,}):(\d{2}):(\d{2})/, (_m, h, mi, s) => {
+      const hour = Math.max(0, Math.min(parseInt(h, 10), 23));
+      return `T${String(hour).padStart(2, '0')}:${mi}:${s}`;
+    });
+    // Handle "4/16/2026 8:00" format from Excel
+    str = str.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s/, '$3-$1-$2T');
+    const d = new Date(str);
     if (!isNaN(d.getTime())) return d.toISOString();
   }
-  return blobModified; // fallback to blob's lastModified
+  return blobModified;
 }
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
@@ -173,32 +182,47 @@ async function parseBlob(
   const lower = blobName.toLowerCase();
   const records: SensorRecord[] = [];
   try {
+    let rawRows: Record<string, any>[] = [];
+    
     if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
-      const buffer  = await service.downloadBlobAsBuffer(blobName);
-      const rawRows = parseXLSX(buffer);
-      for (const row of rawRows) {
-        if (!row || Object.keys(row).length === 0) continue;
-        const coerced = coerceRow(row);
-        if (!isDataRow(coerced)) continue;
-        records.push({
-          ...coerced,
-          timestamp: extractTimestamp(coerced, lastModified),
-          _metadata: { lastModified, sourceBlob: blobName, containerId: containerName },
-        });
-      }
+      const buffer = await service.downloadBlobAsBuffer(blobName);
+      rawRows = parseXLSX(buffer);
     } else {
       const content = await service.downloadBlob(blobName);
-      const rawRows = await parseCSV(content);
-      for (const row of rawRows) {
-        if (!row || Object.keys(row).length === 0) continue;
-        const coerced = coerceRow(row);
-        if (!isDataRow(coerced)) continue;
-        records.push({
-          ...coerced,
-          timestamp: extractTimestamp(coerced, lastModified),
-          _metadata: { lastModified, sourceBlob: blobName, containerId: containerName },
+      rawRows = await parseCSV(content);
+    }
+
+    // ── NEW: find the best timestamp from ANY row in this file ──
+    let fileTimestamp = lastModified;
+    for (const row of rawRows) {
+      const ts = row.timestamp ?? row.Timestamp ?? row.datetime ?? row.DateTime
+               ?? row.time ?? row.Time ?? row.date ?? row.Date ?? null;
+      if (ts != null) {
+        let str = String(ts).trim();
+        str = str.replace(/T(\d{3,}):(\d{2}):(\d{2})/, (_m, h, mi, s) => {
+          const hour = Math.max(0, Math.min(parseInt(h, 10), 23));
+          return `T${String(hour).padStart(2, '0')}:${mi}:${s}`;
         });
+        str = str.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s/, '$3-$1-$2T');
+        const d = new Date(str);
+        if (!isNaN(d.getTime())) {
+          fileTimestamp = d.toISOString();
+          break; // use first valid timestamp found in file
+        }
       }
+    }
+    // ── END NEW ──
+
+    for (const row of rawRows) {
+      if (!row || Object.keys(row).length === 0) continue;
+      const coerced = coerceRow(row);
+      if (!isDataRow(coerced)) continue;
+      records.push({
+        ...coerced,
+        // Use fileTimestamp as fallback so all hives in same file share same time
+        timestamp: extractTimestamp(coerced, fileTimestamp),
+        _metadata: { lastModified, sourceBlob: blobName, containerId: containerName },
+      });
     }
   } catch (err) {
     console.warn(`⚠️  Skipped ${blobName}:`, err instanceof Error ? err.message : err);
