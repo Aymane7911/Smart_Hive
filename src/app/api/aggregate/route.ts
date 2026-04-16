@@ -62,9 +62,9 @@ function coerceRow(row: Record<string, any>): Record<string, any> {
 
     // nan/null/empty string → 0 for numeric sensor fields, null for others
     if (['null', 'nan', 'undefined', 'n/a', ''].includes(str.toLowerCase())) {
-      out[k] = NUMERIC_FIELDS.has(k) ? 0 : null;
-      continue;
-    }
+  out[k] = null;   // always null for missing — never 0
+  continue;
+}
 
     if (NUMERIC_FIELDS.has(k)) {
       const n = parseFloat(str);
@@ -95,6 +95,12 @@ function coerceRow(row: Record<string, any>): Record<string, any> {
 }
 
 function isDataRow(row: Record<string, any>): boolean {
+  // Keep row if it has a hive ID — even if all sensors are null/zero
+  const hasId = row.id != null || row.ID != null || 
+                row.hive_id != null || row.hiveId != null;
+  if (hasId) return true;
+
+  // Otherwise require at least one non-null sensor reading
   const SENSOR_KEYS = [
     'int_temp', 'ext_temp', 'temp_internal', 'temp_external', 'Internal_temp',
     'tempInternal', 'temp_inte', 'temp_exte',
@@ -102,8 +108,8 @@ function isDataRow(row: Record<string, any>): boolean {
     'weight', 'Weight', 'weight_kg',
     'battery', 'Battery', 'battery_level',
   ];
-  // Row must have at least one sensor field that is non-null AND non-zero
-  return SENSOR_KEYS.some(k => row[k] != null && row[k] !== '' && row[k] !== 0);
+  return SENSOR_KEYS.some(k => row[k] != null && row[k] !== '');
+  //                                        ↑ removed !== 0 check
 }
 
 function extractTimestamp(row: Record<string, any>, blobModified: string): string {
