@@ -100,15 +100,8 @@ const getWeight = (item: any): number | null => {
 
 const getBattery = (item: any): number | null => {
   if (!item) return null;
-  const rawBat = item.battery ?? item.Battery ?? item.battery_level ?? item.bat ?? item.batt;
-  if (rawBat != null) {
-    const n = toNumber(rawBat);
-    if (n !== null) {
-      if (n < 0) return 0;
-      return Math.min(Math.round(n), 100);
-    }
-  }
-  // Voltage → % conversion (LiPo 3.0 V – 4.2 V)
+ 
+  // ── 1. Voltage → % (LiPo 3.0 V – 4.2 V) — check FIRST, most reliable ──
   const rawV = item.voltage ?? item.Voltage;
   if (rawV != null) {
     const v = toNumber(rawV);
@@ -117,6 +110,16 @@ const getBattery = (item: any): number | null => {
       return Math.max(0, Math.min(100, pct));
     }
   }
+ 
+  // ── 2. Direct battery % field — only if no voltage field ─────────────────
+  const rawBat = item.battery ?? item.Battery ?? item.battery_level ?? item.bat ?? item.batt;
+  if (rawBat != null) {
+    const n = toNumber(rawBat);
+    if (n !== null && n > 0) {          // skip 0 — sentinel for "no data"
+      return Math.min(Math.round(n), 100);
+    }
+  }
+ 
   return null;
 };
 
