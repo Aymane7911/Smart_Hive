@@ -148,7 +148,6 @@ const getUniqueHiveIds = (data: SensorData[]): (number | string)[] => {
     const raw = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
     if (raw != null) {
       const n = toNumber(raw);
-      // normalize 0-based to 1-based
       ids.add(n !== null ? n : String(raw));
     }
   });
