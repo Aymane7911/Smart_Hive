@@ -72,7 +72,9 @@ const getTemperature = (item: any, type: 'internal' | 'external'): number | null
     : (item.ext_temp ?? item.temp_external ?? item.temp_exte ?? item.external_temp ?? item.tempExternal);
   const n = toNumber(raw);
   if (n === null) return null;
-  if (Math.abs(n) >= 990) return null;  // sentinel: 998, 999, -998 etc
+  if (Math.abs(n) >= 990) return null;
+  // NEW: reject unrealistic temperatures
+  if (n < -20 || n > 80) return null;
   return n;
 };
 
@@ -83,7 +85,9 @@ const getHumidity = (item: any, type: 'internal' | 'external'): number | null =>
     : (item.ext_hum ?? item.hum_external ?? item.external_hum ?? item.humidity_external ?? item.humExternal ?? item.exte_hum);
   const n = toNumber(raw);
   if (n === null) return null;
-  if (Math.abs(n) >= 990) return null;  // sentinel
+  if (Math.abs(n) >= 990) return null;
+  // NEW: reject out-of-range humidity
+  if (n < 0 || n > 100) return null;
   return n;
 };
 
@@ -91,32 +95,36 @@ const getWeight = (item: any): number | null => {
   if (!item) return null;
   const n = toNumber(item.weight ?? item.Weight ?? item.weight_kg);
   if (n === null) return null;
-  if (Math.abs(n) >= 990) return null;  // sentinel
+  if (Math.abs(n) >= 990) return null;
+  // NEW: reject extreme weights (≤ -100 or ≥ 100)
+  if (n <= -100 || n >= 100) return null;
   return n;
 };
 
 const getBattery = (item: any): number | null => {
   if (!item) return null;
-
   const rawV = item.voltage ?? item.Voltage;
   if (rawV != null) {
     const v = toNumber(rawV);
-    if (v !== null && Math.abs(v) < 990 && v >= 3.0 && v <= 4.3) {
-      const pct = Math.round(((v - 3.0) / (4.2 - 3.0)) * 100);
-      return Math.max(0, Math.min(100, pct));
+    if (v !== null && Math.abs(v) < 990 && v >= 2.5 && v <= 5.0) {
+      let pct = ((v - 3.0) / (4.2 - 3.0)) * 100;
+      pct = Math.max(0, Math.min(100, pct));
+      const rounded = Math.round(pct);
+      // NEW: range check
+      if (rounded < 0 || rounded > 100) return null;
+      return rounded;
     }
   }
-
   const rawBat = item.battery ?? item.Battery ?? item.battery_level ?? item.bat ?? item.batt;
   if (rawBat != null) {
     const n = toNumber(rawBat);
     if (n === null || Math.abs(n) >= 990) return null;
+    // NEW: range check
+    if (n < 0 || n > 100) return null;
     return Math.round(Math.max(0, Math.min(100, n)));
   }
-
   return null;
 };
-
 const getTimestamp = (item: any): string | null => {
   const raw = item?.time ?? item?.Time ?? item?.datetime ?? item?.DateTime ??
               item?.timestamp ?? item?._metadata?.lastModified ?? null;
@@ -937,7 +945,7 @@ if (sorted.length === 0) {
         </div>
         <p className={`text-[10px] font-semibold uppercase tracking-widest mb-1 ${t.textMuted}`}>{title}</p>
         <div className="flex items-baseline gap-1">
-          <span className={`text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br ${gradient}`}>{value ?? '—'}</span>
+          <span className={`text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-br ${gradient}`}>{value ?? 'nan'}</span>
           <span className={`text-xs font-medium ${t.textMuted}`}>{unit}</span>
         </div>
       </div>
@@ -1137,7 +1145,7 @@ if (sorted.length === 0) {
     const active = isHiveActive(hiveNumber);
     const lastTs = getLastHiveReading(hiveNumber);
     const batColor = bat < 20 ? '#EF4444' : bat < 40 ? '#F59E0B' : '#10B981';
-    const dv = (v: number | null, dec = 1) => v !== null ? v.toFixed(dec) : '0';
+const dv = (v: number | null, dec = 1) => v !== null ? v.toFixed(dec) : 'nan';
     return (
       <div onClick={() => setSelectedHive(hiveNumber)}
         className={`relative overflow-hidden rounded-2xl shadow-lg ${t.card} cursor-pointer transition-all hover:-translate-y-1 hover:shadow-2xl group border-2 ${active ? (dm ? 'border-amber-400/40' : 'border-amber-400/60') : (dm ? 'border-white/5' : 'border-black/5')}`}>
@@ -1668,12 +1676,12 @@ if (sorted.length === 0) {
 }): '—'}
                             </td>
                             {[
-                              row.temp    != null ? `${(row.temp    as number).toFixed(1)}°C` : '—',
-                              row.tempExt != null ? `${(row.tempExt as number).toFixed(1)}°C` : '—',
-                              row.humidity    != null ? `${(row.humidity    as number).toFixed(0)}%` : '—',
-                              row.humidityExt != null ? `${(row.humidityExt as number).toFixed(0)}%` : '—',
-                              row.weight  != null ? `${(row.weight  as number).toFixed(2)} kg` : '—',
-                              row.battery != null ? `${(row.battery as number).toFixed(0)}%`  : '—',
+                              row.temp    != null ? `${(row.temp    as number).toFixed(1)}°C` : 'nan',
+                              row.tempExt != null ? `${(row.tempExt as number).toFixed(1)}°C` : 'nan',
+                              row.humidity    != null ? `${(row.humidity    as number).toFixed(0)}%` : 'nan',
+                              row.humidityExt != null ? `${(row.humidityExt as number).toFixed(0)}%` : 'nan',
+                              row.weight  != null ? `${(row.weight  as number).toFixed(2)} kg` : 'nan',
+                              row.battery != null ? `${(row.battery as number).toFixed(0)}%`  : 'nan',
                             ].map((val, j) => (
                               <td key={j} className={`px-4 py-3 text-xs ${t.textSub}`}>{val}</td>
                             ))}
