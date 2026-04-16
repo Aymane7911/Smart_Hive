@@ -60,6 +60,15 @@ export async function GET(request: NextRequest) {
     }
 
     let latestData: any[] = aggregated.latest ?? [];
+    // DIAGNOSTIC
+const sampleIds2 = new Set<any>();
+latestData.forEach((item: any) => {
+  const id = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
+  if (id != null && !sampleIds2.has(id)) {
+    sampleIds2.add(id);
+    console.log(`🔍 [LATEST RAW] id=${id} keys=${Object.keys(item).join(',')} sample=${JSON.stringify(item).slice(0, 300)}`);
+  }
+});
 
     if (isVerbose) {
       console.log(`📊 Latest records: ${latestData.length}`);

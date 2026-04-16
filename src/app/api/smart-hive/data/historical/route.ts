@@ -65,6 +65,14 @@ export async function GET(request: NextRequest) {
     }
 
     let historicalData: any[] = aggregated.historical ?? [];
+    const sampleIds = new Set<any>();
+historicalData.forEach((item: any) => {
+  const id = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
+  if (id != null && !sampleIds.has(id)) {
+    sampleIds.add(id);
+    console.log(`🔍 [HISTORICAL RAW] id=${id} keys=${Object.keys(item).join(',')} sample=${JSON.stringify(item).slice(0, 300)}`);
+  }
+});
 
     console.log(`📦 Total historical records before filtering: ${historicalData.length}`);
 
