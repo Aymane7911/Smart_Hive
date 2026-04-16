@@ -36,6 +36,7 @@ const NUMERIC_FIELDS = new Set([
   'humidity_internal', 'humidity_external',
   'weight', 'Weight', 'weight_kg',
   'battery', 'Battery', 'battery_level', 'bat', 'batt',
+  'voltage', 'Voltage',   // ← ADD THESE
   'lat', 'lon',
   'H2S', 'CO2', 'O2', 'NH3', 'TVOC', 'CO', 'NO2',
   'id', 'ID', 'hive_id', 'hiveId',
@@ -54,7 +55,7 @@ function coerceRow(row: Record<string, any>): Record<string, any> {
     'humidity_internal', 'humidity_external',
   ]);
   const WEIGHT_FIELDS = new Set(['weight', 'Weight', 'weight_kg']);
-
+const VOLTAGE_FIELDS = new Set(['voltage', 'Voltage']);
   const out: Record<string, any> = {};
   for (const [k, v] of Object.entries(row)) {
     if (v == null) { out[k] = null; continue; }
@@ -70,19 +71,24 @@ function coerceRow(row: Record<string, any>): Record<string, any> {
       const n = parseFloat(str);
       if (isNaN(n) || !isFinite(n)) { out[k] = 0; continue; }
 
-      // Temperature: sensor error codes (e.g. -127) and negatives → 0
-      if (TEMP_FIELDS.has(k)) {
+      // Temperature: sensor error codes and out-of-range → null (NOT 0)
+if (TEMP_FIELDS.has(k)) {
   out[k] = (n < -20 || n > 80) ? null : n;
   continue;
 }
-      // Humidity: out-of-range or negative → 0
-      if (HUM_FIELDS.has(k)) {
-        out[k] = (n < 0 || n > 150) ? 0 : n;
-        continue;
-      }
-      // Weight: negative → 0, absurd values → 0
-      if (WEIGHT_FIELDS.has(k)) {
+// Humidity
+if (HUM_FIELDS.has(k)) {
+  out[k] = (n < 0 || n > 150) ? null : n;  // was: 0, should be: null
+  continue;
+}
+// Weight
+if (WEIGHT_FIELDS.has(k)) {
   out[k] = (n < 0 || Math.abs(n) > 500) ? null : n;
+  continue;
+}
+
+if (VOLTAGE_FIELDS.has(k)) {
+  out[k] = (n < 2.5 || n > 5.0) ? null : n;
   continue;
 }
 
