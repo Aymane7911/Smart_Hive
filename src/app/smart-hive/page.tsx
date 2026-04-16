@@ -95,9 +95,9 @@ const getWeight = (item: any): number | null => {
   if (!item) return null;
   const n = toNumber(item.weight ?? item.Weight ?? item.weight_kg);
   if (n === null) return null;
-  if (Math.abs(n) >= 990) return null;
-  // NEW: reject extreme weights (≤ -100 or ≥ 100)
-  if (n <= -100 || n >= 100) return null;
+  if (Math.abs(n) >= 990) return null;  // sentinel
+  // NEW: treat negative or >100 as invalid
+  if (n < 0 || n > 100) return null;
   return n;
 };
 
