@@ -155,27 +155,16 @@ const getUniqueHiveIds = (data: SensorData[]): (number | string)[] => {
 
 const getHiveDataById = (data: SensorData[], hiveId: number | string): SensorData[] => {
   if (!data?.length) return [];
-  const matched = data
+  const target = String(hiveId);
+  return data
     .filter(item => {
       const raw = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
       if (raw == null) return false;
       const n = toNumber(raw);
-      return (n !== null ? n : String(raw)) === hiveId;
+      const idStr = n !== null ? String(n) : String(raw);
+      return idStr === target;
     })
     .sort((a, b) => new Date(getTimestamp(a) ?? 0).getTime() - new Date(getTimestamp(b) ?? 0).getTime());
- 
-  // ── DIAGNOSTIC ──────────────────────────────────────────────────────────
-  if (matched.length === 0) {
-    const allIds = new Set(data.map(item => {
-      const raw = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
-      return raw == null ? 'undefined' : String(raw);
-    }));
-    console.warn(`[getHiveDataById] id=${hiveId} → 0 matches. IDs in data: [${[...allIds].join(', ')}]`);
-  } else {
-    console.log(`[getHiveDataById] id=${hiveId} → ${matched.length} rows`);
-  }
- 
-  return matched;
 };
 
 const getHiveDataByIndex = (data: SensorData[], hiveNumber: number): SensorData[] => {
@@ -1670,11 +1659,11 @@ if (sorted.length === 0) {
                         </tr>
                       </thead>
                       <tbody className={`divide-y ${t.divider}`}>
-                        {chartData.slice().reverse().slice(0, 10).map((row, i) => (
+                       {chartData.slice().reverse().map((row, i) => (
                           <tr key={i} className={`transition-colors ${t.tableRow}`}>
                             <td className={`px-4 py-3 text-xs font-semibold whitespace-nowrap ${t.text}`}>
-                              {row.time ? new Date(row.time).toLocaleString('en-US', { 
-  timeZone: 'UTC',
+                              {row.time ? new Date(row.time).toLocaleString('en-AE', { 
+  timeZone: 'Asia/Dubai',
   month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
 }): '—'}
                             </td>
