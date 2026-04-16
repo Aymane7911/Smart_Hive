@@ -810,20 +810,20 @@ const SmartHiveDashboard = () => {
   const hiveNumbers = useMemo(() => Array.from({ length: totalHives }, (_, i) => i + 1), [totalHives]);
 
   const isHiveActive = useCallback((n: number): boolean => {
-  const rows = getHiveData([...historicalData, ...latestData], n, hiveIds);
+  const rows = getHiveData(latestData, n, hiveIds);
   if (!rows.length) return false;
   const last = rows[rows.length - 1];
   const ts = getTimestamp(last);
   if (!ts) return false;
   return Date.now() - new Date(ts).getTime() <= 4 * 3600000;
-}, [latestData, historicalData, hiveIds]);
+}, [latestData, hiveIds]);
 
   const getLastHiveReading = useCallback((n: number): string | null => {
-  const rows = getHiveData([...historicalData, ...latestData], n, hiveIds)
+  const rows = getHiveData(latestData, n, hiveIds)
     .filter(item => getTimestamp(item) !== null)
     .sort((a, b) => new Date(getTimestamp(b)!).getTime() - new Date(getTimestamp(a)!).getTime());
   return rows[0] ? getTimestamp(rows[0]) : null;
-}, [latestData, historicalData, hiveIds]);
+}, [latestData, hiveIds]);
 
   const buildChartData = useCallback((hiveNum: number) => {
     const combined = [...historicalData, ...latestData];
