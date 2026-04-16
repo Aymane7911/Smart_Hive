@@ -72,10 +72,7 @@ const getTemperature = (item: any, type: 'internal' | 'external'): number | null
     : (item.ext_temp ?? item.temp_external ?? item.temp_exte ?? item.external_temp ?? item.tempExternal);
   const n = toNumber(raw);
   if (n === null) return null;
-  if (n === 0) return null;        // 0 is always a sentinel from coerceRow, never real
-  if (n < -20) return null;        // below -20°C → sensor error
-  if (n > 80) return null;         // above 80°C → sensor error
-  return n;
+  return n;  // return whatever the sensor says, no filtering
 };
 
 const getHumidity = (item: any, type: 'internal' | 'external'): number | null => {
@@ -85,19 +82,15 @@ const getHumidity = (item: any, type: 'internal' | 'external'): number | null =>
     : (item.ext_hum ?? item.hum_external ?? item.external_hum ?? item.humidity_external ?? item.humExternal ?? item.exte_hum);
   const n = toNumber(raw);
   if (n === null) return null;
-  if (n < 0 || n > 100) return null;
-  if (n === 0) return null;        // 0 humidity is physically impossible in a hive
-  return n;
+  return n;  // return whatever the sensor says, no filtering
 };
 
 const getWeight = (item: any): number | null => {
   if (!item) return null;
   const n = toNumber(item.weight ?? item.Weight ?? item.weight_kg);
   if (n === null) return null;
-  if (n <= 0 || n > 200) return null;  // 0 = sensor not connected
-  return n;
+  return n;  // return whatever the sensor says, no filtering
 };
-
 const getBattery = (item: any): number | null => {
   if (!item) return null;
 

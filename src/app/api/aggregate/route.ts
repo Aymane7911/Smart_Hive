@@ -45,54 +45,20 @@ const NUMERIC_FIELDS = new Set([
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function coerceRow(row: Record<string, any>): Record<string, any> {
-  const TEMP_FIELDS = new Set([
-    'int_temp', 'ext_temp', 'temp_internal', 'temp_external',
-    'Internal_temp', 'tempInternal', 'temp_inte', 'temp_exte',
-  ]);
-  const HUM_FIELDS = new Set([
-    'int_hum', 'ext_hum', 'hum_internal', 'hum_external',
-    'Internal_hum', 'humInternal', 'inte_hum', 'exte_hum',
-    'humidity_internal', 'humidity_external',
-  ]);
-  const WEIGHT_FIELDS = new Set(['weight', 'Weight', 'weight_kg']);
-const VOLTAGE_FIELDS = new Set(['voltage', 'Voltage']);
   const out: Record<string, any> = {};
   for (const [k, v] of Object.entries(row)) {
     if (v == null) { out[k] = null; continue; }
     const str = typeof v === 'string' ? v.trim() : String(v);
 
-    // nan/null/empty string → 0 for numeric sensor fields, null for others
     if (['null', 'nan', 'undefined', 'n/a', ''].includes(str.toLowerCase())) {
-  out[k] = null;   // always null for missing — never 0
-  continue;
-}
+      out[k] = null;
+      continue;
+    }
 
     if (NUMERIC_FIELDS.has(k)) {
       const n = parseFloat(str);
-      if (isNaN(n) || !isFinite(n)) { out[k] = 0; continue; }
-
-      // Temperature: sensor error codes and out-of-range → null (NOT 0)
-if (TEMP_FIELDS.has(k)) {
-  out[k] = (n < -20 || n > 80) ? null : n;
-  continue;
-}
-// Humidity
-if (HUM_FIELDS.has(k)) {
-  out[k] = (n < 0 || n > 150) ? null : n;  // was: 0, should be: null
-  continue;
-}
-// Weight
-if (WEIGHT_FIELDS.has(k)) {
-  out[k] = (n < 0 || Math.abs(n) > 500) ? null : n;
-  continue;
-}
-
-if (VOLTAGE_FIELDS.has(k)) {
-  out[k] = (n < 2.5 || n > 5.0) ? null : n;
-  continue;
-}
-
-      out[k] = n;
+      if (isNaN(n) || !isFinite(n)) { out[k] = null; continue; }
+      out[k] = n;  // store as-is, no range filtering
     } else {
       out[k] = v;
     }
