@@ -244,12 +244,10 @@ const fmtX = (s: string, filter: string, data?: any[]): string => {
   if (!s) return '';
   const d = new Date(s);
   if (isNaN(d.getTime())) return '';
-  // Always show time if filter is time-based
   if (['1h','6h','24h'].includes(filter))
-    return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-  // For longer ranges, show date+time so same-day points are distinguishable
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
-    ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' }) +
+    ' ' + d.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' });
 };
 
 // ─── Fake gas data ─────────────────────────────────────────────────────────────
@@ -913,7 +911,13 @@ if (sorted.length === 0) {
   const ttStyle = () => ({
     contentStyle: { backgroundColor: t.tooltip, border: 'none', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', padding: 12 },
     labelStyle:   { fontWeight: 700, color: t.tooltipText, marginBottom: 4 },
-    labelFormatter: (v: any) => { const d = new Date(v); return isNaN(d.getTime()) ? String(v) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); },
+    labelFormatter: (v: any) => { 
+  const d = new Date(v); 
+  return isNaN(d.getTime()) ? String(v) : d.toLocaleString('en-US', { 
+    timeZone: 'UTC',
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+  }); 
+},
   });
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1654,7 +1658,10 @@ if (sorted.length === 0) {
                         {chartData.slice().reverse().slice(0, 10).map((row, i) => (
                           <tr key={i} className={`transition-colors ${t.tableRow}`}>
                             <td className={`px-4 py-3 text-xs font-semibold whitespace-nowrap ${t.text}`}>
-                              {row.time ? new Date(row.time).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                              {row.time ? new Date(row.time).toLocaleString('en-US', { 
+  timeZone: 'UTC',
+  month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+}): '—'}
                             </td>
                             {[
                               row.temp    != null ? `${(row.temp    as number).toFixed(1)}°C` : '—',
