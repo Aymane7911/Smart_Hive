@@ -112,30 +112,7 @@ function isDataRow(row: Record<string, any>): boolean {
   //                                        ↑ removed !== 0 check
 }
 
-function extractTimestamp(row: Record<string, any>, blobModified: string): string {
-  const ts =
-    row.timestamp ?? row.Timestamp ??
-    row.datetime  ?? row.DateTime  ??
-    row.time      ?? row.Time      ??
-    row.date      ?? row.Date      ?? null;
 
-  if (ts != null) {
-    let str = String(ts).trim();
-    if (!str || ['null','nan','undefined'].includes(str.toLowerCase())) {
-      return blobModified;
-    }
-    // Fix malformed ISO: "T000:00:23" → "T00:00:23"
-    str = str.replace(/T(\d{3,}):(\d{2}):(\d{2})/, (_m, h, mi, s) => {
-      const hour = Math.max(0, Math.min(parseInt(h, 10), 23));
-      return `T${String(hour).padStart(2, '0')}:${mi}:${s}`;
-    });
-    // Handle "4/16/2026 8:00" format from Excel
-    str = str.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s/, '$3-$1-$2T');
-    const d = new Date(str);
-    if (!isNaN(d.getTime())) return d.toISOString();
-  }
-  return blobModified;
-}
 
 // ─── Parsers ──────────────────────────────────────────────────────────────────
 
@@ -192,36 +169,58 @@ async function parseBlob(
       rawRows = await parseCSV(content);
     }
 
-    // ── NEW: find the best timestamp from ANY row in this file ──
-    let fileTimestamp = lastModified;
+    // ── Extract ONE canonical timestamp for the entire file ──────────────
+    // The sensor writes time only on the first row; all rows in the same
+    // upload batch share the same physical timestamp.
+    const TIME_KEYS = [
+      'timestamp','Timestamp','datetime','DateTime',
+      'time','Time','date','Date'
+    ];
+    
+    let fileTimestamp = lastModified; // fallback to blob upload time
+    
     for (const row of rawRows) {
-      const ts = row.timestamp ?? row.Timestamp ?? row.datetime ?? row.DateTime
-               ?? row.time ?? row.Time ?? row.date ?? row.Date ?? null;
-      if (ts != null) {
-        let str = String(ts).trim();
-        str = str.replace(/T(\d{3,}):(\d{2}):(\d{2})/, (_m, h, mi, s) => {
+      for (const key of TIME_KEYS) {
+        const raw = row[key];
+        if (raw == null) continue;
+        let str = String(raw).trim();
+        if (!str || ['null','nan','undefined','n/a'].includes(str.toLowerCase())) continue;
+        
+        // Fix malformed ISO: "T000:00:23" → "T00:00:23"  
+        str = str.replace(/T(\d{3,}):(\d{2}):(\d{2})/, (_m: string, h: string, mi: string, s: string) => {
           const hour = Math.max(0, Math.min(parseInt(h, 10), 23));
           return `T${String(hour).padStart(2, '0')}:${mi}:${s}`;
         });
-        str = str.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s/, '$3-$1-$2T');
-        const d = new Date(str);
-        if (!isNaN(d.getTime())) {
-          fileTimestamp = d.toISOString();
-          break; // use first valid timestamp found in file
+        // Handle Excel "M/D/YYYY H:MM" format
+        str = str.replace(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}:\d{2}.*)$/, 
+          (_m: string, mo: string, d: string, y: string, t: string) => 
+            `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}T${t}`
+        );
+        
+        const parsed = new Date(str);
+        if (!isNaN(parsed.getTime())) {
+          fileTimestamp = parsed.toISOString();
+          break; // found valid timestamp, stop searching
         }
       }
+      if (fileTimestamp !== lastModified) break; // stop after first row that has a timestamp
     }
-    // ── END NEW ──
 
+    console.log(`   [parseBlob] ${blobName} → fileTimestamp=${fileTimestamp}`);
+
+    // ── Parse all rows using the shared file timestamp ───────────────────
     for (const row of rawRows) {
       if (!row || Object.keys(row).length === 0) continue;
       const coerced = coerceRow(row);
       if (!isDataRow(coerced)) continue;
       records.push({
         ...coerced,
-        // Use fileTimestamp as fallback so all hives in same file share same time
-        timestamp: extractTimestamp(coerced, fileTimestamp),
-        _metadata: { lastModified, sourceBlob: blobName, containerId: containerName },
+        timestamp: fileTimestamp, // ALL rows in file share same timestamp
+        _metadata: { 
+          lastModified, 
+          sourceBlob: blobName, 
+          containerId: containerName 
+        },
       });
     }
   } catch (err) {
