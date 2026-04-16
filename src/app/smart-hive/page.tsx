@@ -72,7 +72,8 @@ const getTemperature = (item: any, type: 'internal' | 'external'): number | null
     : (item.ext_temp ?? item.temp_external ?? item.temp_exte ?? item.external_temp ?? item.tempExternal);
   const n = toNumber(raw);
   if (n === null) return null;
-  return n;  // return whatever the sensor says, no filtering
+  if (Math.abs(n) >= 990) return null;  // sentinel: 998, 999, -998 etc
+  return n;
 };
 
 const getHumidity = (item: any, type: 'internal' | 'external'): number | null => {
@@ -82,32 +83,35 @@ const getHumidity = (item: any, type: 'internal' | 'external'): number | null =>
     : (item.ext_hum ?? item.hum_external ?? item.external_hum ?? item.humidity_external ?? item.humExternal ?? item.exte_hum);
   const n = toNumber(raw);
   if (n === null) return null;
-  return n;  // return whatever the sensor says, no filtering
+  if (Math.abs(n) >= 990) return null;  // sentinel
+  return n;
 };
 
 const getWeight = (item: any): number | null => {
   if (!item) return null;
   const n = toNumber(item.weight ?? item.Weight ?? item.weight_kg);
   if (n === null) return null;
-  return n;  // return whatever the sensor says, no filtering
+  if (Math.abs(n) >= 990) return null;  // sentinel
+  return n;
 };
+
 const getBattery = (item: any): number | null => {
   if (!item) return null;
 
   const rawV = item.voltage ?? item.Voltage;
   if (rawV != null) {
     const v = toNumber(rawV);
-    if (v !== null && v >= 3.0 && v <= 4.3) {
-  const pct = Math.round(((v - 3.0) / (4.2 - 3.0)) * 100);
-  return Math.max(0, Math.min(100, pct));
-}
+    if (v !== null && Math.abs(v) < 990 && v >= 3.0 && v <= 4.3) {
+      const pct = Math.round(((v - 3.0) / (4.2 - 3.0)) * 100);
+      return Math.max(0, Math.min(100, pct));
+    }
   }
 
   const rawBat = item.battery ?? item.Battery ?? item.battery_level ?? item.bat ?? item.batt;
   if (rawBat != null) {
     const n = toNumber(rawBat);
-    if (n === null || n <= 0 || n > 100) return null;   // 0, negative, >100 → invalid
-    return Math.round(n);
+    if (n === null || Math.abs(n) >= 990) return null;
+    return Math.round(Math.max(0, Math.min(100, n)));
   }
 
   return null;
