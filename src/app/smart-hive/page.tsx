@@ -91,13 +91,13 @@ const getHumidity = (item: any, type: 'internal' | 'external'): number | null =>
   return n;
 };
 
-const getWeight = (item: any): number | null => {
-  if (!item) return null;
+const getWeight = (item: any): number => {
+  if (!item) return 0;
   const n = toNumber(item.weight ?? item.Weight ?? item.weight_kg);
-  if (n === null) return null;
-  if (Math.abs(n) >= 990) return null;  // sentinel
-  // NEW: treat negative or >100 as invalid
-  if (n < 0 || n > 100) return null;
+  if (n === null) return 0;
+  if (Math.abs(n) >= 990) return 0;
+  // Reject negative or >100
+  if (n < 0 || n > 100) return 0;
   return n;
 };
 
@@ -1172,7 +1172,7 @@ const dv = (v: number | null, dec = 1) => v !== null ? v.toFixed(dec) : 'nan';
           {[
             { label: 'Temp',     val: `${dv(temp)}°`,    sub: '°C · Internal', from: 'from-rose-500',    to: 'to-pink-500',   lc: dm ? 'text-rose-400'    : 'text-rose-600' },
             { label: 'Humidity', val: `${dv(hum, 0)}%`,  sub: '% · Internal',  from: 'from-emerald-500', to: 'to-teal-500',   lc: dm ? 'text-emerald-400' : 'text-emerald-600' },
-            { label: 'Weight',   val: `${dv(weight)}`,   sub: 'kg',            from: 'from-amber-500',   to: 'to-yellow-500', lc: dm ? 'text-amber-400'   : 'text-amber-600' },
+            { label: 'Weight',   val: weight !== null ? weight.toFixed(1) : '0',   sub: 'kg',           from: 'from-amber-500',   to: 'to-yellow-500', lc: dm ? 'text-amber-400'   : 'text-amber-600' },
           ].map(({ label, val, sub, from, to, lc }) => (
             <div key={label} className={`rounded-xl p-3 ${dm ? 'bg-white/5' : 'bg-black/[0.04]'}`}>
               <p className={`text-[9px] uppercase tracking-widest font-bold mb-0.5 ${lc}`}>{label}</p>
@@ -1680,7 +1680,7 @@ const dv = (v: number | null, dec = 1) => v !== null ? v.toFixed(dec) : 'nan';
                               row.tempExt != null ? `${(row.tempExt as number).toFixed(1)}°C` : 'nan',
                               row.humidity    != null ? `${(row.humidity    as number).toFixed(0)}%` : 'nan',
                               row.humidityExt != null ? `${(row.humidityExt as number).toFixed(0)}%` : 'nan',
-                              row.weight  != null ? `${(row.weight  as number).toFixed(2)} kg` : 'nan',
+                              row.weight  != null ? `${(row.weight  as number).toFixed(2)} kg` : '0',
                               row.battery != null ? `${(row.battery as number).toFixed(0)}%`  : 'nan',
                             ].map((val, j) => (
                               <td key={j} className={`px-4 py-3 text-xs ${t.textSub}`}>{val}</td>
