@@ -630,16 +630,42 @@ const SmartHiveDashboard = () => {
   useEffect(() => { checkAccess(); }, [checkAccess]);
 
   useEffect(() => {
-    if (!selectedContainer) return;
-    (async () => {
-      try {
-        const res = await fetch('/api/smart-hive/apiary-locations');
-        if (!res.ok) { setApiaryLocation(null); return; }
-        const result = await res.json();
-        setApiaryLocation(result.success && result.data?.[selectedContainer] ? result.data[selectedContainer] : null);
-      } catch { setApiaryLocation(null); }
-    })();
-  }, [selectedContainer]);
+  if (!selectedContainer) return;
+  (async () => {
+    try {
+      const res = await fetch('/api/smart-hive/apiary-locations');
+      if (!res.ok) { setApiaryLocation(null); return; }
+      const result = await res.json();
+
+      // 1️⃣ Try DB first
+      if (result.success && result.data?.[selectedContainer]) {
+        setApiaryLocation(result.data[selectedContainer]);
+        return;
+      }
+
+      // 2️⃣ Fall back to lat/lon from the CSV sensor data
+      const combined = [...historicalData, ...latestData];
+      const locationRow = combined.find(item => {
+        const lat = toNumber(item.lat);
+        const lon = toNumber(item.lon);
+        return lat !== null && lon !== null && 
+               lat >= -90 && lat <= 90 && 
+               lon >= -180 && lon <= 180;
+      });
+
+      if (locationRow) {
+        setApiaryLocation({
+          lat: toNumber(locationRow.lat)!,
+          lon: toNumber(locationRow.lon)!,
+          address: locationRow.address ?? undefined,
+        });
+      } else {
+        setApiaryLocation(null);
+      }
+
+    } catch { setApiaryLocation(null); }
+  })();
+}, [selectedContainer, latestData, historicalData]); // ← add latestData, historicalData as deps
 
   // ── Data fetching ───────────────────────────────────────────────────────────
   const flattenData = useCallback((data: any): SensorData[] => {
