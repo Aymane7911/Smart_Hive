@@ -1051,12 +1051,27 @@ if (sorted.length === 0) {
             <XAxis dataKey="time" stroke={t.axisStroke} tick={{ fill: t.axisStroke, fontSize: 10 }} tickMargin={8} interval="preserveStartEnd" minTickGap={50} tickFormatter={v => fmtX(v, timeFilter)} />
             <YAxis stroke={t.axisStroke} tick={{ fill: t.axisStroke, fontSize: 10 }} tickMargin={8} width={36} />
             <Tooltip
-              contentStyle={{ backgroundColor: t.tooltip, border: 'none', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', padding: 12 }}
-              labelStyle={{ fontWeight: 700, color: t.tooltipText, marginBottom: 4 }}
-              labelFormatter={(v: any) => { const d = new Date(v); return isNaN(d.getTime()) ? String(v) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); }}
-              formatter={(v: any, name: string) => { const g = GAS_CONFIGS.find(x => x.key === name); return [`${Number(v).toFixed(2)} ${g?.unit ?? ''}`, g?.name ?? name]; }}
-              cursor={{ fill: dm ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', radius: 4 }}
-            />
+  contentStyle={{ 
+    backgroundColor: t.tooltip, 
+    border: 'none', 
+    borderRadius: 14, 
+    boxShadow: '0 20px 60px rgba(0,0,0,0.2)', 
+    padding: 12 
+  }}
+  labelStyle={{ fontWeight: 700, color: t.tooltipText, marginBottom: 4 }}
+  itemStyle={{ color: t.tooltipText }}
+  labelFormatter={(v: any) => { 
+    const d = new Date(v); 
+    return isNaN(d.getTime()) ? String(v) : d.toLocaleString('en-US', { 
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
+    }); 
+  }}
+  formatter={(v: any, name: string) => { 
+    const g = GAS_CONFIGS.find(x => x.key === name); 
+    return [`${Number(v).toFixed(2)} ${g?.unit ?? ''}`, g?.name ?? name]; 
+  }}
+  cursor={{ fill: dm ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)', radius: 4 }}
+/>
             {GAS_CONFIGS.filter(g => activeGases.includes(g.key)).map(g => (
               <Bar key={`bar-${g.key}`} dataKey={g.key} barSize={16} shape={<SpikeBar fill={g.color} />} />
             ))}
@@ -1138,13 +1153,15 @@ if (sorted.length === 0) {
   };
 
   const HiveRect = ({ hiveNumber }: { hiveNumber: number }) => {
-    const temp   = getLastValidForHive(latestData, historicalData, hiveNumber, hiveIds, i => getTemperature(i, 'internal'));
-    const hum    = getLastValidForHive(latestData, historicalData, hiveNumber, hiveIds, i => getHumidity(i, 'internal'));
-    const weight = getLastValidForHive(latestData, historicalData, hiveNumber, hiveIds, getWeight);
-    const bat    = getLastValidForHive(latestData, historicalData, hiveNumber, hiveIds, getBattery) ?? 100;
+    const latestRows = getHiveData(latestData, hiveNumber, hiveIds);
+const latestItem = latestRows[latestRows.length - 1] ?? null;
+const temp   = latestItem ? getTemperature(latestItem, 'internal') : null;
+const hum    = latestItem ? getHumidity(latestItem, 'internal') : null;
+const weight = latestItem ? getWeight(latestItem) : null;
+const bat    = latestItem ? getBattery(latestItem) : null;
     const active = isHiveActive(hiveNumber);
     const lastTs = getLastHiveReading(hiveNumber);
-    const batColor = bat < 20 ? '#EF4444' : bat < 40 ? '#F59E0B' : '#10B981';
+    const batColor = bat === null ? '#9ca3af' : bat < 20 ? '#EF4444' : bat < 40 ? '#F59E0B' : '#10B981';
 const dv = (v: number | null, dec = 1) => v !== null ? v.toFixed(dec) : 'nan';
     return (
       <div onClick={() => setSelectedHive(hiveNumber)}
@@ -1182,9 +1199,11 @@ const dv = (v: number | null, dec = 1) => v !== null ? v.toFixed(dec) : 'nan';
           ))}
           <div className={`rounded-xl p-3 ${dm ? 'bg-white/5' : 'bg-black/[0.04]'}`}>
             <p className="text-[9px] uppercase tracking-widest font-bold mb-0.5" style={{ color: batColor }}>Battery</p>
-            <p className="text-lg font-black" style={{ color: batColor }}>{Math.round(bat)}%</p>
+            <p className="text-lg font-black" style={{ color: batColor }}>
+  {bat !== null ? `${Math.round(bat)}%` : 'nan'}
+</p>
             <div className={`mt-1 h-1.5 rounded-full ${dm ? 'bg-white/10' : 'bg-black/10'}`}>
-              <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(bat, 100)}%`, backgroundColor: batColor }} />
+              <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(bat ?? 0, 100)}%`, backgroundColor: batColor }} />
             </div>
           </div>
         </div>
@@ -1369,8 +1388,12 @@ const dv = (v: number | null, dec = 1) => v !== null ? v.toFixed(dec) : 'nan';
   // ── Render ────────────────────────────────────────────────────────────────────
   const chartData   = selectedHive ? buildChartData(selectedHive) : [];
   const activeHives = hiveNumbers.filter(isHiveActive).length;
-  const hiveStatVal = (getter: (item: SensorData) => number | null): number | null =>
-    selectedHive ? getLastValidForHive(latestData, historicalData, selectedHive, hiveIds, getter) : null;
+  const hiveStatVal = (getter: (item: SensorData) => number | null): number | null => {
+  if (!selectedHive) return null;
+  const rows = getHiveData(latestData, selectedHive, hiveIds);
+  const last = rows[rows.length - 1] ?? null;
+  return last ? getter(last) : null;
+};
 
   const TIME_FILTERS = [
     { key: '1h', label: '1H' }, { key: '6h', label: '6H' }, { key: '24h', label: '24H' },
