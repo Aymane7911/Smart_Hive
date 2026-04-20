@@ -312,6 +312,8 @@ const LocationMapInner = ({ apiaryLocation, hiveCount, isDarkMode }: {
     return () => { alive = false; if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
   }, [apiaryLocation, hiveCount]);
 
+  
+
   if (!apiaryLocation) return (
     <div className="flex flex-col items-center justify-center h-full gap-3 py-10">
       <MapPin className="w-10 h-10 text-gray-400" />
@@ -325,6 +327,7 @@ const LocationMap = dynamic(() => Promise.resolve(LocationMapInner), {
   ssr: false,
   loading: () => <div className="flex items-center justify-center h-full"><div className="animate-spin w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full" /></div>,
 });
+
 
 // ─── AI Input Bar ──────────────────────────────────────────────────────────────
 const AIInputBar = ({ inputMessage, setInputMessage, onSend, isLoading, isDarkMode }: {
@@ -564,6 +567,13 @@ const SmartHiveDashboard = () => {
   const isMountedRef                                  = useRef(true);
 
   const dm = mounted && darkMode;
+
+  useEffect(() => {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams(window.location.search);
+  const c = params.get('container');
+  if (c) setSelectedContainer(c);
+}, []);
 
   // ── Theme tokens ────────────────────────────────────────────────────────────
   const t = {

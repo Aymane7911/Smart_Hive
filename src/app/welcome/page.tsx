@@ -211,13 +211,47 @@ export default function WelcomePage() {
 
       // 3. Fetch apiary locations
       let locations: Record<string, { lat?: number; lon?: number; address?: string }> = {};
-      try {
-        const locRes = await fetch('/api/smart-hive/apiary-locations');
-        if (locRes.ok) {
-          const locData = await locRes.json();
-          if (locData.success) locations = locData.data || {};
-        }
-      } catch {}
+try {
+  const locRes = await fetch('/api/smart-hive/apiary-locations');
+  if (locRes.ok) {
+    const locData = await locRes.json();
+    if (locData.success) locations = locData.data || {};
+  }
+} catch {}
+
+// CSV fallback per container — same logic as dashboard
+const containerIds = active.flatMap(p => p.assignedContainers);
+await Promise.all(containerIds.map(async (containerId) => {
+  // Skip if we already have a valid non-zero location from DB
+  const existing = locations[containerId];
+  if (existing?.lat && existing?.lon && !(existing.lat === 0 && existing.lon === 0)) return;
+
+  try {
+    const res = await fetch(
+      `/api/smart-hive/data/latest?containerId=${encodeURIComponent(containerId)}`
+    );
+    if (!res.ok) return;
+    const d = await res.json();
+    const rows: any[] = Array.isArray(d.data) ? d.data : Array.isArray(d) ? d : [];
+
+    const locationRow = rows.find(item => {
+      const lat = parseFloat(item?.lat);
+      const lon = parseFloat(item?.lon);
+      return !isNaN(lat) && !isNaN(lon) &&
+             lat >= -90 && lat <= 90 &&
+             lon >= -180 && lon <= 180 &&
+             !(lat === 0 && lon === 0); // exclude Null Island
+    });
+
+    if (locationRow) {
+      locations[containerId] = {
+        lat:     parseFloat(locationRow.lat),
+        lon:     parseFloat(locationRow.lon),
+        address: locationRow.address ?? locations[containerId]?.address,
+      };
+    }
+  } catch {}
+}));
 
       // 4. Build apiary cards
       const cards: ApiaryCard[] = [];
@@ -239,7 +273,31 @@ export default function WelcomePage() {
         });
       });
 
-      setApiaries(cards);
+      const updatedCards = await Promise.all(
+  cards.map(async (card) => {
+    try {
+      const res = await fetch(
+        `/api/smart-hive/data/latest?containerId=${encodeURIComponent(card.containerId)}`
+      );
+      if (!res.ok) return card;
+      const d = await res.json();
+      const rows: any[] = Array.isArray(d.data) ? d.data : Array.isArray(d) ? d : [];
+      
+      const isActive = rows.some(item => {
+        const raw = item?.time ?? item?.Time ?? item?.datetime ?? item?.DateTime ??
+                    item?.timestamp ?? item?._metadata?.lastModified ?? null;
+        if (!raw) return false;
+        const ts = new Date(String(raw).trim());
+        return !isNaN(ts.getTime()) && Date.now() - ts.getTime() <= 4 * 3600000;
+      });
+
+      return { ...card, isActive };
+    } catch {
+      return card;
+    }
+  })
+);
+setApiaries(updatedCards);
     } catch {
       setError('Network error. Please check your connection.');
     } finally {
