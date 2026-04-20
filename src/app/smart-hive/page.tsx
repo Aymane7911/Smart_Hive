@@ -646,12 +646,13 @@ const SmartHiveDashboard = () => {
       // 2️⃣ Fall back to lat/lon from the CSV sensor data
       const combined = [...historicalData, ...latestData];
       const locationRow = combined.find(item => {
-        const lat = toNumber(item.lat);
-        const lon = toNumber(item.lon);
-        return lat !== null && lon !== null && 
-               lat >= -90 && lat <= 90 && 
-               lon >= -180 && lon <= 180;
-      });
+  const lat = toNumber(item.lat);
+  const lon = toNumber(item.lon);
+  return lat !== null && lon !== null && 
+         lat >= -90 && lat <= 90 && 
+         lon >= -180 && lon <= 180 &&
+         !(lat === 0 && lon === 0);  // ← exclude null-island (0,0)
+});
 
       if (locationRow) {
         setApiaryLocation({
@@ -660,7 +661,7 @@ const SmartHiveDashboard = () => {
           address: locationRow.address ?? undefined,
         });
       } else {
-        setApiaryLocation(null);
+        setApiaryLocation(prev => prev);
       }
 
     } catch { setApiaryLocation(null); }
