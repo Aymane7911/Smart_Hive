@@ -179,131 +179,219 @@ export default function WelcomePage() {
 
   // ── Fetch data ────────────────────────────────────────────────────────────────
   const fetchData = async () => {
-    setLoading(true); setError(null);
-    try {
-      // 1. Check access + get user info
-      const accessRes = await fetch('/api/smart-hive/check-access', {
-        credentials: 'include', cache: 'no-store',
-      });
-      if (accessRes.status === 401) { router.push('/login'); return; }
-      const accessData = await accessRes.json();
-      if (!accessData.success) { router.push('/login'); return; }
+  setLoading(true); setError(null);
 
-      const user = accessData.user;
-      setUserData(user);
-      setIsAdmin(user?.role === 'admin');
+  // ── toNum helper mirrors dashboard's toNumber() exactly ──────────────────
+  const toNum = (v: any): number | null => {
+    if (v == null) return null;
+    if (typeof v === 'number') return isNaN(v) ? null : v;
+    if (typeof v === 'string') {
+      const l = v.trim().toLowerCase();
+      if (['', 'nan', 'null', 'undefined', 'n/a', 'na'].includes(l)) return null;
+      const p = parseFloat(l);
+      return isNaN(p) ? null : p;
+    }
+    return null;
+  };
 
-      // Also check localStorage for role
-      try {
-        const ui = localStorage.getItem('userInfo');
-        if (ui) { const p = JSON.parse(ui); if (p?.role === 'admin') setIsAdmin(true); }
-      } catch {}
+  // ── Row unwrapper — same logic used in dashboard's flattenData ────────────
+  const unwrapRows = (d: any): any[] => {
+    const raw = d?.data ?? d;
+    if (Array.isArray(raw))
+      return raw[0]?.data ? raw.flatMap((i: any) => i.data || []) : raw;
+    if (raw?.data)
+      return Array.isArray(raw.data) ? raw.data : [raw.data];
+    if (raw && typeof raw === 'object') return [raw];
+    return [];
+  };
 
-      // 2. Fetch purchases
-      const purchasesRes = await fetch('/api/user/purchases', { credentials: 'include', cache: 'no-store' });
-      if (!purchasesRes.ok) { setError('Failed to load purchases.'); setLoading(false); return; }
-      const purchasesData = await purchasesRes.json();
-      const purchases: PurchaseInfo[] = purchasesData.success ? (purchasesData.purchases || []) : [];
-
-      const active  = purchases.filter(p => p.status === 'approved' && p.accessGranted && p.assignedContainers?.length > 0);
-      const pending = purchases.filter(p => p.status === 'pending' || (p.status === 'approved' && !p.accessGranted));
-      setPending(pending);
-
-      // 3. Fetch apiary locations
-      let locations: Record<string, { lat?: number; lon?: number; address?: string }> = {};
-try {
-  const locRes = await fetch('/api/smart-hive/apiary-locations');
-  if (locRes.ok) {
-    const locData = await locRes.json();
-    if (locData.success) locations = locData.data || {};
-  }
-} catch {}
-
-// CSV fallback per container — same logic as dashboard
-const containerIds = active.flatMap(p => p.assignedContainers);
-await Promise.all(containerIds.map(async (containerId) => {
-  // Skip if we already have a valid non-zero location from DB
-  const existing = locations[containerId];
-  if (existing?.lat && existing?.lon && !(existing.lat === 0 && existing.lon === 0)) return;
+  // ── Timestamp parser — mirrors getTimestamp() from dashboard ──────────────
+  const parseTs = (item: any): number | null => {
+    const raw = item?.time ?? item?.Time ?? item?.datetime ??
+                item?.DateTime ?? item?.timestamp ??
+                item?._metadata?.lastModified ?? null;
+    if (!raw) return null;
+    let str = String(raw).trim();
+    str = str.replace(/T(\d{3,}):(\d{2}):(\d{2})/, (_: any, h: string, m: string, s: string) => {
+      const hour = Math.max(0, Math.min(parseInt(h, 10), 23));
+      return `T${String(hour).padStart(2, '0')}:${m}:${s}`;
+    });
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d.getTime();
+  };
 
   try {
-    const res = await fetch(
-      `/api/smart-hive/data/latest?containerId=${encodeURIComponent(containerId)}`
-    );
-    if (!res.ok) return;
-    const d = await res.json();
-    const rows: any[] = Array.isArray(d.data) ? d.data : Array.isArray(d) ? d : [];
-
-    const locationRow = rows.find(item => {
-      const lat = parseFloat(item?.lat);
-      const lon = parseFloat(item?.lon);
-      return !isNaN(lat) && !isNaN(lon) &&
-             lat >= -90 && lat <= 90 &&
-             lon >= -180 && lon <= 180 &&
-             !(lat === 0 && lon === 0); // exclude Null Island
+    // 1. Auth check ─────────────────────────────────────────────────────────
+    const accessRes = await fetch('/api/smart-hive/check-access', {
+      credentials: 'include', cache: 'no-store',
     });
+    if (accessRes.status === 401) { router.push('/login'); return; }
+    const accessData = await accessRes.json();
+    if (!accessData.success) { router.push('/login'); return; }
 
-    if (locationRow) {
-      locations[containerId] = {
-        lat:     parseFloat(locationRow.lat),
-        lon:     parseFloat(locationRow.lon),
-        address: locationRow.address ?? locations[containerId]?.address,
-      };
+    const user = accessData.user;
+    setUserData(user);
+    setIsAdmin(user?.role === 'admin');
+    try {
+      const ui = localStorage.getItem('userInfo');
+      if (ui) { const p = JSON.parse(ui); if (p?.role === 'admin') setIsAdmin(true); }
+    } catch {}
+
+    // 2. Purchases ──────────────────────────────────────────────────────────
+    const purchasesRes = await fetch('/api/user/purchases', {
+      credentials: 'include', cache: 'no-store',
+    });
+    if (!purchasesRes.ok) { setError('Failed to load purchases.'); setLoading(false); return; }
+    const purchasesData = await purchasesRes.json();
+    const purchases: PurchaseInfo[] = purchasesData.success
+      ? (purchasesData.purchases || []) : [];
+
+    const active  = purchases.filter(p =>
+      p.status === 'approved' && p.accessGranted && p.assignedContainers?.length > 0);
+    const pending = purchases.filter(p =>
+      p.status === 'pending' || (p.status === 'approved' && !p.accessGranted));
+    setPending(pending);
+
+    // 3. DB locations (step 1 of dashboard's 2-step location resolution) ───
+    let dbLocations: Record<string, { lat?: number; lon?: number; address?: string }> = {};
+    try {
+      const locRes = await fetch('/api/smart-hive/apiary-locations');
+      if (locRes.ok) {
+        const locData = await locRes.json();
+        if (locData.success) dbLocations = locData.data || {};
+      }
+    } catch {}
+
+    // 4. Per-container fetch: resolve location + isActive in one pass ────────
+    //    Mirrors dashboard's checkAccess → fetchData → apiary-locations flow
+    const containerIds = active.flatMap(p => p.assignedContainers);
+
+    // Cache fetched rows so we don't fetch twice (once for location, once for isActive)
+    const fetchedRows: Record<string, any[]> = {};
+
+    await Promise.all(
+      containerIds.map(async (containerId) => {
+        try {
+          const res = await fetch(
+            `/api/smart-hive/data/latest?containerId=${encodeURIComponent(containerId)}`
+          );
+          console.log(`[${containerId}] fetch status:`, res.status);
+          if (!res.ok) return; // 404 → no rows → isActive=false, no location
+          const d = await res.json();
+          fetchedRows[containerId] = unwrapRows(d);
+        } catch {
+          fetchedRows[containerId] = [];
+        }
+      })
+    );
+
+    // 5. Build final locations map — DB first, sensor fallback ───────────────
+    //    Identical logic to dashboard's useEffect([selectedContainer, ...])
+    const resolvedLocations: Record<string, { lat: number; lon: number; address?: string }> = {};
+
+    for (const containerId of containerIds) {
+      const db = dbLocations[containerId];
+
+      // ── Step 1: valid DB entry (mirrors dashboard's result.data?.[selectedContainer])
+      if (
+        db?.lat != null && db?.lon != null &&
+        !(db.lat === 0 && db.lon === 0) &&
+        db.lat >= -90  && db.lat <= 90 &&
+        db.lon >= -180 && db.lon <= 180
+      ) {
+        resolvedLocations[containerId] = {
+          lat:     db.lat,
+          lon:     db.lon,
+          address: db.address,
+        };
+        continue;
+      }
+
+      // ── Step 2: sensor row fallback (mirrors dashboard's combined.find(...))
+      const rows = fetchedRows[containerId] ?? [];
+      const locationRow = rows.find((item: any) => {
+        const lat = toNum(item?.lat);
+        const lon = toNum(item?.lon);
+        return (
+          lat !== null && lon !== null &&
+          lat >= -90   && lat <= 90 &&
+          lon >= -180  && lon <= 180 &&
+          !(lat === 0 && lon === 0)   // exclude null-island
+        );
+      });
+
+      if (locationRow) {
+        resolvedLocations[containerId] = {
+          lat:     toNum(locationRow.lat)!,
+          lon:     toNum(locationRow.lon)!,
+          address: locationRow.address ?? db?.address,
+        };
+      }
+      // else: no location for this container — omit from map
     }
-  } catch {}
-}));
 
-      // 4. Build apiary cards
-      const cards: ApiaryCard[] = [];
-      active.forEach((purchase, pi) => {
-        purchase.assignedContainers.forEach((containerId, ci) => {
-          const savedName = localStorage.getItem(`apiary_name_${containerId}`);
-          const loc = locations[containerId] || {};
-          cards.push({
-            id:          containerId,
-            name:        savedName || containerId,
-            containerId: containerId,
-            color:       COLOR_GRADIENTS[(pi * 4 + ci) % COLOR_GRADIENTS.length],
-            hiveCount:   purchase.masterHives + purchase.normalHives,
-            isActive:    true,
-            lat:         loc.lat,
-            lon:         loc.lon,
-            address:     loc.address,
-          });
+    // 6. Build apiary cards ──────────────────────────────────────────────────
+    const cards: ApiaryCard[] = [];
+    active.forEach((purchase, pi) => {
+      purchase.assignedContainers.forEach((containerId, ci) => {
+        const savedName = localStorage.getItem(`apiary_name_${containerId}`);
+        const loc = resolvedLocations[containerId];
+        cards.push({
+          id:          containerId,
+          name:        savedName || containerId,
+          containerId,
+          color:       COLOR_GRADIENTS[(pi * 4 + ci) % COLOR_GRADIENTS.length],
+          hiveCount:   purchase.masterHives + purchase.normalHives,
+          isActive:    false,    // ← default false; set true below after timestamp check
+          lat:         loc?.lat,
+          lon:         loc?.lon,
+          address:     loc?.address,
         });
       });
+    });
 
-      const updatedCards = await Promise.all(
-  cards.map(async (card) => {
-    try {
-      const res = await fetch(
-        `/api/smart-hive/data/latest?containerId=${encodeURIComponent(card.containerId)}`
-      );
-      if (!res.ok) return card;
-      const d = await res.json();
-      const rows: any[] = Array.isArray(d.data) ? d.data : Array.isArray(d) ? d : [];
-      
-      const isActive = rows.some(item => {
-        const raw = item?.time ?? item?.Time ?? item?.datetime ?? item?.DateTime ??
-                    item?.timestamp ?? item?._metadata?.lastModified ?? null;
-        if (!raw) return false;
-        const ts = new Date(String(raw).trim());
-        return !isNaN(ts.getTime()) && Date.now() - ts.getTime() <= 4 * 3600000;
+    // 7. Determine isActive — mirrors dashboard's isHiveActive() logic ───────
+    //    Uses same dual-timestamp (sensorTs vs metaTs) approach as forward-logs
+    const updatedCards = cards.map((card) => {
+      const rows = fetchedRows[card.containerId] ?? [];
+
+      // Log same diagnostics as before
+      console.log(`[${card.containerId}] rows count:`, rows.length);
+      rows.forEach((item, idx) => {
+        const sensorTs = parseTs(item);
+        const metaTs   = item?._metadata?.lastModified
+          ? new Date(String(item._metadata.lastModified).trim()).getTime() : null;
+        const best   = Math.max(sensorTs ?? 0, metaTs ?? 0);
+        const diffH  = best > 0 ? ((Date.now() - best) / 3600000).toFixed(1) : 'n/a';
+        const passes = best > 0 && Date.now() - best <= 24 * 3600000;
+        console.log(
+          `  [${card.containerId}] row[${idx}]` +
+          ` | sensorTs=${sensorTs} | metaTs=${metaTs}` +
+          ` | best=${best} | diffH=${diffH}h | passes24h=${passes}`
+        );
       });
 
+      const isActive = rows.some((item) => {
+        const sensorTs = parseTs(item);
+        const metaRaw  = item?._metadata?.lastModified;
+        const metaTs   = metaRaw
+          ? (() => { const d = new Date(String(metaRaw).trim()); return isNaN(d.getTime()) ? null : d.getTime(); })()
+          : null;
+        const best = Math.max(sensorTs ?? 0, metaTs ?? 0);
+        return best > 0 && Date.now() - best <= 24 * 3600000;
+      });
+
+      console.log(`[${card.containerId}] → isActive=${isActive}`);
       return { ...card, isActive };
-    } catch {
-      return card;
-    }
-  })
-);
-setApiaries(updatedCards);
-    } catch {
-      setError('Network error. Please check your connection.');
-    } finally {
-      setLoading(false);
-    }
-  };
+    });
+
+    setApiaries(updatedCards);
+  } catch {
+    setError('Network error. Please check your connection.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleLogout = async () => {
     try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); }

@@ -242,30 +242,15 @@ const fmtX = (s: string, filter: string, data?: any[]): string => {
     ' ' + d.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' });
 };
 
-// ─── Fake gas data ─────────────────────────────────────────────────────────────
-const generateGasData = (points = 48) => {
-  const now = Date.now();
-  return Array.from({ length: points }, (_, i) => {
-    const t = new Date(now - (points - i) * 3600000);
-    const isDay = t.getHours() >= 6 && t.getHours() <= 18;
-    const spike = Math.random() > 0.95;
-    return {
-      time:  t.toISOString(),
-      H2S:   +(2  + Math.random() * 3  + (spike ? 10 : 0)).toFixed(2),
-      CO2:   +(isDay ? 800 + Math.random() * 400 : 600 + Math.random() * 200).toFixed(0),
-      O2:    +(20.5 + Math.random() * 0.8 - 0.4).toFixed(2),
-      NH3:   +(15  + Math.random() * 12).toFixed(2),
-      TVOC:  +(isDay ? 150 + Math.random() * 130 : 80 + Math.random() * 70).toFixed(0),
-    };
-  });
-};
+
 
 const GAS_CONFIGS = [
-  { key: 'H2S',  name: 'Hydrogen Sulfide', color: '#dc2626', unit: 'ppm' },
-  { key: 'CO2',  name: 'CO₂',              color: '#f59e0b', unit: 'ppm' },
-  { key: 'O2',   name: 'Oxygen',           color: '#10b981', unit: '%'   },
-  { key: 'NH3',  name: 'Ammonia',          color: '#06b6d4', unit: 'ppm' },
-  { key: 'TVOC', name: 'Total VOC',        color: '#8b5cf6', unit: 'ppb' },
+  { key: 'CO2',  name: 'CO₂',           color: '#f59e0b', unit: 'ppm' },
+  { key: 'NH3',  name: 'Ammonia',        color: '#06b6d4', unit: 'ppm' },
+  { key: 'O2',   name: 'Oxygen',         color: '#10b981', unit: '%'   },
+  { key: 'VOCs', name: 'VOCs',           color: '#8b5cf6', unit: 'ppb' },
+  { key: 'CO',   name: 'Carbon Monoxide',color: '#dc2626', unit: 'ppm' },
+  { key: 'NO2',  name: 'Nitrogen Dioxide',color: '#f97316',unit: 'ppm' },
 ];
 
 const FILTER_MS: Record<string, number> = {
@@ -563,7 +548,6 @@ const SmartHiveDashboard = () => {
   const [apiarySearchQuery, setApiarySearchQuery]     = useState('');
   const [apiaryLocation, setApiaryLocation]           = useState<{ lat: number; lon: number; address?: string } | null>(null);
   const [activeGases, setActiveGases]                 = useState<string[]>(['H2S', 'CO2', 'O2', 'NH3', 'TVOC']);
-  const [gasData]                                     = useState(() => generateGasData(48));
   const isMountedRef                                  = useRef(true);
 
   const dm = mounted && darkMode;
@@ -942,12 +926,52 @@ if (sorted.length === 0) {
 
     
   }, [historicalData, latestData, hiveIds, timeFilter, startDate, endDate]);
+  const buildGasChartData = useCallback((hiveNum: number) => {
+  const combined = [...historicalData, ...latestData];
+  const seen = new Set<string>();
 
-  const filteredGasData = useMemo(() => {
-    if (!(timeFilter in FILTER_MS)) return gasData;
-    const now = Date.now();
-    return gasData.filter(d => now - new Date(d.time).getTime() <= FILTER_MS[timeFilter]);
-  }, [gasData, timeFilter]);
+  const sorted = getHiveData(combined, hiveNum, hiveIds)
+    .filter(item => {
+      const ts = getTimestamp(item);
+      if (!ts) return false;
+      const key = `${ts}__${hiveNum}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) =>
+      new Date(getTimestamp(a) ?? 0).getTime() - new Date(getTimestamp(b) ?? 0).getTime()
+    );
+
+  let filtered = timeFilter in FILTER_MS
+    ? sorted.filter(item => {
+        const ts = getTimestamp(item);
+        return ts && Date.now() - new Date(ts).getTime() <= FILTER_MS[timeFilter];
+      })
+    : sorted;
+
+  if (startDate || endDate) {
+    filtered = filtered.filter(item => {
+      const ts = getTimestamp(item);
+      if (!ts) return true;
+      const d = new Date(ts);
+      if (startDate && d < new Date(startDate)) return false;
+      if (endDate) { const e = new Date(endDate); e.setHours(23,59,59,999); if (d > e) return false; }
+      return true;
+    });
+  }
+
+  return filtered.map(item => ({
+    time:  getTimestamp(item) ?? '',
+    CO2:   toNumber(item.CO2)  ?? null,
+    NH3:   toNumber(item.NH3)  ?? null,
+    O2:    toNumber(item.O2)   ?? null,
+    VOCs:  toNumber(item.VOCs) ?? null,
+    CO:    toNumber(item.CO)   ?? null,
+    NO2:   toNumber(item.NO2)  ?? null,
+  }));
+}, [historicalData, latestData, hiveIds, timeFilter, startDate, endDate]);
+  
 
   const saveHiveName = (n: number, name: string) => {
     const updated = { ...hiveNames, [n]: name };
@@ -1041,7 +1065,7 @@ if (sorted.length === 0) {
     </div>
   );
 
-  const GasChartCard = () => {
+const GasChartCard = ({ gasChartData }: { gasChartData: any[] }) => {
     const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
     const SpikeBar = (props: any) => {
       const { x, y, width, height, fill, index } = props;
@@ -1081,7 +1105,7 @@ if (sorted.length === 0) {
           })}
         </div>
         <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={filteredGasData} margin={{ top: 16, right: 5, left: 0, bottom: 5 }} barCategoryGap="60%" barGap={3}
+          <ComposedChart data={gasChartData} margin={{ top: 16, right: 5, left: 0, bottom: 5 }} barCategoryGap="60%" barGap={3}
             onMouseMove={(state: any) => { if (state?.activeTooltipIndex !== undefined) setHoveredIndex(state.activeTooltipIndex); }}
             onMouseLeave={() => setHoveredIndex(null)}>
             <CartesianGrid strokeDasharray="3 3" stroke={t.gridStroke} opacity={0.5} />
@@ -1691,7 +1715,11 @@ const dv = (v: number | null, dec = 1) => v !== null ? v.toFixed(dec) : 'nan';
                   <ChartCard title="Battery Level" dataKey="battery" color="#3b82f6" unit="%" icon={Zap}      data={chartData} gradient="from-sky-500 to-blue-500" />
                 </div>
 
-                {selectedHive === 1 && <div className="mb-5"><GasChartCard /></div>}
+               {selectedHive === 1 && (
+  <div className="mb-5">
+    <GasChartCard gasChartData={buildGasChartData(1)} />
+  </div>
+)}
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5 mb-5">
                   <HealthRadial hiveNum={selectedHive} />
