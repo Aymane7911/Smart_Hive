@@ -1716,7 +1716,7 @@ const dv = (v: number | null, dec = 1) => v !== null ? v.toFixed(dec) : 'nan';
                         </tr>
                       </thead>
                       <tbody className={`divide-y ${t.divider}`}>
-                       {chartData.slice().reverse().map((row, i) => (
+                       {chartData.slice().reverse().slice(0, 5).map((row, i) => (
                           <tr key={i} className={`transition-colors ${t.tableRow}`}>
                             <td className={`px-4 py-3 text-xs font-semibold whitespace-nowrap ${t.text}`}>
                               {row.time ? new Date(row.time).toLocaleString('en-AE', { 
@@ -1739,6 +1739,18 @@ const dv = (v: number | null, dec = 1) => v !== null ? v.toFixed(dec) : 'nan';
                       </tbody>
                     </table>
                   </div>
+                  {chartData.length > 5 && (
+  <div className={`px-5 py-4 border-t ${t.divider} flex items-center justify-between`}>
+    <p className={`text-xs ${t.textMuted}`}>Showing 5 of {chartData.length} readings</p>
+    <button
+      onClick={() => router.push(`/smart-hive/history?hive=${selectedHive}&container=${encodeURIComponent(selectedContainer)}`)}
+      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-xl font-bold text-xs shadow-md hover:from-amber-600 hover:to-yellow-600 transition-all"
+    >
+      <Clock className="w-3.5 h-3.5" />
+      View All {chartData.length} Readings
+    </button>
+  </div>
+)}
                 </div>
               </>
             )}
