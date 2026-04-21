@@ -232,14 +232,17 @@ const formatTimeAgo = (ts: string | null): string => {
   } catch { return 'No data'; }
 };
 
-const fmtX = (s: string, filter: string, data?: any[]): string => {
+const fmtX = (s: string, filter: string): string => {
   if (!s) return '';
   const d = new Date(s);
   if (isNaN(d.getTime())) return '';
+  
+  const tz = 'Asia/Dubai'; // ← match your table timezone
+  
   if (['1h','6h','24h'].includes(filter))
-    return d.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' });
-  return d.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' }) +
-    ' ' + d.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('en-US', { timeZone: tz, month: 'short', day: 'numeric' }) +
+    ' ' + d.toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
 };
 
 
@@ -984,12 +987,12 @@ if (sorted.length === 0) {
   const ttStyle = () => ({
     contentStyle: { backgroundColor: t.tooltip, border: 'none', borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.2)', padding: 12 },
     labelStyle:   { fontWeight: 700, color: t.tooltipText, marginBottom: 4 },
-    labelFormatter: (v: any) => { 
-  const d = new Date(v); 
-  return isNaN(d.getTime()) ? String(v) : d.toLocaleString('en-US', { 
-    timeZone: 'UTC',
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' 
-  }); 
+    labelFormatter: (v: any) => {
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? String(v) : d.toLocaleString('en-US', {
+    timeZone: 'Asia/Dubai', // ← was 'UTC'
+    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
 },
   });
 

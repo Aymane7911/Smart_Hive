@@ -363,7 +363,7 @@ export default function WelcomePage() {
           ? new Date(String(item._metadata.lastModified).trim()).getTime() : null;
         const best   = Math.max(sensorTs ?? 0, metaTs ?? 0);
         const diffH  = best > 0 ? ((Date.now() - best) / 3600000).toFixed(1) : 'n/a';
-        const passes = best > 0 && Date.now() - best <= 24 * 3600000;
+       const passes = best > 0 && Date.now() - best <= 4 * 3600000;  // ← same fix
         console.log(
           `  [${card.containerId}] row[${idx}]` +
           ` | sensorTs=${sensorTs} | metaTs=${metaTs}` +
@@ -372,14 +372,14 @@ export default function WelcomePage() {
       });
 
       const isActive = rows.some((item) => {
-        const sensorTs = parseTs(item);
-        const metaRaw  = item?._metadata?.lastModified;
-        const metaTs   = metaRaw
-          ? (() => { const d = new Date(String(metaRaw).trim()); return isNaN(d.getTime()) ? null : d.getTime(); })()
-          : null;
-        const best = Math.max(sensorTs ?? 0, metaTs ?? 0);
-        return best > 0 && Date.now() - best <= 24 * 3600000;
-      });
+  const sensorTs = parseTs(item);
+  const metaRaw  = item?._metadata?.lastModified;
+  const metaTs   = metaRaw
+    ? (() => { const d = new Date(String(metaRaw).trim()); return isNaN(d.getTime()) ? null : d.getTime(); })()
+    : null;
+  const best = Math.max(sensorTs ?? 0, metaTs ?? 0);
+  return best > 0 && Date.now() - best <= 4 * 3600000;  // ← change 24 to 4
+});
 
       console.log(`[${card.containerId}] → isActive=${isActive}`);
       return { ...card, isActive };
