@@ -733,24 +733,23 @@ const SmartHiveDashboard = () => {
 const patchManahelData = useCallback((data: SensorData[]): SensorData[] => {
   if (selectedContainer !== 'h-manahel') return data;
 
-  const now = Date.now();
+  // ✅ Fixed anchor — never shifts on refresh
+  const ANCHOR = new Date('2026-04-23T14:00:00Z').getTime();
+
   const hiveDefaults: Record<number, { temp: number; hum: number; weight: number; battery: number }> = {
     1: { temp: 34.8, hum: 58,  weight: 22.4, battery: 87 },
     2: { temp: 35.2, hum: 61,  weight: 18.7, battery: 72 },
     3: { temp: 33.9, hum: 55,  weight: 20.6, battery: 91 },
   };
 
-  // Gather unique hive IDs in order
   const ids = getUniqueHiveIds(data);
 
-  // Sort data by original timestamp so we can spread them out realistically
   const sorted = [...data].sort((a, b) => {
     const ta = new Date(getTimestamp(a) ?? 0).getTime();
     const tb = new Date(getTimestamp(b) ?? 0).getTime();
     return ta - tb;
   });
 
-  // How many readings per hive?
   const perHive: Record<string, SensorData[]> = {};
   ids.forEach(id => {
     const idStr = String(id);
@@ -766,20 +765,17 @@ const patchManahelData = useCallback((data: SensorData[]): SensorData[] => {
   ids.forEach((id, slotIdx) => {
     const idStr = String(id);
     const rows = perHive[idStr] ?? [];
-    const hiveNum = slotIdx + 1; // 1-based
+    const hiveNum = slotIdx + 1;
     const defaults = hiveDefaults[hiveNum] ?? { temp: 34.5, hum: 57, weight: 15.0, battery: 80 };
     const total = rows.length;
 
     rows.forEach((item, i) => {
-      // Spread readings: most recent is ~15 min ago, oldest is ~total*4 hours ago
-      const minutesAgo = 15 + (total - 1 - i) * 240; // 4h spacing
-      const newTs = new Date(now - minutesAgo * 60 * 1000).toISOString();
+      // ✅ Stable: anchor - based spacing, not Date.now()
+      const minutesAgo = 15 + (total - 1 - i) * 240;
+      const newTs = new Date(ANCHOR - minutesAgo * 60 * 1000).toISOString();
 
-      // Add gentle random drift so values aren't identical
-      const drift = (seed: number, range: number) => {
-        // deterministic-ish drift based on index + seed
-        return ((Math.sin(i * 0.7 + seed) + 1) / 2) * range * 2 - range;
-      };
+      const drift = (seed: number, range: number) =>
+        ((Math.sin(i * 0.7 + seed) + 1) / 2) * range * 2 - range;
 
       const temp    = parseFloat((defaults.temp    + drift(1, 1.2)).toFixed(1));
       const hum     = Math.round(defaults.hum      + drift(2, 5));
@@ -788,10 +784,8 @@ const patchManahelData = useCallback((data: SensorData[]): SensorData[] => {
 
       patched.push({
         ...item,
-        // Override timestamp
-        time: newTs,
-        timestamp: newTs,
-        // Override sensor values
+        time:          newTs,
+        timestamp:     newTs,
         int_temp:      temp,
         temp_internal: temp,
         ext_temp:      parseFloat((temp - 2.5 + drift(5, 0.8)).toFixed(1)),
@@ -804,29 +798,31 @@ const patchManahelData = useCallback((data: SensorData[]): SensorData[] => {
         Weight:        weight,
         battery:       battery,
         Battery:       battery,
-        // Clear voltage so getBattery uses the battery field
-        voltage: undefined,
-        Voltage: undefined,
+        voltage:       undefined,
+        Voltage:       undefined,
       });
     });
   });
-   // At the end of patchManahelData, before `return patched`:
-const seen = new Set<string>();
-return patched.filter(item => {
-  const ts = item.time as string;
-  const id = String(item.id ?? item.ID ?? item.hive_id ?? item.hiveId ?? '');
-  const key = `${ts}__${id}`;
-  if (seen.has(key)) return false;
-  seen.add(key);
-  return true;
-});
-  return patched;
+
+  // ✅ Deduplicate by stable ts + id key
+  const seen = new Set<string>();
+  return patched.filter(item => {
+    const ts  = item.time as string;
+    const id  = String(item.id ?? item.ID ?? item.hive_id ?? item.hiveId ?? '');
+    const key = `${ts}__${id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }, [selectedContainer]);
 
 const patchManahelLatest = useCallback((data: SensorData[]): SensorData[] => {
   if (selectedContainer !== 'h-manahel') return data;
 
-  const now = Date.now();
+  // ✅ Same fixed anchor as patchManahelData — latest = anchor itself (most recent point)
+  const ANCHOR = new Date('2026-04-23T14:00:00Z').getTime();
+  const latestTs = new Date(ANCHOR - 15 * 60 * 1000).toISOString(); // 15 min before anchor
+
   const hiveDefaults: Record<number, { temp: number; hum: number; weight: number; battery: number }> = {
     1: { temp: 34.8, hum: 58,  weight: 22.4, battery: 87 },
     2: { temp: 35.2, hum: 61,  weight: 18.7, battery: 72 },
@@ -835,27 +831,46 @@ const patchManahelLatest = useCallback((data: SensorData[]): SensorData[] => {
 
   const ids = getUniqueHiveIds(data);
 
-  return data.map(item => {
-    const raw = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
-    const n = toNumber(raw);
-    const idStr = n !== null ? String(n) : String(raw);
-    const slotIdx = ids.findIndex(id => String(id) === idStr);
-    const hiveNum = slotIdx + 1;
-    const d = hiveDefaults[hiveNum] ?? { temp: 34.5, hum: 57, weight: 15.0, battery: 80 };
-    const newTs = new Date(now - 15 * 60 * 1000).toISOString(); // 15 min ago
+  // ✅ Deduplicate latest by id — only keep one row per hive
+  const seen = new Set<string>();
 
-    return {
-      ...item,
-      time: newTs, timestamp: newTs,
-      int_temp: d.temp, temp_internal: d.temp,
-      ext_temp: parseFloat((d.temp - 2.5).toFixed(1)), temp_external: parseFloat((d.temp - 2.5).toFixed(1)),
-      int_hum: d.hum, hum_internal: d.hum,
-      ext_hum: d.hum + 4, hum_external: d.hum + 4,
-      weight: d.weight, Weight: d.weight,
-      battery: d.battery, Battery: d.battery,
-      voltage: undefined, Voltage: undefined,
-    };
-  });
+  return data
+    .filter(item => {
+      const raw   = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
+      const n     = toNumber(raw);
+      const idStr = n !== null ? String(n) : String(raw ?? '');
+      if (seen.has(idStr)) return false;
+      seen.add(idStr);
+      return true;
+    })
+    .map(item => {
+      const raw     = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
+      const n       = toNumber(raw);
+      const idStr   = n !== null ? String(n) : String(raw ?? '');
+      const slotIdx = ids.findIndex(id => String(id) === idStr);
+      const hiveNum = slotIdx + 1;
+      const d       = hiveDefaults[hiveNum] ?? { temp: 34.5, hum: 57, weight: 15.0, battery: 80 };
+
+      return {
+        ...item,
+        time:          latestTs,
+        timestamp:     latestTs,
+        int_temp:      d.temp,
+        temp_internal: d.temp,
+        ext_temp:      parseFloat((d.temp - 2.5).toFixed(1)),
+        temp_external: parseFloat((d.temp - 2.5).toFixed(1)),
+        int_hum:       d.hum,
+        hum_internal:  d.hum,
+        ext_hum:       Math.min(100, d.hum + 4),
+        hum_external:  Math.min(100, d.hum + 4),
+        weight:        d.weight,
+        Weight:        d.weight,
+        battery:       d.battery,
+        Battery:       d.battery,
+        voltage:       undefined,
+        Voltage:       undefined,
+      };
+    });
 }, [selectedContainer]);
 
   const fetchData = useCallback(async () => {
