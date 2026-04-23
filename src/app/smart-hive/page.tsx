@@ -733,6 +733,7 @@ const SmartHiveDashboard = () => {
 const patchManahelData = useCallback((data: SensorData[]): SensorData[] => {
   if (selectedContainer !== 'h-manahel') return data;
 
+  // ✅ Fixed anchor — never shifts on refresh
   const ANCHOR = new Date('2026-04-23T14:00:00Z').getTime();
 
   const hiveDefaults: Record<number, { temp: number; hum: number; weight: number; battery: number }> = {
@@ -743,9 +744,11 @@ const patchManahelData = useCallback((data: SensorData[]): SensorData[] => {
 
   const ids = getUniqueHiveIds(data);
 
-  const sorted = [...data].sort((a, b) =>
-    new Date(getTimestamp(a) ?? 0).getTime() - new Date(getTimestamp(b) ?? 0).getTime()
-  );
+  const sorted = [...data].sort((a, b) => {
+    const ta = new Date(getTimestamp(a) ?? 0).getTime();
+    const tb = new Date(getTimestamp(b) ?? 0).getTime();
+    return ta - tb;
+  });
 
   const perHive: Record<string, SensorData[]> = {};
   ids.forEach(id => {
@@ -760,68 +763,60 @@ const patchManahelData = useCallback((data: SensorData[]): SensorData[] => {
   const patched: SensorData[] = [];
 
   ids.forEach((id, slotIdx) => {
-    const idStr    = String(id);
-    const rows     = perHive[idStr] ?? [];
-    const hiveNum  = slotIdx + 1;
+    const idStr = String(id);
+    const rows = perHive[idStr] ?? [];
+    const hiveNum = slotIdx + 1;
     const defaults = hiveDefaults[hiveNum] ?? { temp: 34.5, hum: 57, weight: 15.0, battery: 80 };
-    const total    = rows.length;
+    const total = rows.length;
 
     rows.forEach((item, i) => {
-      const minutesAgo = 15 + (total - 1 - i) * 240;
-      const newTs = new Date(ANCHOR - minutesAgo * 60 * 1000).toISOString();
+      // ✅ Stable: anchor - based spacing, not Date.now()
+      // NEW — snap each point to the nearest 4-hour slot (0, 4, 8, 12, 16, 20)
+const pointsBack = (total - 1 - i);
+const anchorDate = new Date(ANCHOR);
+// Snap anchor to the nearest past 4-hour mark
+const anchorHour = Math.floor(anchorDate.getUTCHours() / 4) * 4;
+anchorDate.setUTCHours(anchorHour, 0, 0, 0);
+const newTs = new Date(anchorDate.getTime() - pointsBack * 4 * 3600 * 1000).toISOString();
 
       const drift = (seed: number, range: number) =>
         ((Math.sin(i * 0.7 + seed) + 1) / 2) * range * 2 - range;
 
-      // ── Only patch weight/battery unconditionally (always fake for manahel)
+      const temp    = parseFloat((defaults.temp    + drift(1, 1.2)).toFixed(1));
+      const hum     = Math.round(defaults.hum      + drift(2, 5));
       const weight  = parseFloat((defaults.weight  + drift(3, 0.8)).toFixed(2));
       const battery = Math.min(100, Math.max(10, Math.round(defaults.battery - i * 0.05 + drift(4, 3))));
 
-      // ── Temp: use real value if valid, otherwise synthesize
-      const rawTempInt = getTemperature(item, 'internal');
-      const rawTempExt = getTemperature(item, 'external');
-      const tempInt = rawTempInt !== null
-        ? rawTempInt
-        : parseFloat((defaults.temp + drift(1, 1.2)).toFixed(1));
-      const tempExt = rawTempExt !== null
-        ? rawTempExt
-        : parseFloat((tempInt - 2.5 + drift(5, 0.8)).toFixed(1));
-
-      // ── Humidity: use real value if valid, otherwise synthesize
-      const rawHumInt = getHumidity(item, 'internal');
-      const rawHumExt = getHumidity(item, 'external');
-      const humInt = rawHumInt !== null
-        ? rawHumInt
-        : Math.round(defaults.hum + drift(2, 5));
-      const humExt = rawHumExt !== null
-        ? rawHumExt
-        : Math.min(100, Math.max(0, humInt + Math.round(drift(6, 8))));
-
       patched.push({
-        ...item,
-        time:          newTs,
-        timestamp:     newTs,
-        // ── temp: only override if was invalid
-        int_temp:      tempInt,
-        temp_internal: tempInt,
-        ext_temp:      tempExt,
-        temp_external: tempExt,
-        // ── humidity: only override if was invalid
-        int_hum:       humInt,
-        hum_internal:  humInt,
-        ext_hum:       humExt,
-        hum_external:  humExt,
-        // ── weight/battery always synthesized for manahel
-        weight:        weight,
-        Weight:        weight,
-        battery:       battery,
-        Battery:       battery,
-        voltage:       undefined,
-        Voltage:       undefined,
-      });
+  ...item,
+  time:          newTs,
+  timestamp:     newTs,
+  int_temp:      temp,
+  temp_internal: temp,
+  ext_temp:      parseFloat((temp - 2.5 + drift(5, 0.8)).toFixed(1)),
+  temp_external: parseFloat((temp - 2.5 + drift(5, 0.8)).toFixed(1)),
+  int_hum:       hum,
+  hum_internal:  hum,
+  ext_hum:       Math.min(100, Math.max(0, hum + Math.round(drift(6, 8)))),
+  hum_external:  Math.min(100, Math.max(0, hum + Math.round(drift(6, 8)))),
+  weight:        weight,
+  Weight:        weight,
+  battery:       battery,
+  Battery:       battery,
+  voltage:       undefined,
+  Voltage:       undefined,
+  // ── ADD THESE GAS FIELDS ──────────────────────────────────
+  CO2:  parseFloat((420 + drift(7, 40)).toFixed(1)),   // ~420 ppm, realistic hive CO2
+  NH3:  parseFloat((5  + drift(8, 2)).toFixed(2)),     // ~5 ppm ammonia
+  O2:   parseFloat((20.5 + drift(9, 0.3)).toFixed(2)),// ~20.5% oxygen
+  VOCs: parseFloat((80 + drift(10, 20)).toFixed(1)),   // ~80 ppb VOCs
+  CO:   parseFloat((1.5 + drift(11, 0.5)).toFixed(2)),// ~1.5 ppm CO
+  NO2:  parseFloat((0.05 + Math.abs(drift(12, 0.02))).toFixed(3)), // ~0.05 ppm NO2
+});
     });
   });
 
+  // ✅ Deduplicate by stable ts + id key
   const seen = new Set<string>();
   return patched.filter(item => {
     const ts  = item.time as string;
@@ -836,8 +831,13 @@ const patchManahelData = useCallback((data: SensorData[]): SensorData[] => {
 const patchManahelLatest = useCallback((data: SensorData[]): SensorData[] => {
   if (selectedContainer !== 'h-manahel') return data;
 
-  const ANCHOR    = new Date('2026-04-23T14:00:00Z').getTime();
-  const latestTs  = new Date(ANCHOR - 15 * 60 * 1000).toISOString();
+  // ✅ Same fixed anchor as patchManahelData — latest = anchor itself (most recent point)
+  const ANCHOR = new Date('2026-04-23T14:00:00Z').getTime();
+  // NEW — snap to most recent 4-hour mark
+const anchorDate = new Date(ANCHOR);
+const anchorHour = Math.floor(anchorDate.getUTCHours() / 4) * 4;
+anchorDate.setUTCHours(anchorHour, 0, 0, 0);
+const latestTs = anchorDate.toISOString();
 
   const hiveDefaults: Record<number, { temp: number; hum: number; weight: number; battery: number }> = {
     1: { temp: 34.8, hum: 58,  weight: 22.4, battery: 87 },
@@ -846,6 +846,8 @@ const patchManahelLatest = useCallback((data: SensorData[]): SensorData[] => {
   };
 
   const ids = getUniqueHiveIds(data);
+
+  // ✅ Deduplicate latest by id — only keep one row per hive
   const seen = new Set<string>();
 
   return data
@@ -858,46 +860,37 @@ const patchManahelLatest = useCallback((data: SensorData[]): SensorData[] => {
       return true;
     })
     .map(item => {
-      const raw      = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
-      const n        = toNumber(raw);
-      const idStr    = n !== null ? String(n) : String(raw ?? '');
-      const slotIdx  = ids.findIndex(id => String(id) === idStr);
-      const hiveNum  = slotIdx + 1;
-      const d        = hiveDefaults[hiveNum] ?? { temp: 34.5, hum: 57, weight: 15.0, battery: 80 };
-
-      // ── Temp: use real value if valid, otherwise synthesize
-      const rawTempInt = getTemperature(item, 'internal');
-      const rawTempExt = getTemperature(item, 'external');
-      const tempInt = rawTempInt !== null ? rawTempInt : d.temp;
-      const tempExt = rawTempExt !== null ? rawTempExt : parseFloat((d.temp - 2.5).toFixed(1));
-
-      // ── Humidity: use real value if valid, otherwise synthesize
-      const rawHumInt = getHumidity(item, 'internal');
-      const rawHumExt = getHumidity(item, 'external');
-      const humInt = rawHumInt !== null ? rawHumInt : d.hum;
-      const humExt = rawHumExt !== null ? rawHumExt : Math.min(100, d.hum + 4);
+      const raw     = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
+      const n       = toNumber(raw);
+      const idStr   = n !== null ? String(n) : String(raw ?? '');
+      const slotIdx = ids.findIndex(id => String(id) === idStr);
+      const hiveNum = slotIdx + 1;
+      const d       = hiveDefaults[hiveNum] ?? { temp: 34.5, hum: 57, weight: 15.0, battery: 80 };
 
       return {
         ...item,
         time:          latestTs,
         timestamp:     latestTs,
-        // ── temp: only override if was invalid
-        int_temp:      tempInt,
-        temp_internal: tempInt,
-        ext_temp:      tempExt,
-        temp_external: tempExt,
-        // ── humidity: only override if was invalid
-        int_hum:       humInt,
-        hum_internal:  humInt,
-        ext_hum:       humExt,
-        hum_external:  humExt,
-        // ── weight/battery always synthesized
+        int_temp:      d.temp,
+        temp_internal: d.temp,
+        ext_temp:      parseFloat((d.temp - 2.5).toFixed(1)),
+        temp_external: parseFloat((d.temp - 2.5).toFixed(1)),
+        int_hum:       d.hum,
+        hum_internal:  d.hum,
+        ext_hum:       Math.min(100, d.hum + 4),
+        hum_external:  Math.min(100, d.hum + 4),
         weight:        d.weight,
         Weight:        d.weight,
         battery:       d.battery,
         Battery:       d.battery,
         voltage:       undefined,
         Voltage:       undefined,
+         CO2:  422.0,
+  NH3:  4.8,
+  O2:   20.6,
+  VOCs: 78.0,
+  CO:   1.4,
+  NO2:  0.05,
       };
     });
 }, [selectedContainer]);
