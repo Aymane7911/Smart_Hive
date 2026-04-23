@@ -133,43 +133,84 @@ async function parseBlob(
     console.log(`   [parseBlob] ${blobName} → ${rawRows.length} rows, ts=${lastModified}`);
 
     for (let rowIdx = 0; rowIdx < rawRows.length; rowIdx++) {
-  const row = rawRows[rowIdx];
-  if (!row || Object.keys(row).length === 0) continue;
-  const coerced = coerceRow(row);
-  if (!isDataRow(coerced)) continue;
+      const row = rawRows[rowIdx];
+      if (!row || Object.keys(row).length === 0) continue;
+      const coerced = coerceRow(row);
+      if (!isDataRow(coerced)) continue;
 
-  // Use the CSV's own timestamp field if present, otherwise use blob lastModified
-  // Add rowIdx milliseconds so two rows in same blob get distinct timestamps
-  const csvTime = coerced.time ?? coerced.Time ?? coerced.datetime ?? coerced.DateTime;
-let rowTimestamp: string;
+      const csvTime = coerced.time ?? coerced.Time ?? coerced.datetime ?? coerced.DateTime;
+      let rowTimestamp: string;
 
-if (csvTime && !String(csvTime).includes('000:')) {
-  // Use the CSV's actual sensor time, parse it to ISO
-  const parsed = new Date(String(csvTime).replace(' ', 'T'));
-  rowTimestamp = !isNaN(parsed.getTime())
-    ? parsed.toISOString()
-    : new Date(new Date(lastModified).getTime() + rowIdx).toISOString();
-} else {
-  rowTimestamp = new Date(new Date(lastModified).getTime() + rowIdx).toISOString();
-}
+      if (csvTime && !String(csvTime).includes('000:')) {
+        const parsed = new Date(String(csvTime).replace(' ', 'T'));
+        rowTimestamp = !isNaN(parsed.getTime())
+          ? parsed.toISOString()
+          : new Date(new Date(lastModified).getTime() + rowIdx).toISOString();
+      } else {
+        rowTimestamp = new Date(new Date(lastModified).getTime() + rowIdx).toISOString();
+      }
 
-records.push({
-  ...coerced,
-  timestamp: rowTimestamp,
-    _metadata: {
-      lastModified,
-      sourceBlob: blobName,
-      containerId: containerName,
-    },
-  });
-}
+      records.push({
+        ...coerced,
+        timestamp: rowTimestamp,
+        _metadata: {
+          lastModified,
+          sourceBlob: blobName,
+          containerId: containerName,
+        },
+      });
+    }
   } catch (err) {
     console.warn(`⚠️  Skipped ${blobName}:`, err instanceof Error ? err.message : err);
   }
   return records;
 }
 
-async function runAggregation(containerName: string, force = false): Promise<object> {
+function recomputeLatest(historical: SensorRecord[]): SensorRecord[] {
+  const byHive = new Map<string, SensorRecord>();
+  for (const record of historical) {
+    const hiveKey = String(
+      record.id ?? record.ID ?? record.hive_id ?? record.hiveId ?? 'unknown'
+    );
+    const existing = byHive.get(hiveKey);
+    const recordTs = new Date(
+      record.timestamp ?? record._metadata?.lastModified ?? 0
+    ).getTime();
+    const existingTs = existing
+      ? new Date(existing.timestamp ?? existing._metadata?.lastModified ?? 0).getTime()
+      : 0;
+    if (!existing || recordTs > existingTs) byHive.set(hiveKey, record);
+  }
+  return Array.from(byHive.values());
+}
+
+async function writeAggregated(
+  containerClient: any,
+  containerName: string,
+  processedBlobNames: Set<string>,
+  historical: SensorRecord[],
+  latest: SensorRecord[],
+): Promise<void> {
+  const aggregated = JSON.stringify({
+    generatedAt:    new Date().toISOString(),
+    container:      containerName,
+    processedBlobs: Array.from(processedBlobNames),
+    latest,
+    historical,
+  });
+  const blockBlobClient = containerClient.getBlockBlobClient('aggregated.json');
+  await blockBlobClient.upload(
+    aggregated,
+    Buffer.byteLength(aggregated),
+    { blobHTTPHeaders: { blobContentType: 'application/json' } },
+  );
+}
+
+async function runAggregation(
+  containerName: string,
+  force = false,
+  deletedBlobName?: string,  // ← new: blob that was just deleted
+): Promise<object> {
   const service = new AzureBlobService(containerName);
   const containerClient = (service as any).containerClient;
 
@@ -183,7 +224,6 @@ async function runAggregation(containerName: string, force = false): Promise<obj
     const parsed = JSON.parse(raw);
     existingLatest     = parsed.latest     ?? [];
     existingHistorical = parsed.historical ?? [];
-    // Track processed blobs by name — never skip or double-process
     processedBlobNames = new Set<string>(parsed.processedBlobs ?? []);
     console.log(`✅  Loaded aggregated.json — ${existingHistorical.length} historical pts, ${processedBlobNames.size} blobs processed`);
   } catch {
@@ -198,7 +238,42 @@ async function runAggregation(containerName: string, force = false): Promise<obj
     processedBlobNames = new Set<string>();
   }
 
-  // 2. List all blobs, sorted oldest → newest
+  // 2. Purge deleted blob — remove from tracking AND scrub its records
+  if (deletedBlobName) {
+    console.log(`🗑️  Purging deleted blob: ${deletedBlobName}`);
+    processedBlobNames.delete(deletedBlobName);
+
+    const beforeCount = existingHistorical.length;
+    existingHistorical = existingHistorical.filter(
+      r => r._metadata?.sourceBlob !== deletedBlobName
+    );
+    existingLatest = existingLatest.filter(
+      r => r._metadata?.sourceBlob !== deletedBlobName
+    );
+    console.log(`   Removed ${beforeCount - existingHistorical.length} records from historical`);
+
+    // Check if there are any new blobs to process alongside this deletion
+    const allBlobs: BlobItem[] = await service.listBlobs();
+    const dataBlobs = allBlobs.filter(b => isSupportedFile(b.name));
+    const newBlobs = dataBlobs.filter(b => !processedBlobNames.has(b.name));
+
+    if (newBlobs.length === 0) {
+      // Nothing new — just rewrite the cleaned aggregated.json and return
+      const latest = recomputeLatest(existingHistorical);
+      await writeAggregated(containerClient, containerName, processedBlobNames, existingHistorical, latest);
+      console.log(`✅  ${containerName} purge complete — ${latest.length} hives, ${existingHistorical.length} historical pts`);
+      return {
+        success: true,
+        message: `Purged deleted blob: ${deletedBlobName}`,
+        container: containerName,
+        totalHistorical: existingHistorical.length,
+        totalLatest: latest.length,
+      };
+    }
+    // else fall through to process the new blobs too
+  }
+
+  // 3. List all blobs, sorted oldest → newest
   const allBlobs: BlobItem[] = await service.listBlobs();
   const dataBlobs = allBlobs
     .filter(b => isSupportedFile(b.name))
@@ -206,7 +281,7 @@ async function runAggregation(containerName: string, force = false): Promise<obj
       new Date(a.lastModified!).getTime() - new Date(b.lastModified!).getTime(),
     );
 
-  // 3. Only process blobs we haven't seen before (by name — never by time)
+  // 4. Only process blobs we haven't seen before
   const newBlobs = dataBlobs.filter(b => !processedBlobNames.has(b.name));
 
   console.log(`📋  ${dataBlobs.length} total blobs, ${newBlobs.length} new in "${containerName}"`);
@@ -249,18 +324,17 @@ async function runAggregation(containerName: string, force = false): Promise<obj
     };
   }
 
-  // 4. Parse all new blobs
+  // 5. Parse all new blobs
   const newRecords: SensorRecord[] = [];
   for (const blob of newBlobs) {
     const lastModified = new Date(blob.lastModified!).toISOString();
     const records = await parseBlob(service, blob.name, lastModified, containerName);
     newRecords.push(...records);
-    // Mark as processed
     processedBlobNames.add(blob.name);
     console.log(`   ✓ ${blob.name} → ${records.length} record(s)`);
   }
 
-  // 5. Merge all historical — keep everything, sorted by time, capped at 5000
+  // 6. Merge all historical — keep everything, sorted by time, capped at 5000
   const allHistorical = [...existingHistorical, ...newRecords]
     .sort((a, b) =>
       new Date(a.timestamp ?? a._metadata?.lastModified ?? 0).getTime() -
@@ -268,42 +342,15 @@ async function runAggregation(containerName: string, force = false): Promise<obj
     )
     .slice(-5000);
 
-  // 6. Latest = most recent record per hive ID only
-  const byHive = new Map<string, SensorRecord>();
-  for (const record of allHistorical) {
-    const hiveKey = String(
-      record.id ?? record.ID ?? record.hive_id ?? record.hiveId ?? 'unknown'
-    );
-    const existing = byHive.get(hiveKey);
-    const recordTs = new Date(
-      record.timestamp ?? record._metadata?.lastModified ?? 0
-    ).getTime();
-    const existingTs = existing
-      ? new Date(existing.timestamp ?? existing._metadata?.lastModified ?? 0).getTime()
-      : 0;
-    if (!existing || recordTs > existingTs) byHive.set(hiveKey, record);
-  }
-  const latest = Array.from(byHive.values());
+  // 7. Latest = most recent record per hive ID only
+  const latest = recomputeLatest(allHistorical);
 
-  // 7. Write aggregated.json — store processed blob names to never re-process
-  const aggregated = JSON.stringify({
-    generatedAt:    new Date().toISOString(),
-    container:      containerName,
-    processedBlobs: Array.from(processedBlobNames),   // ← key: track by name
-    latest,
-    historical:     allHistorical,
-  });
-
-  const blockBlobClient = containerClient.getBlockBlobClient('aggregated.json');
-  await blockBlobClient.upload(
-    aggregated,
-    Buffer.byteLength(aggregated),
-    { blobHTTPHeaders: { blobContentType: 'application/json' } },
-  );
+  // 8. Write aggregated.json
+  await writeAggregated(containerClient, containerName, processedBlobNames, allHistorical, latest);
 
   console.log(`✅  ${containerName} done — ${latest.length} hives, ${allHistorical.length} historical pts`);
 
-  // 8. Check & send alerts
+  // 9. Check & send alerts
   try {
     const purchases = await prisma.purchase.findMany({
       where: { accessGranted: true, assignedContainers: { has: containerName } },
@@ -380,16 +427,24 @@ export async function POST(request: NextRequest) {
     const results: Record<string, any> = {};
 
     for (const event of body) {
-      if (event.eventType !== 'Microsoft.Storage.BlobCreated') continue;
+      const isCreated = event.eventType === 'Microsoft.Storage.BlobCreated';
+      const isDeleted = event.eventType === 'Microsoft.Storage.BlobDeleted';
+      if (!isCreated && !isDeleted) continue;
+
       const subject: string = event.subject ?? '';
       const match = subject.match(/\/containers\/([^/]+)\/blobs\/(.+)$/);
       const containerName = match?.[1];
-      const blobName = match?.[2];
+      const blobName      = match?.[2];
       if (!containerName || !blobName || !isSupportedFile(blobName)) continue;
       if (seen.has(containerName)) continue;
       seen.add(containerName);
-      try   { results[containerName] = await runAggregation(containerName); }
-      catch (e) { results[containerName] = { error: e instanceof Error ? e.message : 'Unknown error' }; }
+
+      try {
+        const deletedBlob = isDeleted ? blobName : undefined;
+        results[containerName] = await runAggregation(containerName, false, deletedBlob);
+      } catch (e) {
+        results[containerName] = { error: e instanceof Error ? e.message : 'Unknown error' };
+      }
     }
 
     return NextResponse.json({ ok: true, generatedAt: new Date().toISOString(), results });
