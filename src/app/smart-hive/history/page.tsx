@@ -242,8 +242,11 @@ const patchManahelData = useCallback((data: SensorData[]): SensorData[] => {
 
     rows.forEach((item, i) => {
       // ✅ Stable spacing — no Date.now(), no slotIdx offset (matches dashboard)
-      const minutesAgo = 15 + (total - 1 - i) * 240;
-      const newTs = new Date(ANCHOR - minutesAgo * 60 * 1000).toISOString();
+      const anchorDate = new Date(ANCHOR);
+const anchorHour = Math.floor(anchorDate.getUTCHours() / 4) * 4;
+anchorDate.setUTCHours(anchorHour, 0, 0, 0);
+const pointsBack = (total - 1 - i);
+const newTs = new Date(anchorDate.getTime() - pointsBack * 4 * 3600 * 1000).toISOString();
 
       const drift = (seed: number, range: number) =>
         ((Math.sin(i * 0.7 + seed) + 1) / 2) * range * 2 - range;
@@ -325,7 +328,10 @@ const patchManahelData = useCallback((data: SensorData[]): SensorData[] => {
         // ✅ Apply same latest-patch as dashboard: one stable row per hive at ANCHOR - 15min
         if (containerParam === 'h-manahel') {
           const ANCHOR = new Date('2026-04-23T14:00:00Z').getTime();
-          const latestTs = new Date(ANCHOR - 15 * 60 * 1000).toISOString();
+          const anchorDate = new Date(ANCHOR);
+const anchorHour = Math.floor(anchorDate.getUTCHours() / 4) * 4;
+anchorDate.setUTCHours(anchorHour, 0, 0, 0);
+const latestTs = anchorDate.toISOString();
           const hiveDefaults: Record<number, { temp: number; hum: number; weight: number; battery: number }> = {
             1: { temp: 34.8, hum: 58,  weight: 22.4, battery: 87 },
             2: { temp: 35.2, hum: 61,  weight: 18.7, battery: 72 },
