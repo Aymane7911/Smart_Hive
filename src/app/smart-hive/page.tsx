@@ -527,7 +527,7 @@ const SmartHiveDashboard = () => {
   const [apiarySheetOpen, setApiarySheetOpen]         = useState(false);
   const [selectedHive, setSelectedHive]               = useState<number | null>(null);
   const [currentView, setCurrentView]                 = useState<'dashboard' | 'alerts'>('dashboard'); // ← NEW
-  const [timeFilter, setTimeFilter]                   = useState('all');
+  const [timeFilter, setTimeFilter]                   = useState('24h');
   const [startDate, setStartDate]                     = useState('');
   const [endDate, setEndDate]                         = useState('');
   const [showDatePicker, setShowDatePicker]           = useState(false);
