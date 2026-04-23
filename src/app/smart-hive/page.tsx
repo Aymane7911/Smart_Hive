@@ -990,14 +990,17 @@ setLatestData(flatLatest);
 
   const hiveNumbers = useMemo(() => Array.from({ length: totalHives }, (_, i) => i + 1), [totalHives]);
 
-  const isHiveActive = useCallback((n: number): boolean => {
+  // NEW
+const isHiveActive = useCallback((n: number): boolean => {
   const rows = getHiveData(latestData, n, hiveIds);
   if (!rows.length) return false;
+  // For h-manahel, skip timestamp check — data is demo/patched
+  if (selectedContainer === 'h-manahel') return true;
   const last = rows[rows.length - 1];
   const ts = getTimestamp(last);
   if (!ts) return false;
   return Date.now() - new Date(ts).getTime() <= 4 * 3600000;
-}, [latestData, hiveIds]);
+}, [latestData, hiveIds, selectedContainer]);
 
   const getLastHiveReading = useCallback((n: number): string | null => {
   const rows = getHiveData(latestData, n, hiveIds)
