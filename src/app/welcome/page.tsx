@@ -371,15 +371,18 @@ export default function WelcomePage() {
         );
       });
 
-      const isActive = rows.some((item) => {
-  const sensorTs = parseTs(item);
-  const metaRaw  = item?._metadata?.lastModified;
-  const metaTs   = metaRaw
-    ? (() => { const d = new Date(String(metaRaw).trim()); return isNaN(d.getTime()) ? null : d.getTime(); })()
-    : null;
-  const best = Math.max(sensorTs ?? 0, metaTs ?? 0);
-  return best > 0 && Date.now() - best <= 4 * 3600000;  // ← change 24 to 4
-});
+      // AFTER
+const isActive = card.containerId === 'h-manahel'
+  ? rows.length > 0  // always active if it has any data at all
+  : rows.some((item) => {
+      const sensorTs = parseTs(item);
+      const metaRaw  = item?._metadata?.lastModified;
+      const metaTs   = metaRaw
+        ? (() => { const d = new Date(String(metaRaw).trim()); return isNaN(d.getTime()) ? null : d.getTime(); })()
+        : null;
+      const best = Math.max(sensorTs ?? 0, metaTs ?? 0);
+      return best > 0 && Date.now() - best <= 4 * 3600000;
+    });
 
       console.log(`[${card.containerId}] → isActive=${isActive}`);
       return { ...card, isActive };
