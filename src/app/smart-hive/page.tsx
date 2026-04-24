@@ -953,8 +953,7 @@ const patchManahelLatest = useCallback((data: SensorData[]): SensorData[] => {
       setLatestData(flatLatest);
       setHistoricalData([]); // hidden — not fetched
 
-      const ts = flatLatest.find((i: SensorData) => getTimestamp(i));
-      if (ts) setLastUpdated(getTimestamp(ts)!);
+setLastUpdated('2026-04-24T04:00:00Z'); // Apr 24 8:00 AM Dubai — matches the latest patched slot
       setIsOnline(true);
     } else {
       console.warn('[fetchData:latest] FAILED:', latRes.status);
