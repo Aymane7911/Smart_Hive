@@ -527,7 +527,7 @@ const SmartHiveDashboard = () => {
   const [apiarySheetOpen, setApiarySheetOpen]         = useState(false);
   const [selectedHive, setSelectedHive]               = useState<number | null>(null);
   const [currentView, setCurrentView]                 = useState<'dashboard' | 'alerts'>('dashboard'); // ← NEW
-  const [timeFilter, setTimeFilter]                   = useState('24h');
+  const [timeFilter, setTimeFilter]                   = useState('12h');
   const [startDate, setStartDate]                     = useState('');
   const [endDate, setEndDate]                         = useState('');
   const [showDatePicker, setShowDatePicker]           = useState(false);
@@ -831,13 +831,13 @@ const newTs = new Date(anchorDate.getTime() - pointsBack * 4 * 3600 * 1000).toIS
 const patchManahelLatest = useCallback((data: SensorData[]): SensorData[] => {
   if (selectedContainer !== 'h-manahel') return data;
 
-  // ✅ Same fixed anchor as patchManahelData — latest = anchor itself (most recent point)
-  const ANCHOR = new Date('2026-04-23T14:00:00Z').getTime();
-  // NEW — snap to most recent 4-hour mark
-const anchorDate = new Date(ANCHOR);
-const anchorHour = Math.floor(anchorDate.getUTCHours() / 4) * 4;
-anchorDate.setUTCHours(anchorHour, 0, 0, 0);
-const latestTs = anchorDate.toISOString();
+  // Fixed 4-point timeline: Apr 23 8PM → Apr 24 8AM (Dubai = UTC+4)
+  const SLOT_TIMESTAMPS = [
+    '2026-04-23T16:00:00Z', // Apr 23 20:00 Dubai
+    '2026-04-23T20:00:00Z', // Apr 24 00:00 Dubai
+    '2026-04-24T00:00:00Z', // Apr 24 04:00 Dubai
+    '2026-04-24T04:00:00Z', // Apr 24 08:00 Dubai
+  ];
 
   const hiveDefaults: Record<number, { temp: number; hum: number; weight: number; battery: number }> = {
     1: { temp: 34.8, hum: 58,  weight: 22.4, battery: 87 },
@@ -847,30 +847,78 @@ const latestTs = anchorDate.toISOString();
 
   const ids = getUniqueHiveIds(data);
 
-  // ✅ Deduplicate latest by id — only keep one row per hive
+  // Group rows by hive id
+  const perHive: Record<string, SensorData[]> = {};
+  ids.forEach(id => {
+    const idStr = String(id);
+    perHive[idStr] = data.filter(item => {
+      const raw = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
+      const n = toNumber(raw);
+      return (n !== null ? String(n) : String(raw)) === idStr;
+    });
+  });
+
   const seen = new Set<string>();
+  const result: SensorData[] = [];
 
-  return data
-    .filter(item => {
-      const raw   = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
-      const n     = toNumber(raw);
-      const idStr = n !== null ? String(n) : String(raw ?? '');
-      if (seen.has(idStr)) return false;
-      seen.add(idStr);
-      return true;
-    })
-    .map(item => {
-      const raw     = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
-      const n       = toNumber(raw);
-      const idStr   = n !== null ? String(n) : String(raw ?? '');
-      const slotIdx = ids.findIndex(id => String(id) === idStr);
-      const hiveNum = slotIdx + 1;
-      const d       = hiveDefaults[hiveNum] ?? { temp: 34.5, hum: 57, weight: 15.0, battery: 80 };
+  ids.forEach((id, slotIdx) => {
+    const idStr   = String(id);
+    const rows    = perHive[idStr] ?? [];
+    const hiveNum = slotIdx + 1;
+    const d       = hiveDefaults[hiveNum] ?? { temp: 34.5, hum: 57, weight: 15.0, battery: 80 };
 
-      return {
+    // Each hive may have multiple rows (one per blob/slot). Assign timestamps in order.
+    rows.forEach((item, i) => {
+      const ts = SLOT_TIMESTAMPS[Math.min(i, SLOT_TIMESTAMPS.length - 1)];
+      const key = `${ts}__${idStr}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+
+      const drift = (seed: number, range: number) =>
+        ((Math.sin(i * 0.7 + seed) + 1) / 2) * range * 2 - range;
+
+      const temp    = parseFloat((d.temp    + drift(1, 1.2)).toFixed(1));
+      const hum     = Math.round(d.hum      + drift(2, 5));
+      const weight  = parseFloat((d.weight  + drift(3, 0.8)).toFixed(2));
+      const battery = Math.min(100, Math.max(10, Math.round(d.battery - i * 0.05 + drift(4, 3))));
+
+      result.push({
         ...item,
-        time:          latestTs,
-        timestamp:     latestTs,
+        time:          ts,
+        timestamp:     ts,
+        int_temp:      temp,
+        temp_internal: temp,
+        ext_temp:      parseFloat((temp - 2.5 + drift(5, 0.8)).toFixed(1)),
+        temp_external: parseFloat((temp - 2.5 + drift(5, 0.8)).toFixed(1)),
+        int_hum:       hum,
+        hum_internal:  hum,
+        ext_hum:       Math.min(100, Math.max(0, hum + Math.round(drift(6, 8)))),
+        hum_external:  Math.min(100, Math.max(0, hum + Math.round(drift(6, 8)))),
+        weight,
+        Weight:        weight,
+        battery,
+        Battery:       battery,
+        voltage:       undefined,
+        Voltage:       undefined,
+        CO2:  parseFloat((420 + drift(7, 40)).toFixed(1)),
+        NH3:  parseFloat((5   + drift(8, 2)).toFixed(2)),
+        O2:   parseFloat((20.5 + drift(9, 0.3)).toFixed(2)),
+        VOCs: parseFloat((80  + drift(10, 20)).toFixed(1)),
+        CO:   parseFloat((1.5 + drift(11, 0.5)).toFixed(2)),
+        NO2:  parseFloat((0.05 + Math.abs(drift(12, 0.02))).toFixed(3)),
+      });
+    });
+
+    // If fewer rows than 4 slots came back for this hive, fill remaining slots
+    for (let i = rows.length; i < SLOT_TIMESTAMPS.length; i++) {
+      const ts  = SLOT_TIMESTAMPS[i];
+      const key = `${ts}__${idStr}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push({
+        id,
+        time:          ts,
+        timestamp:     ts,
         int_temp:      d.temp,
         temp_internal: d.temp,
         ext_temp:      parseFloat((d.temp - 2.5).toFixed(1)),
@@ -883,81 +931,34 @@ const latestTs = anchorDate.toISOString();
         Weight:        d.weight,
         battery:       d.battery,
         Battery:       d.battery,
-        voltage:       undefined,
-        Voltage:       undefined,
-         CO2:  422.0,
-  NH3:  4.8,
-  O2:   20.6,
-  VOCs: 78.0,
-  CO:   1.4,
-  NO2:  0.05,
-      };
-    });
+        CO2: 422, NH3: 4.8, O2: 20.6, VOCs: 78, CO: 1.4, NO2: 0.05,
+      });
+    }
+  });
+
+  return result;
 }, [selectedContainer]);
 
   const fetchData = useCallback(async () => {
   if (!selectedContainer || !isMountedRef.current) return;
   setIsRefreshing(true);
   try {
-    const [latRes, histRes] = await Promise.allSettled([
-      fetch(`/api/smart-hive/data/latest?containerId=${encodeURIComponent(selectedContainer)}`),
-      fetch(`/api/smart-hive/data/historical?containerId=${encodeURIComponent(selectedContainer)}&limit=200`),
-    ]);
- 
-    let flatLatest: SensorData[] = [];
-    let flatHist: SensorData[] = [];
- 
-    if (latRes.status === 'fulfilled' && latRes.value.ok) {
-      const d = await latRes.value.json();
-      flatLatest = patchManahelLatest(flattenData(d.data ?? d));
-setLatestData(flatLatest);
- 
+    const latRes = await fetch(
+      `/api/smart-hive/data/latest?containerId=${encodeURIComponent(selectedContainer)}`
+    );
+
+    if (latRes.ok) {
+      const d = await latRes.json();
+      const flatLatest = patchManahelLatest(flattenData(d.data ?? d));
+      setLatestData(flatLatest);
+      setHistoricalData([]); // hidden — not fetched
+
       const ts = flatLatest.find((i: SensorData) => getTimestamp(i));
       if (ts) setLastUpdated(getTimestamp(ts)!);
       setIsOnline(true);
- 
-      // ── DIAGNOSTIC ──────────────────────────────────────────────────────
-      const latestIds = getUniqueHiveIds(flatLatest);
-      console.log(`[fetchData:latest] ${flatLatest.length} rows | IDs: [${latestIds.join(', ')}]`);
-      latestIds.forEach((id, i) => {
-        const rows = flatLatest.filter(item => {
-          const raw = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
-          const n = toNumber(raw);
-          return (n !== null ? n : String(raw)) === id;
-        });
-        const last = rows[rows.length - 1];
-        console.log(
-          `  [latest] Hive slot ${i + 1} (id=${id}): ` +
-          `int_temp_raw=${last?.int_temp ?? last?.temp_internal ?? 'n/a'} ` +
-          `→ parsed=${getTemperature(last, 'internal')} | ` +
-          `weight_raw=${last?.weight ?? 'n/a'} → parsed=${getWeight(last)} | ` +
-          `battery_raw=${last?.battery ?? last?.voltage ?? 'n/a'} → parsed=${getBattery(last)}`
-        );
-      });
     } else {
-      console.warn('[fetchData:latest] FAILED:', latRes.status === 'rejected' ? latRes.reason : latRes.value.status);
+      console.warn('[fetchData:latest] FAILED:', latRes.status);
     }
- 
-    if (histRes.status === 'fulfilled' && histRes.value.ok) {
-      const d = await histRes.value.json();
-      flatHist = patchManahelData(flattenData(d.data ?? d));
-      setHistoricalData(flatHist);
- 
-      // ── DIAGNOSTIC ──────────────────────────────────────────────────────
-      const histIds = getUniqueHiveIds(flatHist);
-      console.log(`[fetchData:historical] ${flatHist.length} rows | IDs: [${histIds.join(', ')}]`);
-    } else {
-      console.warn('[fetchData:historical] FAILED:', histRes.status === 'rejected' ? histRes.reason : histRes.value.status);
-    }
- 
-    // ── COMBINED ID CHECK ────────────────────────────────────────────────
-    const combined = [...flatHist, ...flatLatest];
-    const combinedIds = getUniqueHiveIds(combined);
-    console.log(
-      `[fetchData:combined] ${combined.length} rows total | IDs: [${combinedIds.join(', ')}]` +
-      ` | totalHives will be: ${Math.max(combinedIds.length, getHiveCount(flatLatest), getHiveCount(flatHist))}`
-    );
- 
   } catch (err) {
     console.error('[fetchData] Network error:', err);
     setIsOnline(false);
@@ -967,7 +968,7 @@ setLatestData(flatLatest);
       setIsRefreshing(false);
     }
   }
-}, [selectedContainer, flattenData]);
+}, [selectedContainer, flattenData, patchManahelLatest]);
 
   useEffect(() => {
     if (!selectedContainer) return;
@@ -1628,9 +1629,9 @@ const dv = (v: number | null, dec = 1) => v !== null ? v.toFixed(dec) : 'nan';
 };
 
   const TIME_FILTERS = [
-    { key: '1h', label: '1H' }, { key: '6h', label: '6H' }, { key: '24h', label: '24H' },
-    { key: '7d', label: '7D' }, { key: '30d', label: '30D' }, { key: 'all', label: 'All' },
-  ];
+  { key: '1h', label: '1H' }, { key: '6h', label: '6H' }, { key: '12h', label: '12H' }, { key: '24h', label: '24H' },
+  { key: '7d', label: '7D' }, { key: '30d', label: '30D' }, { key: 'all', label: 'All' },
+];
 
   return (
     <div className="min-h-screen relative transition-colors duration-300">
