@@ -38,6 +38,28 @@ const NUMERIC_FIELDS = new Set([
   'id', 'ID', 'hive_id', 'hiveId',
 ]);
 
+
+const MANAHEL_ALLOWED_BLOBS = new Set([
+  'hivedata_20260424_12.csv',
+  'hivedata_20260424_16.csv',
+  'hivedata_20260424_20.csv',
+  'hivedata_20260425_04.csv',
+  'hivedata_20260425_08.csv',
+  'hivedata_20260425_12.csv',
+  'hivedata_20260425_16.csv',
+  'hivedata_20260425_20.csv',
+  'hivedata_20260426_00.csv',
+  'hivedata_20260426_04.csv',
+  'hivedata_20260426_16.csv',
+  'hivedata_20260426_20.csv',
+  'hivedata_20260427_00.csv',
+  'hivedata_20260427_08.csv',
+  'hivedata_20260427_20.csv',
+  'hivedata_20260428_00.csv',
+  'hivedata_20260428_04.csv',
+  'hivedata_20260428_08.csv',
+]);
+
 // Any value >= 990 is a sentinel "sensor not ready / not connected" code
 const isSentinel = (n: number): boolean => n >= 990 || n <= -990;
 
@@ -130,7 +152,23 @@ async function parseBlob(
       rawRows = await parseCSV(content);
     }
 
-    console.log(`   [parseBlob] ${blobName} → ${rawRows.length} rows, ts=${lastModified}`);
+    // ── Derive timestamp from blob filename e.g. hivedata_20260424_12.csv
+    // Pattern: hivedata_YYYYMMDD_HH  where HH is Dubai local hour
+    let filenameTimestamp: string | null = null;
+    const fnMatch = blobName.match(/(\d{8})_(\d{2})/);
+    if (fnMatch) {
+      const dateStr = fnMatch[1]; // e.g. "20260424"
+      const hour    = parseInt(fnMatch[2], 10); // e.g. 12 (Dubai local)
+      const year    = dateStr.slice(0, 4);
+      const month   = dateStr.slice(4, 6);
+      const day     = dateStr.slice(6, 8);
+      // Dubai is UTC+4, so subtract 4 hours to get UTC
+      const utcHour = hour - 4;
+      const date    = new Date(`${year}-${month}-${day}T00:00:00Z`);
+      date.setUTCHours(utcHour < 0 ? utcHour + 24 : utcHour);
+      if (utcHour < 0) date.setUTCDate(date.getUTCDate() - 1);
+      filenameTimestamp = date.toISOString();
+    }
 
     for (let rowIdx = 0; rowIdx < rawRows.length; rowIdx++) {
       const row = rawRows[rowIdx];
@@ -138,17 +176,9 @@ async function parseBlob(
       const coerced = coerceRow(row);
       if (!isDataRow(coerced)) continue;
 
-      const csvTime = coerced.time ?? coerced.Time ?? coerced.datetime ?? coerced.DateTime;
-      let rowTimestamp: string;
-
-      if (csvTime && !String(csvTime).includes('000:')) {
-        const parsed = new Date(String(csvTime).replace(' ', 'T'));
-        rowTimestamp = !isNaN(parsed.getTime())
-          ? parsed.toISOString()
-          : new Date(new Date(lastModified).getTime() + rowIdx).toISOString();
-      } else {
-        rowTimestamp = new Date(new Date(lastModified).getTime() + rowIdx).toISOString();
-      }
+      // ── Always use filename-derived timestamp, ignore CSV time column
+      const rowTimestamp = filenameTimestamp
+        ?? new Date(new Date(lastModified).getTime() + rowIdx).toISOString();
 
       records.push({
         ...coerced,
@@ -161,7 +191,7 @@ async function parseBlob(
       });
     }
   } catch (err) {
-    console.warn(`⚠️  Skipped ${blobName}:`, err instanceof Error ? err.message : err);
+    console.warn(`⚠️ Skipped ${blobName}:`, err instanceof Error ? err.message : err);
   }
   return records;
 }
@@ -254,7 +284,15 @@ async function runAggregation(
 
     // Check if there are any new blobs to process alongside this deletion
     const allBlobs: BlobItem[] = await service.listBlobs();
-    const dataBlobs = allBlobs.filter(b => isSupportedFile(b.name));
+    const dataBlobs = allBlobs
+  .filter(b => {
+    if (containerName === 'h-manahel') {
+      return MANAHEL_ALLOWED_BLOBS.has(b.name);
+    }
+    return isSupportedFile(b.name);
+  })
+  .sort((a, b) => a.name.localeCompare(b.name));
+    console.log('📋 Data blobs found:', dataBlobs.map(b => b.name));
     const newBlobs = dataBlobs.filter(b => !processedBlobNames.has(b.name));
 
     if (newBlobs.length === 0) {

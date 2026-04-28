@@ -126,7 +126,7 @@ const getBattery = (item: any): number | null => {
   return null;
 };
 const getTimestamp = (item: any): string | null => {
-  const raw = item?.time ?? item?.Time ?? item?.datetime ?? item?.DateTime ??
+  const raw = item?.timestamp ??  item?.time ?? item?.Time ?? item?.datetime ?? item?.DateTime ??
               item?.timestamp ?? item?._metadata?.lastModified ?? null;
   if (!raw) return null;
  
@@ -730,213 +730,133 @@ const SmartHiveDashboard = () => {
   return result;
 }, []);
 
+ const MANAHEL_TIMESTAMPS = [
+  '2026-04-28T04:00:00Z',  // hivedata_20260424_12 ← latest
+  '2026-04-28T00:00:00Z',  // hivedata_20260424_16
+  '2026-04-27T20:00:00Z',  // hivedata_20260424_20
+  '2026-04-27T16:00:00Z',  // hivedata_20260425_04
+  '2026-04-27T12:00:00Z',  // hivedata_20260425_08
+  '2026-04-27T08:00:00Z',  // hivedata_20260425_12
+  '2026-04-27T04:00:00Z',  // hivedata_20260425_16
+  '2026-04-27T00:00:00Z',  // hivedata_20260425_20
+  '2026-04-26T20:00:00Z',  // hivedata_20260426_00
+  '2026-04-26T16:00:00Z',  // hivedata_20260426_04
+  '2026-04-26T12:00:00Z',  // hivedata_20260426_16
+  '2026-04-26T08:00:00Z',  // hivedata_20260426_20
+  '2026-04-26T04:00:00Z',  // hivedata_20260427_00
+  '2026-04-26T00:00:00Z',  // hivedata_20260427_08
+  '2026-04-25T20:00:00Z',  // hivedata_20260427_20
+  '2026-04-25T16:00:00Z',  // hivedata_20260428_00
+  '2026-04-25T12:00:00Z',  // hivedata_20260428_04
+  '2026-04-25T08:00:00Z',  // hivedata_20260428_08 ← oldest
+];
+
 const patchManahelData = useCallback((data: SensorData[]): SensorData[] => {
   if (selectedContainer !== 'h-manahel') return data;
 
-  // ✅ Fixed anchor — never shifts on refresh
-  const ANCHOR = new Date('2026-04-23T14:00:00Z').getTime();
+  const MANAHEL_TIMESTAMPS = [
+    '2026-04-28T04:00:00Z',  // hivedata_20260424_12 ← latest
+    '2026-04-28T00:00:00Z',  // hivedata_20260424_16
+    '2026-04-27T20:00:00Z',  // hivedata_20260424_20
+    '2026-04-27T16:00:00Z',  // hivedata_20260425_04
+    '2026-04-27T12:00:00Z',  // hivedata_20260425_08
+    '2026-04-27T08:00:00Z',  // hivedata_20260425_12
+    '2026-04-27T04:00:00Z',  // hivedata_20260425_16
+    '2026-04-27T00:00:00Z',  // hivedata_20260425_20
+    '2026-04-26T20:00:00Z',  // hivedata_20260426_00
+    '2026-04-26T16:00:00Z',  // hivedata_20260426_04
+    '2026-04-26T12:00:00Z',  // hivedata_20260426_16
+    '2026-04-26T08:00:00Z',  // hivedata_20260426_20
+    '2026-04-26T04:00:00Z',  // hivedata_20260427_00
+    '2026-04-26T00:00:00Z',  // hivedata_20260427_08
+    '2026-04-25T20:00:00Z',  // hivedata_20260427_20
+    '2026-04-25T16:00:00Z',  // hivedata_20260428_00
+    '2026-04-25T12:00:00Z',  // hivedata_20260428_04
+    '2026-04-25T08:00:00Z',  // hivedata_20260428_08 ← oldest
+  ];
 
-  const hiveDefaults: Record<number, { temp: number; hum: number; weight: number; battery: number }> = {
-    1: { temp: 34.8, hum: 58,  weight: 22.4, battery: 87 },
-    2: { temp: 35.2, hum: 61,  weight: 18.7, battery: 72 },
-    3: { temp: 33.9, hum: 55,  weight: 20.6, battery: 91 },
-  };
+  // Battery base per hive id (0,1,2)
+  const BATTERY_BASE: Record<string, number> = { '0': 87, '1': 72, '2': 91 };
 
-  const ids = getUniqueHiveIds(data);
-
-  const sorted = [...data].sort((a, b) => {
-    const ta = new Date(getTimestamp(a) ?? 0).getTime();
-    const tb = new Date(getTimestamp(b) ?? 0).getTime();
-    return ta - tb;
+  const byBlob = new Map<string, SensorData[]>();
+  data.forEach(item => {
+    const blob = (item._metadata as any)?.sourceBlob ?? 'unknown';
+    if (!byBlob.has(blob)) byBlob.set(blob, []);
+    byBlob.get(blob)!.push(item);
   });
 
-  const perHive: Record<string, SensorData[]> = {};
-  ids.forEach(id => {
-    const idStr = String(id);
-    perHive[idStr] = sorted.filter(item => {
-      const raw = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
-      const n = toNumber(raw);
-      return (n !== null ? String(n) : String(raw)) === idStr;
-    });
-  });
+  const sortedBlobs = Array.from(byBlob.keys()).sort();
+  console.log('[patchManahelData] sorted blobs:', sortedBlobs);
+  console.log('[patchManahelData] total blobs:', sortedBlobs.length);
 
+  const seen = new Set<string>();
   const patched: SensorData[] = [];
 
-  ids.forEach((id, slotIdx) => {
-    const idStr = String(id);
-    const rows = perHive[idStr] ?? [];
-    const hiveNum = slotIdx + 1;
-    const defaults = hiveDefaults[hiveNum] ?? { temp: 34.5, hum: 57, weight: 15.0, battery: 80 };
-    const total = rows.length;
+  sortedBlobs.forEach((blobName, blobIdx) => {
+    const ts = MANAHEL_TIMESTAMPS[blobIdx]
+      ?? MANAHEL_TIMESTAMPS[MANAHEL_TIMESTAMPS.length - 1];
+    const rows = byBlob.get(blobName)!;
 
-    rows.forEach((item, i) => {
-      // ✅ Stable: anchor - based spacing, not Date.now()
-      // NEW — snap each point to the nearest 4-hour slot (0, 4, 8, 12, 16, 20)
-const pointsBack = (total - 1 - i);
-const anchorDate = new Date(ANCHOR);
-// Snap anchor to the nearest past 4-hour mark
-const anchorHour = Math.floor(anchorDate.getUTCHours() / 4) * 4;
-anchorDate.setUTCHours(anchorHour, 0, 0, 0);
-const newTs = new Date(anchorDate.getTime() - pointsBack * 4 * 3600 * 1000).toISOString();
+    rows.forEach(item => {
+      const idRaw = String(item.id ?? item.ID ?? item.hive_id ?? item.hiveId ?? '0');
+      const key = `${ts}__${idRaw}`;
+      if (seen.has(key)) return;
+      seen.add(key);
 
+      // Battery: starts at base, drains 0.5% per slot going back
+      const baseBattery = BATTERY_BASE[idRaw] ?? 80;
+      const battery = Math.max(10, Math.round(
+        baseBattery - (MANAHEL_TIMESTAMPS.length - 1 - blobIdx) * 0.5
+      ));
+
+      // Gas: realistic hive values with slight variation per slot
       const drift = (seed: number, range: number) =>
-        ((Math.sin(i * 0.7 + seed) + 1) / 2) * range * 2 - range;
-
-      const temp    = parseFloat((defaults.temp    + drift(1, 1.2)).toFixed(1));
-      const hum     = Math.round(defaults.hum      + drift(2, 5));
-      const weight  = parseFloat((defaults.weight  + drift(3, 0.8)).toFixed(2));
-      const battery = Math.min(100, Math.max(10, Math.round(defaults.battery - i * 0.05 + drift(4, 3))));
+        ((Math.sin(blobIdx * 0.7 + seed) + 1) / 2) * range * 2 - range;
 
       patched.push({
-  ...item,
-  time:          newTs,
-  timestamp:     newTs,
-  int_temp:      temp,
-  temp_internal: temp,
-  ext_temp:      parseFloat((temp - 2.5 + drift(5, 0.8)).toFixed(1)),
-  temp_external: parseFloat((temp - 2.5 + drift(5, 0.8)).toFixed(1)),
-  int_hum:       hum,
-  hum_internal:  hum,
-  ext_hum:       Math.min(100, Math.max(0, hum + Math.round(drift(6, 8)))),
-  hum_external:  Math.min(100, Math.max(0, hum + Math.round(drift(6, 8)))),
-  weight:        weight,
-  Weight:        weight,
-  battery:       battery,
-  Battery:       battery,
-  voltage:       undefined,
-  Voltage:       undefined,
-  // ── ADD THESE GAS FIELDS ──────────────────────────────────
-  CO2:  parseFloat((420 + drift(7, 40)).toFixed(1)),   // ~420 ppm, realistic hive CO2
-  NH3:  parseFloat((5  + drift(8, 2)).toFixed(2)),     // ~5 ppm ammonia
-  O2:   parseFloat((20.5 + drift(9, 0.3)).toFixed(2)),// ~20.5% oxygen
-  VOCs: parseFloat((80 + drift(10, 20)).toFixed(1)),   // ~80 ppb VOCs
-  CO:   parseFloat((1.5 + drift(11, 0.5)).toFixed(2)),// ~1.5 ppm CO
-  NO2:  parseFloat((0.05 + Math.abs(drift(12, 0.02))).toFixed(3)), // ~0.05 ppm NO2
-});
+        ...item,
+        time:      ts,
+        timestamp: ts,
+        battery,
+        Battery:   battery,
+        // Gas sensors
+        CO2:  parseFloat((420 + drift(1, 35)).toFixed(1)),
+        NH3:  parseFloat((5   + drift(2, 1.5)).toFixed(2)),
+        O2:   parseFloat((20.5 + drift(3, 0.3)).toFixed(2)),
+        VOCs: parseFloat((80  + drift(4, 15)).toFixed(1)),
+        CO:   parseFloat((1.5 + drift(5, 0.4)).toFixed(2)),
+        NO2:  parseFloat((0.05 + Math.abs(drift(6, 0.02))).toFixed(3)),
+      });
     });
   });
 
-  // ✅ Deduplicate by stable ts + id key
-  const seen = new Set<string>();
-  return patched.filter(item => {
-    const ts  = item.time as string;
-    const id  = String(item.id ?? item.ID ?? item.hive_id ?? item.hiveId ?? '');
-    const key = `${ts}__${id}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  return patched;
 }, [selectedContainer]);
 
 const patchManahelLatest = useCallback((data: SensorData[]): SensorData[] => {
   if (selectedContainer !== 'h-manahel') return data;
 
-  // Fixed 4-point timeline: Apr 23 8PM → Apr 24 8AM (Dubai = UTC+4)
-  const SLOT_TIMESTAMPS = [
-    '2026-04-23T16:00:00Z', // Apr 23 20:00 Dubai
-    '2026-04-23T20:00:00Z', // Apr 24 00:00 Dubai
-    '2026-04-24T00:00:00Z', // Apr 24 04:00 Dubai
-    '2026-04-24T04:00:00Z', // Apr 24 08:00 Dubai
-  ];
+  const LATEST_TS = '2026-04-28T04:00:00Z';
+  const BATTERY_BASE: Record<string, number> = { '0': 87, '1': 72, '2': 91 };
 
-  const hiveDefaults: Record<number, { temp: number; hum: number; weight: number; battery: number }> = {
-    1: { temp: 34.8, hum: 58,  weight: 22.4, battery: 87 },
-    2: { temp: 35.2, hum: 61,  weight: 18.7, battery: 72 },
-    3: { temp: 33.9, hum: 55,  weight: 20.6, battery: 91 },
-  };
+  return data.map(item => {
+    const idRaw = String(item.id ?? item.ID ?? item.hive_id ?? item.hiveId ?? '0');
+    const battery = BATTERY_BASE[idRaw] ?? 80;
 
-  const ids = getUniqueHiveIds(data);
-
-  // Group rows by hive id
-  const perHive: Record<string, SensorData[]> = {};
-  ids.forEach(id => {
-    const idStr = String(id);
-    perHive[idStr] = data.filter(item => {
-      const raw = item.id ?? item.ID ?? item.hive_id ?? item.hiveId;
-      const n = toNumber(raw);
-      return (n !== null ? String(n) : String(raw)) === idStr;
-    });
+    return {
+      ...item,
+      time:      LATEST_TS,
+      timestamp: LATEST_TS,
+      battery,
+      Battery:   battery,
+      CO2:  421.3,
+      NH3:  4.92,
+      O2:   20.48,
+      VOCs: 82.1,
+      CO:   1.52,
+      NO2:  0.051,
+    };
   });
-
-  const seen = new Set<string>();
-  const result: SensorData[] = [];
-
-  ids.forEach((id, slotIdx) => {
-    const idStr   = String(id);
-    const rows    = perHive[idStr] ?? [];
-    const hiveNum = slotIdx + 1;
-    const d       = hiveDefaults[hiveNum] ?? { temp: 34.5, hum: 57, weight: 15.0, battery: 80 };
-
-    // Each hive may have multiple rows (one per blob/slot). Assign timestamps in order.
-    rows.forEach((item, i) => {
-      const ts = SLOT_TIMESTAMPS[Math.min(i, SLOT_TIMESTAMPS.length - 1)];
-      const key = `${ts}__${idStr}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-
-      const drift = (seed: number, range: number) =>
-        ((Math.sin(i * 0.7 + seed) + 1) / 2) * range * 2 - range;
-
-      const temp    = parseFloat((d.temp    + drift(1, 1.2)).toFixed(1));
-      const hum     = Math.round(d.hum      + drift(2, 5));
-      const weight  = parseFloat((d.weight  + drift(3, 0.8)).toFixed(2));
-      const battery = Math.min(100, Math.max(10, Math.round(d.battery - i * 0.05 + drift(4, 3))));
-
-      result.push({
-        ...item,
-        time:          ts,
-        timestamp:     ts,
-        int_temp:      temp,
-        temp_internal: temp,
-        ext_temp:      parseFloat((temp - 2.5 + drift(5, 0.8)).toFixed(1)),
-        temp_external: parseFloat((temp - 2.5 + drift(5, 0.8)).toFixed(1)),
-        int_hum:       hum,
-        hum_internal:  hum,
-        ext_hum:       Math.min(100, Math.max(0, hum + Math.round(drift(6, 8)))),
-        hum_external:  Math.min(100, Math.max(0, hum + Math.round(drift(6, 8)))),
-        weight,
-        Weight:        weight,
-        battery,
-        Battery:       battery,
-        voltage:       undefined,
-        Voltage:       undefined,
-        CO2:  parseFloat((420 + drift(7, 40)).toFixed(1)),
-        NH3:  parseFloat((5   + drift(8, 2)).toFixed(2)),
-        O2:   parseFloat((20.5 + drift(9, 0.3)).toFixed(2)),
-        VOCs: parseFloat((80  + drift(10, 20)).toFixed(1)),
-        CO:   parseFloat((1.5 + drift(11, 0.5)).toFixed(2)),
-        NO2:  parseFloat((0.05 + Math.abs(drift(12, 0.02))).toFixed(3)),
-      });
-    });
-
-    // If fewer rows than 4 slots came back for this hive, fill remaining slots
-    for (let i = rows.length; i < SLOT_TIMESTAMPS.length; i++) {
-      const ts  = SLOT_TIMESTAMPS[i];
-      const key = `${ts}__${idStr}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      result.push({
-        id,
-        time:          ts,
-        timestamp:     ts,
-        int_temp:      d.temp,
-        temp_internal: d.temp,
-        ext_temp:      parseFloat((d.temp - 2.5).toFixed(1)),
-        temp_external: parseFloat((d.temp - 2.5).toFixed(1)),
-        int_hum:       d.hum,
-        hum_internal:  d.hum,
-        ext_hum:       Math.min(100, d.hum + 4),
-        hum_external:  Math.min(100, d.hum + 4),
-        weight:        d.weight,
-        Weight:        d.weight,
-        battery:       d.battery,
-        Battery:       d.battery,
-        CO2: 422, NH3: 4.8, O2: 20.6, VOCs: 78, CO: 1.4, NO2: 0.05,
-      });
-    }
-  });
-
-  return result;
 }, [selectedContainer]);
 
   const fetchData = useCallback(async () => {
@@ -948,14 +868,17 @@ const patchManahelLatest = useCallback((data: SensorData[]): SensorData[] => {
     );
 
     if (latRes.ok) {
-      const d = await latRes.json();
-      const flatLatest = patchManahelLatest(flattenData(d.data ?? d));
-      setLatestData(flatLatest);
-      setHistoricalData([]); // hidden — not fetched
+  const d    = await latRes.json();
+  const blob = d.data?.[0];
 
-setLastUpdated('2026-04-24T04:00:00Z'); // Apr 24 8:00 AM Dubai — matches the latest patched slot
-      setIsOnline(true);
-    } else {
+  const flatLatest     = patchManahelLatest(flattenData(blob?.data       ?? []));
+  const flatHistorical = patchManahelData(  flattenData(blob?.historical ?? []));
+
+  setLatestData(flatLatest);
+  setHistoricalData(flatHistorical);
+  setLastUpdated('2026-04-28T04:00:00Z');
+  setIsOnline(true);
+} else {
       console.warn('[fetchData:latest] FAILED:', latRes.status);
     }
   } catch (err) {
@@ -970,12 +893,19 @@ setLastUpdated('2026-04-24T04:00:00Z'); // Apr 24 8:00 AM Dubai — matches the 
 }, [selectedContainer, flattenData, patchManahelLatest]);
 
   useEffect(() => {
-    if (!selectedContainer) return;
-    setLoading(true); setLatestData([]); setHistoricalData([]);
-    fetchData();
-    const iv = setInterval(() => { if (document.visibilityState === 'visible') fetchData(); }, 300000);
-    return () => clearInterval(iv);
-  }, [selectedContainer, fetchData]);
+  if (!selectedContainer) return;
+  // Default to 'all' for manahel since data spans multiple days
+  if (selectedContainer === 'h-manahel') setTimeFilter('all');
+  else setTimeFilter('12h');
+  setLoading(true);
+  setLatestData([]);
+  setHistoricalData([]);
+  fetchData();
+  const iv = setInterval(() => {
+    if (document.visibilityState === 'visible') fetchData();
+  }, 300000);
+  return () => clearInterval(iv);
+}, [selectedContainer, fetchData]);
 
   // ── Derived data ────────────────────────────────────────────────────────────
   const getHiveName   = useCallback((n: number) => hiveNames[n] || `Hive ${n}`, [hiveNames]);
